@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from '@/layouts/MainLayout';
 import Dashboard from '@/pages/Dashboard';
-import Routes as RoutesPage from '@/pages/Routes';
+import RoutesPage from '@/pages/Routes';
 import Login from '@/pages/Login';
 
 // Protected Route Component
