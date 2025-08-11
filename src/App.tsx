@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from '@/layouts/MainLayout';
+import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
-import RoutesPage from '@/pages/Routes';
+import RoutesPage from '@/pages/Routes';  // Düzeltildi - "as" kaldırıldı
 import CreateRoute from '@/pages/CreateRoute';
 import EditRoute from '@/pages/EditRoute';
 import RouteDetail from '@/pages/RouteDetail';
@@ -10,105 +11,144 @@ import Customers from '@/pages/Customers';
 import CreateCustomer from '@/pages/CreateCustomer';
 import EditCustomer from '@/pages/EditCustomer';
 import CustomerDetail from '@/pages/CustomerDetail';
-import Login from '@/pages/Login';
+import TestMap from '@/pages/TestMap';
+import Drivers from '@/pages/Drivers';
+import Vehicles from '@/pages/Vehicles';
+import Journeys from '@/pages/Journeys';
+import LiveTracking from '@/pages/LiveTracking';
+import Reports from '@/pages/Reports';
+import Settings from '@/pages/Settings';
 
 // Protected Route Component
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-}
-
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const token = localStorage.getItem('token');
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
   
-  if (!token) {
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
   
-  return <>{children}</>;
-};
-
-// Public Route Component (redirects to dashboard if already logged in)
-interface PublicRouteProps {
-  children: React.ReactNode;
-}
-
-const PublicRoute: React.FC<PublicRouteProps> = ({ children }) => {
-  const token = localStorage.getItem('token');
-  
-  if (token) {
-    return <Navigate to="/" replace />;
-  }
-  
-  return <>{children}</>;
+  return <MainLayout>{children}</MainLayout>;
 };
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-
   useEffect(() => {
-    // Check if user is authenticated
-    const token = localStorage.getItem('token');
-    setIsAuthenticated(!!token);
+    // Initialize mock authentication
+    const isAuth = localStorage.getItem('isAuthenticated');
+    if (isAuth === null) {
+      localStorage.setItem('isAuthenticated', 'false');
+    }
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setIsAuthenticated(false);
-  };
-
   return (
-    <Router>
+    <BrowserRouter>
       <Routes>
         {/* Public Routes */}
-        <Route 
-          path="/login" 
-          element={
-            <PublicRoute>
-              <Login onLoginSuccess={() => setIsAuthenticated(true)} />
-            </PublicRoute>
-          } 
-        />
-
+        <Route path="/login" element={<Login />} />
+        <Route path="/test-map" element={<TestMap />} />
+        
         {/* Protected Routes */}
-        <Route
-          path="/*"
-          element={
-            <ProtectedRoute>
-              <MainLayout onLogout={handleLogout}>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  
-                  {/* Routes Module */}
-                  <Route path="/routes" element={<RoutesPage />} />
-                  <Route path="/routes/new" element={<CreateRoute />} />
-                  <Route path="/routes/:id" element={<RouteDetail />} />
-                  <Route path="/routes/:id/edit" element={<EditRoute />} />
-                  
-                  {/* Customers Module */}
-                  <Route path="/customers" element={<Customers />} />
-                  <Route path="/customers/new" element={<CreateCustomer />} />
-                  <Route path="/customers/:id" element={<CustomerDetail />} />
-                  <Route path="/customers/:id/edit" element={<EditCustomer />} />
-                  
-                  {/* Other Pages - Coming Soon */}
-                  <Route path="/journeys" element={<div className="p-6">Seferler Sayfası - Yakında</div>} />
-                  <Route path="/drivers" element={<div className="p-6">Sürücüler Sayfası - Yakında</div>} />
-                  <Route path="/depots" element={<div className="p-6">Depolar Sayfası - Yakında</div>} />
-                  <Route path="/tracking" element={<div className="p-6">Canlı Takip Sayfası - Yakında</div>} />
-                  <Route path="/reports" element={<div className="p-6">Raporlar Sayfası - Yakında</div>} />
-                  <Route path="/profile" element={<div className="p-6">Profil Sayfası - Yakında</div>} />
-                  <Route path="/activities" element={<div className="p-6">Aktiviteler Sayfası - Yakında</div>} />
-                  
-                  {/* Default redirect */}
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/" element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        } />
+        
+        {/* Routes Module */}
+        <Route path="/routes" element={
+          <ProtectedRoute>
+            <RoutesPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/routes/new" element={
+          <ProtectedRoute>
+            <CreateRoute />
+          </ProtectedRoute>
+        } />
+        <Route path="/routes/:id" element={
+          <ProtectedRoute>
+            <RouteDetail />
+          </ProtectedRoute>
+        } />
+        <Route path="/routes/:id/edit" element={
+          <ProtectedRoute>
+            <EditRoute />
+          </ProtectedRoute>
+        } />
+        
+        {/* Customers Module */}
+        <Route path="/customers" element={
+          <ProtectedRoute>
+            <Customers />
+          </ProtectedRoute>
+        } />
+        <Route path="/customers/new" element={
+          <ProtectedRoute>
+            <CreateCustomer />
+          </ProtectedRoute>
+        } />
+        <Route path="/customers/:id" element={
+          <ProtectedRoute>
+            <CustomerDetail />
+          </ProtectedRoute>
+        } />
+        <Route path="/customers/:id/edit" element={
+          <ProtectedRoute>
+            <EditCustomer />
+          </ProtectedRoute>
+        } />
+        
+        {/* Drivers Module */}
+        <Route path="/drivers" element={
+          <ProtectedRoute>
+            <Drivers />
+          </ProtectedRoute>
+        } />
+        
+        {/* Vehicles Module */}
+        <Route path="/vehicles" element={
+          <ProtectedRoute>
+            <Vehicles />
+          </ProtectedRoute>
+        } />
+        
+        {/* Journeys Module */}
+        <Route path="/journeys" element={
+          <ProtectedRoute>
+            <Journeys />
+          </ProtectedRoute>
+        } />
+        
+        {/* Live Tracking */}
+        <Route path="/tracking" element={
+          <ProtectedRoute>
+            <LiveTracking />
+          </ProtectedRoute>
+        } />
+        
+        {/* Reports */}
+        <Route path="/reports" element={
+          <ProtectedRoute>
+            <Reports />
+          </ProtectedRoute>
+        } />
+        
+        {/* Settings */}
+        <Route path="/settings" element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        } />
+        
+        {/* Catch all - redirect to dashboard */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
-    </Router>
+    </BrowserRouter>
   );
 }
 

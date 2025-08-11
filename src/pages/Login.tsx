@@ -1,16 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Route, Lock, Mail, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Lock, Mail, Loader2, AlertCircle, Truck } from 'lucide-react';
 
-interface LoginProps {
-  onLoginSuccess?: () => void;
-}
-
-const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
+const Login: React.FC = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('admin@rotaapp.com');
-  const [password, setPassword] = useState('admin123');
-  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -23,27 +18,28 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setTimeout(() => {
       // Mock authentication
       if (email === 'admin@rotaapp.com' && password === 'admin123') {
-        // Store auth data
-        localStorage.setItem('token', 'mock-jwt-token-' + Date.now());
+        // Set authentication in localStorage
+        localStorage.setItem('isAuthenticated', 'true');
         localStorage.setItem('user', JSON.stringify({
           id: '1',
           email: email,
           name: 'Admin User',
-          role: 'Admin'
+          role: 'admin'
         }));
-
-        // Call success callback
-        if (onLoginSuccess) {
-          onLoginSuccess();
-        }
-
+        
         // Navigate to dashboard
-        navigate('/');
+        navigate('/dashboard');
       } else {
-        setError('E-posta veya şifre hatalı');
+        setError('Email veya şifre hatalı!');
         setLoading(false);
       }
     }, 1000);
+  };
+
+  // Demo credentials helper
+  const fillDemoCredentials = () => {
+    setEmail('admin@rotaapp.com');
+    setPassword('admin123');
   };
 
   return (
@@ -51,100 +47,75 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       <div className="max-w-md w-full">
         {/* Logo and Title */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-xl shadow-lg mb-4">
-            <Route className="w-10 h-10 text-white" />
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full mb-4">
+            <Truck className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">RotaApp</h1>
           <p className="text-gray-600 mt-2">Rota Optimizasyon Platformu</p>
         </div>
 
-        {/* Login Card */}
+        {/* Login Form */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">Giriş Yap</h2>
-          
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Email Field */}
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start">
+              <AlertCircle className="w-5 h-5 text-red-600 mr-2 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                E-posta Adresi
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                E-posta
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
-                </div>
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="ornek@email.com"
                   required
                 />
               </div>
             </div>
 
-            {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                 Şifre
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   id="password"
-                  type={showPassword ? 'text' : 'password'}
+                  type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="••••••••"
                   required
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                  ) : (
-                    <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                  )}
-                </button>
               </div>
             </div>
 
-            {/* Remember Me & Forgot Password */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember"
-                  type="checkbox"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="remember" className="ml-2 block text-sm text-gray-700">
-                  Beni hatırla
-                </label>
-              </div>
-              <a href="#" className="text-sm text-blue-600 hover:text-blue-700">
+              <label className="flex items-center">
+                <input type="checkbox" className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                <span className="ml-2 text-sm text-gray-600">Beni hatırla</span>
+              </label>
+              <a href="#" className="text-sm text-blue-600 hover:underline">
                 Şifremi unuttum
               </a>
             </div>
 
-            {/* Error Message */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
-
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center px-4 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
             >
               {loading ? (
                 <>
@@ -158,25 +129,28 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           </form>
 
           {/* Demo Credentials */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <p className="text-sm font-medium text-blue-900 mb-2">Demo Giriş Bilgileri:</p>
-            <p className="text-xs text-blue-700">Email: admin@rotaapp.com</p>
-            <p className="text-xs text-blue-700">Şifre: admin123</p>
-          </div>
-
-          {/* Footer */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              Hesabınız yok mu?{' '}
-              <a href="#" className="font-medium text-blue-600 hover:text-blue-700">
-                Kayıt olun
-              </a>
-            </p>
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <div className="bg-blue-50 rounded-lg p-4">
+              <p className="text-sm text-gray-700 mb-2">
+                <strong>Demo Hesap:</strong>
+              </p>
+              <p className="text-xs text-gray-600">
+                Email: admin@rotaapp.com<br />
+                Şifre: admin123
+              </p>
+              <button
+                type="button"
+                onClick={fillDemoCredentials}
+                className="mt-2 text-xs text-blue-600 hover:underline"
+              >
+                Demo bilgilerini doldur →
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Copyright */}
-        <p className="text-center text-sm text-gray-500 mt-8">
+        {/* Footer */}
+        <p className="text-center text-sm text-gray-600 mt-8">
           © 2024 RotaApp. Tüm hakları saklıdır.
         </p>
       </div>

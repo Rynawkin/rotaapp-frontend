@@ -10,17 +10,25 @@ import {
   Send,
   AlertCircle,
   Sparkles,
-  Loader2
+  Loader2,
+  Map,
+  Navigation,
+  Zap
 } from 'lucide-react';
 import CustomerSelector from './CustomerSelector';
 import StopsList from './StopsList';
+import MapComponent from '@/components/maps/MapComponent';
+import LeafletMapComponent from '@/components/maps/LeafletMapComponent';
 import { Route, Customer, Driver, Vehicle, Depot, RouteStop } from '@/types';
+import { LatLng, MarkerData, OptimizationWaypoint } from '@/types/maps';
 import { 
   customerService, 
   driverService, 
   vehicleService, 
   depotService 
 } from '@/services/mockData';
+import { googleMapsService } from '@/services/googleMapsService';
+import { simpleOptimizationService } from '@/services/simpleOptimizationService';
 
 // Stop data interface for managing customer overrides
 interface StopData {
@@ -67,6 +75,15 @@ const RouteForm: React.FC<RouteFormProps> = ({
   // Stops with override data
   const [stopsData, setStopsData] = useState<StopData[]>([]);
 
+  // Map State
+  const [showMap, setShowMap] = useState(false);
+  const [mapCenter, setMapCenter] = useState<LatLng>({ lat: 40.9869, lng: 29.0252 });
+  const [mapDirections, setMapDirections] = useState<google.maps.DirectionsResult | null>(null);
+  const [optimizing, setOptimizing] = useState(false);
+  const [optimizationMode, setOptimizationMode] = useState<'distance' | 'duration'>('distance');
+  const [optimizedOrder, setOptimizedOrder] = useState<number[]>([]);
+  const [useGoogleMaps, setUseGoogleMaps] = useState(true);
+
   // Load lists on mount
   useEffect(() => {
     loadLists();
@@ -108,6 +125,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
       setDrivers(driversData);
       setVehicles(vehiclesData);
       setDepots(depotsData);
+      
+      // Set map center to default depot
+      const defaultDepot = depotsData.find(d => d.isDefault);
+      if (defaultDepot) {
+        setMapCenter({ lat: defaultDepot.latitude, lng: defaultDepot.longitude });
+      }
     } catch (error) {
       console.error('Error loading lists:', error);
     } finally {
@@ -119,17 +142,26 @@ const RouteForm: React.FC<RouteFormProps> = ({
     if (!stopsData.find(s => s.customer.id === customer.id)) {
       setStopsData([...stopsData, { 
         customer,
-        serviceTime: customer.estimatedServiceTime || 10 // Default 10 dakika
+        serviceTime: customer.estimatedServiceTime || 10
       }]);
     }
   };
 
   const handleRemoveCustomer = (customerId: string) => {
     setStopsData(stopsData.filter(s => s.customer.id !== customerId));
+    // Optimizasyon sıralamasını temizle
+    setOptimizedOrder([]);
+    // Clear directions when removing customer
+    if (stopsData.length <= 2) {
+      setMapDirections(null);
+    }
   };
 
   const handleReorderStops = (reorderedStops: StopData[]) => {
     setStopsData(reorderedStops);
+    // Manuel sıralama yapıldığında optimizasyon sıralamasını temizle
+    setOptimizedOrder([]);
+    setMapDirections(null);
   };
 
   const handleUpdateStop = (index: number, updates: Partial<StopData>) => {
@@ -138,10 +170,155 @@ const RouteForm: React.FC<RouteFormProps> = ({
     setStopsData(newStops);
   };
 
-  const handleOptimize = () => {
-    // Fake optimization - just shuffle for now
-    const shuffled = [...stopsData].sort(() => Math.random() - 0.5);
-    setStopsData(shuffled);
+  // GERÇEK OPTİMİZASYON FONKSİYONU
+  const handleOptimize = async () => {
+    if (stopsData.length < 2) {
+      alert('Optimizasyon için en az 2 durak gerekli!');
+      return;
+    }
+
+    const selectedDepot = depots.find(d => d.id === formData.depotId);
+    if (!selectedDepot) {
+      alert('Lütfen bir depo seçin!');
+      return;
+    }
+
+    setOptimizing(true);
+    
+    try {
+      // Depo konumu
+      const depotLocation = {
+        lat: selectedDepot.latitude,
+        lng: selectedDepot.longitude
+      };
+
+      // Google Maps kullanılıyorsa ve yüklüyse
+      if (useGoogleMaps && window.google && window.google.maps) {
+        // Google Maps servisleri initialize et
+        googleMapsService.initializeServices();
+        
+        // Waypoints oluştur
+        const waypoints = stopsData.map(stop => 
+          googleMapsService.customerToWaypoint(stop.customer, {
+            timeWindow: stop.overrideTimeWindow,
+            priority: stop.overridePriority,
+            serviceTime: stop.serviceTime
+          })
+        );
+
+        // Google ile optimize et
+        const result = await googleMapsService.optimizeRoute(
+          depotLocation,
+          waypoints,
+          optimizationMode
+        );
+
+        if (result) {
+          // Optimize edilmiş sırayı kaydet
+          setOptimizedOrder(result.optimizedOrder);
+          
+          // Optimize edilmiş sırayla stops'ları yeniden düzenle
+          const optimizedStops = result.optimizedOrder.map(index => stopsData[index]);
+          setStopsData(optimizedStops);
+          
+          // Haritada göster
+          if (result.route) {
+            setMapDirections(result.route);
+            setShowMap(true);
+          }
+
+          // Kullanıcıya bilgi ver
+          alert(`✅ Rota optimize edildi!\n\n` +
+                `📍 Toplam Mesafe: ${result.totalDistance.toFixed(1)} km\n` +
+                `⏱️ Tahmini Süre: ${result.totalDuration} dakika\n` +
+                `🗺️ Google Maps ile optimize edildi\n` +
+                `${optimizationMode === 'distance' ? '🎯 En kısa mesafe' : '⚡ En hızlı rota'}`);
+        }
+      } else {
+        // Basit algoritma kullan
+        const customersToOptimize = stopsData.map(stop => ({
+          ...stop.customer,
+          priority: stop.overridePriority || stop.customer.priority,
+          timeWindow: stop.overrideTimeWindow || stop.customer.timeWindow,
+          estimatedServiceTime: stop.serviceTime || stop.customer.estimatedServiceTime || 10
+        }));
+
+        const result = optimizationMode === 'distance' 
+          ? simpleOptimizationService.optimizeRoute(depotLocation, customersToOptimize, 'distance')
+          : simpleOptimizationService.optimizeWithTimeWindows(depotLocation, customersToOptimize);
+
+        if (result) {
+          // Optimize edilmiş sırayı kaydet
+          setOptimizedOrder(result.optimizedOrder);
+          
+          // Optimize edilmiş sırayla stops'ları yeniden düzenle
+          const optimizedStops = result.optimizedOrder.map(index => stopsData[index]);
+          setStopsData(optimizedStops);
+          
+          // Haritayı göster
+          setShowMap(true);
+
+          let message = `✅ Rota optimize edildi!\n\n` +
+                       `📍 Toplam Mesafe: ${result.totalDistance.toFixed(1)} km\n` +
+                       `⏱️ Tahmini Süre: ${result.estimatedDuration} dakika\n` +
+                       `${optimizationMode === 'distance' ? '🎯 En kısa mesafe' : '⚡ En hızlı rota'}`;
+          
+          if ('violations' in result && result.violations.length > 0) {
+            message += `\n\n⚠️ Zaman Penceresi Uyarıları:\n${result.violations.join('\n')}`;
+          }
+          
+          alert(message);
+        }
+      }
+    } catch (error) {
+      console.error('Optimization error:', error);
+      alert('Optimizasyon sırasında bir hata oluştu.');
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  // Haritada rota göster
+  const showRouteOnMap = async () => {
+    if (stopsData.length === 0) {
+      alert('Haritada göstermek için durak ekleyin!');
+      return;
+    }
+
+    const selectedDepot = depots.find(d => d.id === formData.depotId);
+    if (!selectedDepot) {
+      alert('Lütfen bir depo seçin!');
+      return;
+    }
+
+    // Google Maps kullanılıyorsa directions API ile rota çiz
+    if (useGoogleMaps && window.google && window.google.maps) {
+      const depotLocation: LatLng = {
+        lat: selectedDepot.latitude,
+        lng: selectedDepot.longitude
+      };
+
+      const waypointLocations = stopsData.map(stop => ({
+        lat: stop.customer.latitude,
+        lng: stop.customer.longitude
+      }));
+
+      // Initialize services if needed
+      googleMapsService.initializeServices();
+
+      // Get directions
+      const directions = await googleMapsService.getDirections(
+        depotLocation,
+        waypointLocations,
+        depotLocation
+      );
+
+      if (directions) {
+        setMapDirections(directions);
+      }
+    }
+    
+    setShowMap(true);
   };
 
   const calculateTotalDuration = () => {
@@ -152,9 +329,9 @@ const RouteForm: React.FC<RouteFormProps> = ({
       totalMinutes += stop.serviceTime || stop.customer.estimatedServiceTime || 10;
     });
     
-    // Add estimated travel time between stops (fake calculation)
+    // Add estimated travel time between stops
     if (stopsData.length > 0) {
-      totalMinutes += stopsData.length * 15; // 15 dakika ortalama yol
+      totalMinutes += stopsData.length * 15;
     }
     
     return totalMinutes;
@@ -176,7 +353,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
       serviceTime: stopData.serviceTime,
       stopNotes: stopData.stopNotes,
       estimatedArrival: new Date(),
-      distance: Math.random() * 10 + 2 // Fake distance
+      distance: 0
     }));
 
     const routeData: Partial<Route> = {
@@ -184,7 +361,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
       stops,
       totalDeliveries: stops.length,
       totalDuration: calculateTotalDuration(),
-      status: 'planned'
+      status: 'planned',
+      optimized: optimizedOrder.length > 0 // Optimize edilmiş mi?
     };
 
     onSubmit(routeData);
@@ -216,6 +394,21 @@ const RouteForm: React.FC<RouteFormProps> = ({
     if (onSaveAsDraft) {
       onSaveAsDraft(routeData);
     }
+  };
+
+  // Get depot location
+  const getDepotLocation = (): LatLng | undefined => {
+    const selectedDepot = depots.find(d => d.id === formData.depotId);
+    return selectedDepot ? {
+      lat: selectedDepot.latitude,
+      lng: selectedDepot.longitude
+    } : undefined;
+  };
+
+  // Handle map load - Google Maps servisleri başlatma
+  const handleMapLoad = (map: google.maps.Map) => {
+    googleMapsService.initializeServices(map);
+    console.log('✅ Google Maps servisleri yüklendi');
   };
 
   if (loadingLists) {
@@ -353,18 +546,68 @@ const RouteForm: React.FC<RouteFormProps> = ({
           <h2 className="text-lg font-semibold text-gray-900">Müşteri Seçimi</h2>
           <div className="flex items-center space-x-3">
             {stopsData.length > 0 && (
-              <div className="text-sm text-gray-600">
-                Toplam Süre: <span className="font-semibold">{calculateTotalDuration()} dk</span>
-              </div>
+              <>
+                <div className="text-sm text-gray-600">
+                  Toplam: <span className="font-semibold">{stopsData.length} durak</span>
+                </div>
+                <div className="text-sm text-gray-600">
+                  Süre: <span className="font-semibold">{calculateTotalDuration()} dk</span>
+                </div>
+              </>
             )}
+            
+            {/* Map Toggle */}
+            <button
+              type="button"
+              onClick={() => setShowMap(!showMap)}
+              className="px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center text-sm"
+            >
+              <Map className="w-4 h-4 mr-1.5" />
+              {showMap ? 'Haritayı Gizle' : 'Haritayı Göster'}
+            </button>
+
+            {/* Show Route Button */}
+            {stopsData.length > 0 && (
+              <button
+                type="button"
+                onClick={showRouteOnMap}
+                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center text-sm"
+              >
+                <Navigation className="w-4 h-4 mr-1.5" />
+                Rotayı Göster
+              </button>
+            )}
+
+            {/* Optimization Mode Selector */}
+            {stopsData.length > 1 && (
+              <select
+                value={optimizationMode}
+                onChange={(e) => setOptimizationMode(e.target.value as 'distance' | 'duration')}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="distance">En Kısa Mesafe</option>
+                <option value="duration">En Hızlı Rota</option>
+              </select>
+            )}
+
+            {/* Optimize Button */}
             <button
               type="button"
               onClick={handleOptimize}
-              disabled={stopsData.length < 2}
+              disabled={stopsData.length < 2 || optimizing}
               className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center text-sm"
             >
-              <Sparkles className="w-4 h-4 mr-1.5" />
-              Optimize Et
+              {optimizing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                  Optimize Ediliyor...
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4 mr-1.5" />
+                  {useGoogleMaps ? 'Google ile Optimize Et' : 'Optimize Et'}
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -375,6 +618,69 @@ const RouteForm: React.FC<RouteFormProps> = ({
           onSelect={handleAddCustomer}
         />
       </div>
+
+      {/* Map */}
+      {showMap && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Rota Haritası</h2>
+            <div className="flex items-center space-x-2">
+              <label className="flex items-center text-sm">
+                <input
+                  type="checkbox"
+                  checked={useGoogleMaps}
+                  onChange={(e) => setUseGoogleMaps(e.target.checked)}
+                  className="mr-2"
+                />
+                Google Maps kullan
+              </label>
+            </div>
+          </div>
+          
+          {useGoogleMaps ? (
+            // Google Maps
+            <MapComponent
+              center={mapCenter}
+              height="500px"
+              markers={stopsData.map((stop, index) => ({
+                position: {
+                  lat: stop.customer.latitude,
+                  lng: stop.customer.longitude
+                },
+                title: stop.customer.name,
+                label: String(index + 1),
+                type: 'customer' as const,
+                customerId: stop.customer.id
+              }))}
+              depot={getDepotLocation()}
+              directions={mapDirections}
+              customers={customers}
+              optimizedOrder={optimizedOrder}
+              showTraffic={true}
+              onMapLoad={handleMapLoad}
+            />
+          ) : (
+            // Leaflet Map (Ücretsiz alternatif)
+            <LeafletMapComponent
+              center={mapCenter}
+              height="500px"
+              customers={customers}
+              depot={getDepotLocation()}
+              stops={stopsData.map((stop, index) => ({
+                customer: stop.customer,
+                order: index + 1
+              }))}
+            />
+          )}
+          
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-700">
+              <strong>📍 Rota Bilgisi:</strong> {useGoogleMaps ? 'Google Maps' : 'OpenStreetMap'} kullanılıyor. 
+              {optimizedOrder.length > 0 && ' Rota optimize edildi ve sıralama güncellendi.'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Stops List */}
       {stopsData.length > 0 && (
