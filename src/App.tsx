@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from '@/layouts/MainLayout';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
-import RoutesPage from '@/pages/Routes';  // Düzeltildi - "as" kaldırıldı
+import RoutesPage from '@/pages/Routes';
 import CreateRoute from '@/pages/CreateRoute';
 import EditRoute from '@/pages/EditRoute';
 import RouteDetail from '@/pages/RouteDetail';
@@ -13,7 +13,13 @@ import EditCustomer from '@/pages/EditCustomer';
 import CustomerDetail from '@/pages/CustomerDetail';
 import TestMap from '@/pages/TestMap';
 import Drivers from '@/pages/Drivers';
+import CreateDriver from '@/pages/CreateDriver';
+import EditDriver from '@/pages/EditDriver';
+import DriverDetail from '@/pages/DriverDetail';
 import Vehicles from '@/pages/Vehicles';
+import CreateVehicle from '@/pages/CreateVehicle';
+import EditVehicle from '@/pages/EditVehicle';
+import VehicleDetail from '@/pages/VehicleDetail';
 import Journeys from '@/pages/Journeys';
 import LiveTracking from '@/pages/LiveTracking';
 import Reports from '@/pages/Reports';
@@ -103,17 +109,47 @@ function App() {
           </ProtectedRoute>
         } />
         
-        {/* Drivers Module */}
+        {/* Drivers Module - TAMAMLANDI */}
         <Route path="/drivers" element={
           <ProtectedRoute>
             <Drivers />
           </ProtectedRoute>
         } />
+        <Route path="/drivers/new" element={
+          <ProtectedRoute>
+            <CreateDriver />
+          </ProtectedRoute>
+        } />
+        <Route path="/drivers/:id" element={
+          <ProtectedRoute>
+            <DriverDetail />
+          </ProtectedRoute>
+        } />
+        <Route path="/drivers/:id/edit" element={
+          <ProtectedRoute>
+            <EditDriver />
+          </ProtectedRoute>
+        } />
         
-        {/* Vehicles Module */}
+        {/* Vehicles Module - TAMAMLANDI */}
         <Route path="/vehicles" element={
           <ProtectedRoute>
             <Vehicles />
+          </ProtectedRoute>
+        } />
+        <Route path="/vehicles/new" element={
+          <ProtectedRoute>
+            <CreateVehicle />
+          </ProtectedRoute>
+        } />
+        <Route path="/vehicles/:id" element={
+          <ProtectedRoute>
+            <VehicleDetail />
+          </ProtectedRoute>
+        } />
+        <Route path="/vehicles/:id/edit" element={
+          <ProtectedRoute>
+            <EditVehicle />
           </ProtectedRoute>
         } />
         

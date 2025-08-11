@@ -12,7 +12,7 @@ export const mockCustomers: Customer[] = [
     longitude: 29.0252,
     timeWindow: { start: '09:00', end: '12:00' },
     priority: 'high',
-    estimatedServiceTime: 15, // YENİ - 15 dakika
+    estimatedServiceTime: 15,
     notes: 'Kapı zili bozuk, telefon et',
     tags: ['bakkal', 'vip'],
     createdAt: new Date('2024-01-15'),
@@ -27,7 +27,7 @@ export const mockCustomers: Customer[] = [
     latitude: 41.0227,
     longitude: 29.0173,
     priority: 'normal',
-    estimatedServiceTime: 20, // YENİ - 20 dakika (market daha büyük)
+    estimatedServiceTime: 20,
     tags: ['market'],
     createdAt: new Date('2024-01-20'),
     updatedAt: new Date('2024-01-20')
@@ -42,7 +42,7 @@ export const mockCustomers: Customer[] = [
     longitude: 29.0061,
     timeWindow: { start: '14:00', end: '17:00' },
     priority: 'normal',
-    estimatedServiceTime: 10, // YENİ - 10 dakika
+    estimatedServiceTime: 10,
     tags: ['şarküteri'],
     createdAt: new Date('2024-02-01'),
     updatedAt: new Date('2024-02-01')
@@ -56,7 +56,7 @@ export const mockCustomers: Customer[] = [
     latitude: 41.0853,
     longitude: 29.0568,
     priority: 'low',
-    estimatedServiceTime: 5, // YENİ - 5 dakika (büfe küçük)
+    estimatedServiceTime: 5,
     tags: ['büfe'],
     createdAt: new Date('2024-02-10'),
     updatedAt: new Date('2024-02-10')
@@ -70,7 +70,7 @@ export const mockCustomers: Customer[] = [
     latitude: 40.9826,
     longitude: 29.1276,
     priority: 'high',
-    estimatedServiceTime: 30, // YENİ - 30 dakika (büyük market)
+    estimatedServiceTime: 30,
     notes: 'Büyük sipariş, kamyonet gerekli',
     tags: ['market', 'vip'],
     createdAt: new Date('2024-02-15'),
@@ -287,7 +287,7 @@ export const mockRoutes: Route[] = [
   {
     id: '3',
     name: 'Üsküdar Express',
-    date: new Date(Date.now() - 86400000), // Yesterday
+    date: new Date(Date.now() - 86400000),
     driverId: '3',
     driver: mockDrivers[2],
     vehicleId: '3',
@@ -388,12 +388,11 @@ export const routeService = {
   },
 
   async optimize(id: string): Promise<Route | null> {
-    await delay(1500); // Optimization takes time
+    await delay(1500);
     const route = await this.getById(id);
     
     if (!route) return null;
     
-    // Fake optimization - just shuffle stops and mark as optimized
     const optimizedStops = [...route.stops].sort(() => Math.random() - 0.5);
     const optimizedRoute = {
       ...route,
@@ -402,14 +401,14 @@ export const routeService = {
         order: index + 1
       })),
       optimized: true,
-      totalDistance: Math.round(route.totalDistance * 0.85 * 10) / 10 // 15% improvement
+      totalDistance: Math.round(route.totalDistance * 0.85 * 10) / 10
     };
     
     return this.update(id, optimizedRoute);
   }
 };
 
-// Customer Service - GÜNCELLENMIŞ VERSİYON
+// Customer Service
 export const customerService = {
   async getAll(): Promise<Customer[]> {
     await delay(400);
@@ -519,10 +518,10 @@ export const customerService = {
   }
 };
 
-// Driver Service
+// Driver Service - GÜNCELLENMİŞ VERSİYON
 export const driverService = {
   async getAll(): Promise<Driver[]> {
-    await delay(300);
+    await delay(400);
     const saved = localStorage.getItem('drivers');
     if (saved) {
       return JSON.parse(saved);
@@ -531,16 +530,87 @@ export const driverService = {
     return mockDrivers;
   },
 
+  async getById(id: string): Promise<Driver | null> {
+    await delay(300);
+    const drivers = await this.getAll();
+    return drivers.find(d => d.id === id) || null;
+  },
+
   async getAvailable(): Promise<Driver[]> {
+    await delay(300);
     const drivers = await this.getAll();
     return drivers.filter(d => d.status === 'available');
+  },
+
+  async search(query: string): Promise<Driver[]> {
+    await delay(300);
+    const drivers = await this.getAll();
+    const lowQuery = query.toLowerCase();
+    
+    return drivers.filter(d => 
+      d.name.toLowerCase().includes(lowQuery) ||
+      d.phone.toLowerCase().includes(lowQuery) ||
+      (d.email && d.email.toLowerCase().includes(lowQuery)) ||
+      d.licenseNumber.toLowerCase().includes(lowQuery)
+    );
+  },
+
+  async create(driver: Partial<Driver>): Promise<Driver> {
+    await delay(500);
+    const drivers = await this.getAll();
+    const newDriver: Driver = {
+      id: Date.now().toString(),
+      name: driver.name || '',
+      phone: driver.phone || '',
+      email: driver.email,
+      licenseNumber: driver.licenseNumber || '',
+      status: driver.status || 'available',
+      rating: driver.rating || 0,
+      totalDeliveries: driver.totalDeliveries || 0,
+      createdAt: new Date(),
+      ...driver
+    };
+    
+    drivers.push(newDriver);
+    localStorage.setItem('drivers', JSON.stringify(drivers));
+    return newDriver;
+  },
+
+  async update(id: string, updates: Partial<Driver>): Promise<Driver | null> {
+    await delay(400);
+    const drivers = await this.getAll();
+    const index = drivers.findIndex(d => d.id === id);
+    
+    if (index === -1) return null;
+    
+    drivers[index] = { 
+      ...drivers[index], 
+      ...updates
+    };
+    localStorage.setItem('drivers', JSON.stringify(drivers));
+    return drivers[index];
+  },
+
+  async delete(id: string): Promise<boolean> {
+    await delay(300);
+    const drivers = await this.getAll();
+    const filtered = drivers.filter(d => d.id !== id);
+    
+    if (filtered.length === drivers.length) return false;
+    
+    localStorage.setItem('drivers', JSON.stringify(filtered));
+    return true;
+  },
+
+  async updateStatus(id: string, status: 'available' | 'busy' | 'offline'): Promise<Driver | null> {
+    return this.update(id, { status });
   }
 };
 
-// Vehicle Service
+// Vehicle Service - TAMAMLANMIŞ VERSİYON
 export const vehicleService = {
   async getAll(): Promise<Vehicle[]> {
-    await delay(300);
+    await delay(400);
     const saved = localStorage.getItem('vehicles');
     if (saved) {
       return JSON.parse(saved);
@@ -549,9 +619,80 @@ export const vehicleService = {
     return mockVehicles;
   },
 
+  async getById(id: string): Promise<Vehicle | null> {
+    await delay(300);
+    const vehicles = await this.getAll();
+    return vehicles.find(v => v.id === id) || null;
+  },
+
   async getAvailable(): Promise<Vehicle[]> {
+    await delay(300);
     const vehicles = await this.getAll();
     return vehicles.filter(v => v.status === 'active');
+  },
+
+  async search(query: string): Promise<Vehicle[]> {
+    await delay(300);
+    const vehicles = await this.getAll();
+    const lowQuery = query.toLowerCase();
+    
+    return vehicles.filter(v => 
+      v.plateNumber.toLowerCase().includes(lowQuery) ||
+      v.brand.toLowerCase().includes(lowQuery) ||
+      v.model.toLowerCase().includes(lowQuery) ||
+      v.type.toLowerCase().includes(lowQuery)
+    );
+  },
+
+  async create(vehicle: Partial<Vehicle>): Promise<Vehicle> {
+    await delay(500);
+    const vehicles = await this.getAll();
+    const newVehicle: Vehicle = {
+      id: Date.now().toString(),
+      plateNumber: vehicle.plateNumber || '',
+      type: vehicle.type || 'car',
+      brand: vehicle.brand || '',
+      model: vehicle.model || '',
+      year: vehicle.year || new Date().getFullYear(),
+      capacity: vehicle.capacity || 1000,
+      status: vehicle.status || 'active',
+      fuelType: vehicle.fuelType || 'diesel',
+      ...vehicle
+    };
+    
+    vehicles.push(newVehicle);
+    localStorage.setItem('vehicles', JSON.stringify(vehicles));
+    return newVehicle;
+  },
+
+  async update(id: string, updates: Partial<Vehicle>): Promise<Vehicle | null> {
+    await delay(400);
+    const vehicles = await this.getAll();
+    const index = vehicles.findIndex(v => v.id === id);
+    
+    if (index === -1) return null;
+    
+    vehicles[index] = { 
+      ...vehicles[index], 
+      ...updates
+    };
+    localStorage.setItem('vehicles', JSON.stringify(vehicles));
+    return vehicles[index];
+  },
+
+  async delete(id: string): Promise<boolean> {
+    await delay(300);
+    const vehicles = await this.getAll();
+    const filtered = vehicles.filter(v => v.id !== id);
+    
+    if (filtered.length === vehicles.length) return false;
+    
+    localStorage.setItem('vehicles', JSON.stringify(filtered));
+    return true;
+  },
+
+  async updateStatus(id: string, status: 'active' | 'maintenance' | 'inactive'): Promise<Vehicle | null> {
+    return this.update(id, { status });
   }
 };
 
