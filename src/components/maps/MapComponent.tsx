@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   GoogleMap,
   useJsApiLoader,
@@ -7,7 +7,7 @@ import {
   InfoWindow,
   Polyline
 } from '@react-google-maps/api';
-import { MapPin, Navigation, Home, Loader2 } from 'lucide-react';
+import { MapPin, Navigation, Home, Loader2, Package, Clock, Phone, Star, ChevronRight } from 'lucide-react';
 import { LatLng, MarkerData } from '@/types/maps';
 import { Customer } from '@/types';
 
@@ -26,93 +26,106 @@ interface MapComponentProps {
   onMapClick?: (latLng: LatLng) => void;
   onMarkerClick?: (marker: MarkerData) => void;
   onMapLoad?: (map: google.maps.Map) => void;
+  selectedCustomerId?: string;
+  onCustomerSelect?: (customerId: string) => void;
 }
 
-// Modern harita stili - Circuit benzeri
-const mapStyles = [
+// Ultra modern harita stili - Circuit/Uber benzeri
+const modernMapStyle = [
   {
-    featureType: "all",
-    elementType: "geometry",
-    stylers: [{ color: "#f5f5f5" }]
+    "elementType": "geometry",
+    "stylers": [{ "color": "#f8f9fa" }]
   },
   {
-    featureType: "water",
-    elementType: "geometry",
-    stylers: [{ color: "#e9e9e9" }]
+    "elementType": "labels.icon",
+    "stylers": [{ "visibility": "off" }]
   },
   {
-    featureType: "water",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#9e9e9e" }]
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#6c757d" }]
   },
   {
-    featureType: "road",
-    elementType: "geometry",
-    stylers: [{ color: "#ffffff" }]
+    "elementType": "labels.text.stroke",
+    "stylers": [{ "color": "#ffffff" }]
   },
   {
-    featureType: "road.arterial",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#757575" }]
+    "featureType": "administrative.land_parcel",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#bdbdbd" }]
   },
   {
-    featureType: "road.highway",
-    elementType: "geometry",
-    stylers: [{ color: "#dadada" }]
+    "featureType": "poi",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#eeeeee" }]
   },
   {
-    featureType: "road.highway",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#616161" }]
+    "featureType": "poi",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#757575" }]
   },
   {
-    featureType: "road.local",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#9e9e9e" }]
+    "featureType": "poi.park",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#e8f5e9" }]
   },
   {
-    featureType: "poi",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#757575" }]
+    "featureType": "poi.park",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#66bb6a" }]
   },
   {
-    featureType: "poi.park",
-    elementType: "geometry",
-    stylers: [{ color: "#e5e5e5" }]
+    "featureType": "road",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#ffffff" }]
   },
   {
-    featureType: "poi.park",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#9e9e9e" }]
+    "featureType": "road.arterial",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#757575" }]
   },
   {
-    featureType: "poi.business",
-    stylers: [{ visibility: "off" }]
+    "featureType": "road.highway",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#e8eaf6" }]
   },
   {
-    featureType: "transit",
-    elementType: "geometry",
-    stylers: [{ color: "#f2f2f2" }]
+    "featureType": "road.highway",
+    "elementType": "geometry.stroke",
+    "stylers": [{ "color": "#c5cae9" }]
   },
   {
-    featureType: "transit.station",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#8f8f8f" }]
+    "featureType": "road.highway",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#616161" }]
   },
   {
-    featureType: "administrative",
-    elementType: "geometry.fill",
-    stylers: [{ color: "#fefefe" }]
+    "featureType": "road.local",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#9e9e9e" }]
   },
   {
-    featureType: "administrative",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#c9c9c9" }]
+    "featureType": "transit.line",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#e5e5e5" }]
   },
   {
-    featureType: "administrative.land_parcel",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#bdbdbd" }]
+    "featureType": "transit.station",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#eeeeee" }]
+  },
+  {
+    "featureType": "water",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#c5cae9" }]
+  },
+  {
+    "featureType": "water",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#9e9e9e" }]
+  },
+  {
+    "featureType": "poi.business",
+    "stylers": [{ "visibility": "off" }]
   }
 ];
 
@@ -128,10 +141,14 @@ const MapComponent: React.FC<MapComponentProps> = ({
   optimizedOrder,
   onMapClick,
   onMarkerClick,
-  onMapLoad
+  onMapLoad,
+  selectedCustomerId,
+  onCustomerSelect
 }) => {
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [selectedMarker, setSelectedMarker] = useState<MarkerData | null>(null);
+  const [hoveredMarker, setHoveredMarker] = useState<string | null>(null);
+  const initialBoundsSet = useRef(false);
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
@@ -139,25 +156,36 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: apiKey,
     libraries: libraries,
-    // ID kullanarak birden fazla yüklemeyi engelle
     id: 'google-map-script'
   });
 
   const containerStyle = {
     width: '100%',
-    height: height
+    height: height,
+    borderRadius: '12px',
+    overflow: 'hidden'
   };
 
   const mapOptions: google.maps.MapOptions = {
     disableDefaultUI: false,
     zoomControl: true,
     mapTypeControl: false,
-    scaleControl: false,
+    scaleControl: true,
     streetViewControl: false,
     rotateControl: false,
     fullscreenControl: true,
-    styles: mapStyles,
-    gestureHandling: 'cooperative'
+    styles: modernMapStyle,
+    gestureHandling: 'greedy', // CTRL tuşu olmadan zoom yapılabilir
+    zoomControlOptions: {
+      position: google.maps?.ControlPosition?.RIGHT_CENTER
+    },
+    fullscreenControlOptions: {
+      position: google.maps?.ControlPosition?.TOP_RIGHT
+    },
+    scrollwheel: true, // Mouse wheel ile zoom
+    disableDoubleClickZoom: false,
+    minZoom: 8,
+    maxZoom: 19
   };
 
   const onLoad = useCallback((map: google.maps.Map) => {
@@ -176,6 +204,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   const onUnmount = useCallback(() => {
     setMap(null);
+    initialBoundsSet.current = false;
   }, []);
 
   const handleMapClick = useCallback((e: google.maps.MapMouseEvent) => {
@@ -192,39 +221,67 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (onMarkerClick) {
       onMarkerClick(marker);
     }
+    if (onCustomerSelect && marker.customerId) {
+      onCustomerSelect(marker.customerId);
+    }
   };
 
-  // Modern marker icon oluştur
-  const createMarkerIcon = (label: string, color: string, isDepot: boolean = false) => {
+  // Custom marker icon - SVG based
+  const createCustomMarkerIcon = (number: string, isDepot: boolean = false, isSelected: boolean = false) => {
     if (!window.google || !window.google.maps) return undefined;
-    
+
     if (isDepot) {
+      // Depot için özel SVG icon
+      const depotSvg = `
+        <svg width="56" height="56" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
+          <g filter="url(#shadow)">
+            <circle cx="28" cy="28" r="24" fill="#3B82F6" stroke="white" stroke-width="3"/>
+            <path d="M28 16 L36 24 L36 36 L20 36 L20 24 Z" fill="white"/>
+            <rect x="24" y="28" width="8" height="8" fill="#3B82F6"/>
+          </g>
+          <defs>
+            <filter id="shadow" x="0" y="0" width="200%" height="200%">
+              <feDropShadow dx="0" dy="3" stdDeviation="4" flood-opacity="0.25"/>
+            </filter>
+          </defs>
+        </svg>
+      `;
+      
       return {
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 12,
-        fillColor: color,
-        fillOpacity: 1,
-        strokeColor: '#ffffff',
-        strokeWeight: 3,
-        labelOrigin: new google.maps.Point(0, 0)
+        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(depotSvg),
+        scaledSize: new google.maps.Size(56, 56),
+        anchor: new google.maps.Point(28, 28)
       };
     }
+
+    // Normal marker için SVG
+    const markerColor = isSelected ? '#EF4444' : '#10B981';
+    const markerSvg = `
+      <svg width="48" height="64" viewBox="0 0 48 64" xmlns="http://www.w3.org/2000/svg">
+        <g filter="url(#shadow)">
+          <path d="M24 0C10.745 0 0 10.745 0 24C0 42 24 64 24 64S48 42 48 24C48 10.745 37.255 0 24 0Z" 
+                fill="${markerColor}" stroke="white" stroke-width="2.5"/>
+          <circle cx="24" cy="24" r="16" fill="white"/>
+          <text x="24" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="${markerColor}">${number}</text>
+        </g>
+        <defs>
+          <filter id="shadow" x="-4" y="-4" width="56" height="72">
+            <feDropShadow dx="0" dy="3" stdDeviation="4" flood-opacity="0.3"/>
+          </filter>
+        </defs>
+      </svg>
+    `;
     
     return {
-      path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z',
-      scale: 1.5,
-      fillColor: color,
-      fillOpacity: 1,
-      strokeColor: '#ffffff',
-      strokeWeight: 2,
-      anchor: new google.maps.Point(12, 24),
-      labelOrigin: new google.maps.Point(12, 10)
+      url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(markerSvg),
+      scaledSize: new google.maps.Size(48, 64),
+      anchor: new google.maps.Point(24, 64)
     };
   };
 
-  // Map bounds'ları ayarla
+  // İlk yüklemede bounds ayarla
   useEffect(() => {
-    if (map && (markers.length > 0 || depot)) {
+    if (map && !initialBoundsSet.current && (markers.length > 0 || depot)) {
       const bounds = new google.maps.LatLngBounds();
       
       // Depot'yu ekle
@@ -241,16 +298,23 @@ const MapComponent: React.FC<MapComponentProps> = ({
       if (markers.length > 0 || depot) {
         map.fitBounds(bounds);
         
+        // Padding ekle
+        const padding = { top: 60, right: 60, bottom: 100, left: 60 };
+        map.fitBounds(bounds, padding);
+        
+        // İlk bounds set edildi
+        initialBoundsSet.current = true;
+        
         // Çok yakın zoom'u engelle
-        const listener = google.maps.event.addListenerOnce(map, 'idle', () => {
+        setTimeout(() => {
           const currentZoom = map.getZoom();
           if (currentZoom && currentZoom > 16) {
             map.setZoom(16);
           }
-        });
+        }, 100);
       }
     }
-  }, [map, markers, depot]);
+  }, [map, markers.length, depot]);
 
   // Hata durumu
   if (loadError) {
@@ -281,131 +345,259 @@ const MapComponent: React.FC<MapComponentProps> = ({
   // Yükleniyor durumu
   if (!isLoaded) {
     return (
-      <div className="w-full bg-gray-100 rounded-lg flex items-center justify-center" style={{ height }}>
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="w-full bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl flex items-center justify-center" style={{ height }}>
+        <div className="text-center">
+          <div className="relative">
+            <div className="w-20 h-20 border-4 border-gray-200 rounded-full"></div>
+            <div className="w-20 h-20 border-4 border-blue-600 rounded-full animate-spin absolute top-0 left-0 border-t-transparent"></div>
+          </div>
+          <p className="text-gray-600 mt-4">Harita yükleniyor...</p>
+        </div>
       </div>
     );
   }
 
   // Harita render
   return (
-    <GoogleMap
-      mapContainerStyle={containerStyle}
-      center={center}
-      zoom={zoom}
-      onLoad={onLoad}
-      onUnmount={onUnmount}
-      onClick={handleMapClick}
-      options={mapOptions}
-    >
-      {/* Depot Marker - Başlangıç ve Bitiş Noktası */}
-      {depot && (
-        <Marker
-          position={depot}
-          icon={createMarkerIcon('D', '#3B82F6', true)}
-          label={{
-            text: 'DEPO',
-            color: 'white',
-            fontSize: '10px',
-            fontWeight: 'bold'
-          }}
-          title="Ana Depo - Başlangıç ve Bitiş Noktası"
-          zIndex={1000}
-        />
-      )}
-
-      {/* Customer Markers - Optimize edilmiş sıraya göre numaralandır */}
-      {markers.map((marker, index) => {
-        // Optimize edilmiş sıra numarasını al
-        const orderNumber = optimizedOrder && optimizedOrder.length > 0
-          ? optimizedOrder.indexOf(index) + 1
-          : (parseInt(marker.label || '0') || index + 1);
-        
-        return (
+    <div className="relative rounded-xl overflow-hidden shadow-xl bg-white">
+      <GoogleMap
+        mapContainerStyle={containerStyle}
+        center={center}
+        zoom={zoom}
+        onLoad={onLoad}
+        onUnmount={onUnmount}
+        onClick={handleMapClick}
+        options={mapOptions}
+      >
+        {/* Depot Marker */}
+        {depot && (
           <Marker
-            key={`marker-${index}-${orderNumber}`}
-            position={marker.position}
-            title={marker.title}
-            onClick={() => handleMarkerClick(marker)}
-            icon={createMarkerIcon(String(orderNumber), '#10B981', false)}
-            label={{
-              text: String(orderNumber),
-              color: 'white',
-              fontSize: '12px',
-              fontWeight: 'bold'
-            }}
-            zIndex={500 + orderNumber}
+            position={depot}
+            icon={createCustomMarkerIcon('', true)}
+            title="Ana Depo - Başlangıç ve Bitiş Noktası"
+            zIndex={1000}
+            animation={google.maps.Animation.DROP}
           />
-        );
-      })}
+        )}
 
-      {/* Directions - Optimize edilmiş rota */}
-      {directions && (
-        <DirectionsRenderer
-          directions={directions}
-          options={{
-            suppressMarkers: true, // Varsayılan marker'ları gizle
-            polylineOptions: {
+        {/* Customer Markers */}
+        {markers && markers.length > 0 && markers.map((marker, index) => {
+          const orderNumber = optimizedOrder && optimizedOrder.length > 0
+            ? optimizedOrder.indexOf(index) + 1
+            : index + 1;
+          
+          const isSelected = selectedCustomerId === marker.customerId;
+          
+          return (
+            <Marker
+              key={`customer-${marker.customerId || index}-${orderNumber}`}
+              position={marker.position}
+              title={marker.title}
+              onClick={() => handleMarkerClick(marker)}
+              onMouseOver={() => setHoveredMarker(marker.customerId || '')}
+              onMouseOut={() => setHoveredMarker(null)}
+              icon={createCustomMarkerIcon(String(orderNumber), false, isSelected)}
+              zIndex={isSelected ? 2000 : 500 + orderNumber}
+              animation={hoveredMarker === marker.customerId || isSelected ? google.maps.Animation.BOUNCE : undefined}
+            />
+          );
+        })}
+
+        {/* Directions - Optimize edilmiş rota */}
+        {directions && (
+          <DirectionsRenderer
+            directions={directions}
+            options={{
+              suppressMarkers: true,
+              polylineOptions: {
+                strokeColor: '#3B82F6',
+                strokeWeight: 5,
+                strokeOpacity: 0.85,
+                geodesic: true
+              },
+              preserveViewport: true
+            }}
+          />
+        )}
+
+        {/* Alternatif: Basit polyline (directions yoksa) */}
+        {!directions && depot && markers.length > 0 && (
+          <Polyline
+            path={[
+              depot,
+              ...markers.map(m => m.position),
+              depot
+            ]}
+            options={{
               strokeColor: '#3B82F6',
               strokeWeight: 4,
               strokeOpacity: 0.8,
-              geodesic: true
-            },
-            preserveViewport: true
-          }}
-        />
-      )}
+              geodesic: true,
+              strokePattern: [{ repeat: '10px', icon: { path: google.maps.SymbolPath.CIRCLE, scale: 1 } }]
+            }}
+          />
+        )}
 
-      {/* Alternatif: Basit polyline (directions yoksa) */}
-      {!directions && depot && markers.length > 0 && (
-        <Polyline
-          path={[
-            depot,
-            ...markers.map(m => m.position),
-            depot
-          ]}
-          options={{
-            strokeColor: '#3B82F6',
-            strokeWeight: 3,
-            strokeOpacity: 0.7,
-            geodesic: true
-          }}
-        />
-      )}
-
-      {/* Info Window */}
-      {selectedMarker && (
-        <InfoWindow
-          position={selectedMarker.position}
-          onCloseClick={() => setSelectedMarker(null)}
-        >
-          <div className="p-2 min-w-[200px]">
-            <h3 className="font-semibold text-gray-900 mb-1">{selectedMarker.title}</h3>
-            {selectedMarker.customerId && customers.length > 0 && (
-              <>
-                {customers.find(c => c.id === selectedMarker.customerId)?.address && (
-                  <p className="text-sm text-gray-600 mb-1">
-                    <MapPin className="w-3 h-3 inline mr-1" />
-                    {customers.find(c => c.id === selectedMarker.customerId)?.address}
-                  </p>
+        {/* Info Window */}
+        {selectedMarker && (
+          <InfoWindow
+            position={selectedMarker.position}
+            onCloseClick={() => setSelectedMarker(null)}
+            options={{
+              pixelOffset: new google.maps.Size(0, -64)
+            }}
+          >
+            <div className="p-3 min-w-[280px]">
+              <div className="flex items-start justify-between mb-2">
+                <h3 className="font-bold text-gray-900 text-lg">{selectedMarker.title}</h3>
+                {selectedMarker.customerId && customers.find(c => c.id === selectedMarker.customerId)?.priority === 'high' && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    <Star className="w-3 h-3 mr-1" />
+                    Yüksek
+                  </span>
                 )}
-                {customers.find(c => c.id === selectedMarker.customerId)?.phone && (
-                  <p className="text-sm text-gray-600">
-                    📞 {customers.find(c => c.id === selectedMarker.customerId)?.phone}
-                  </p>
-                )}
-                {customers.find(c => c.id === selectedMarker.customerId)?.timeWindow && (
-                  <p className="text-sm text-gray-600">
-                    🕐 {customers.find(c => c.id === selectedMarker.customerId)?.timeWindow?.start} - 
-                    {customers.find(c => c.id === selectedMarker.customerId)?.timeWindow?.end}
-                  </p>
-                )}
-              </>
-            )}
+              </div>
+              
+              {selectedMarker.customerId && customers.length > 0 && (() => {
+                const customer = customers.find(c => c.id === selectedMarker.customerId);
+                if (!customer) return null;
+                
+                return (
+                  <div className="space-y-2 text-sm">
+                    {customer.address && (
+                      <div className="flex items-start">
+                        <MapPin className="w-4 h-4 text-gray-400 mr-2 mt-0.5 flex-shrink-0" />
+                        <span className="text-gray-600">{customer.address}</span>
+                      </div>
+                    )}
+                    
+                    {customer.phone && (
+                      <div className="flex items-center">
+                        <Phone className="w-4 h-4 text-gray-400 mr-2" />
+                        <span className="text-gray-600">{customer.phone}</span>
+                      </div>
+                    )}
+                    
+                    {customer.timeWindow && (
+                      <div className="flex items-center">
+                        <Clock className="w-4 h-4 text-gray-400 mr-2" />
+                        <span className="text-gray-600">
+                          {customer.timeWindow.start} - {customer.timeWindow.end}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {customer.estimatedServiceTime && (
+                      <div className="flex items-center">
+                        <Package className="w-4 h-4 text-gray-400 mr-2" />
+                        <span className="text-gray-600">
+                          Servis süresi: {customer.estimatedServiceTime} dk
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </InfoWindow>
+        )}
+      </GoogleMap>
+      
+      {/* Modern Legend - Sol Alt */}
+      <div 
+        className="absolute bg-white/95 backdrop-blur-sm rounded-xl shadow-lg p-4"
+        style={{ 
+          bottom: '20px', 
+          left: '20px', 
+          zIndex: 10,
+          minWidth: '150px'
+        }}
+      >
+        <div className="space-y-2">
+          <div className="flex items-center space-x-3">
+            <div className="relative">
+              <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                <Home className="w-3 h-3 text-white" />
+              </div>
+            </div>
+            <span className="text-sm font-medium text-gray-700">Depo</span>
           </div>
-        </InfoWindow>
+          {markers.length > 0 && (
+            <div className="flex items-center space-x-3">
+              <div className="relative">
+                <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">1</span>
+                </div>
+              </div>
+              <span className="text-sm font-medium text-gray-700">Duraklar</span>
+            </div>
+          )}
+          {showTraffic && (
+            <div className="flex items-center space-x-3">
+              <div className="w-6 h-1 bg-gradient-to-r from-green-500 via-yellow-500 to-red-500 rounded"></div>
+              <span className="text-sm font-medium text-gray-700">Trafik</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Stats Panel - Sol Alt (Legend'ın üstünde) */}
+      {directions && (
+        <div 
+          className="absolute bg-white/95 backdrop-blur-sm rounded-xl shadow-lg p-4"
+          style={{ 
+            bottom: showTraffic ? '160px' : '140px', 
+            left: '20px', 
+            zIndex: 10,
+            minWidth: '200px'
+          }}
+        >
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500">Toplam Mesafe</span>
+              <span className="text-sm font-bold text-gray-900">
+                {(() => {
+                  const totalDistance = directions.routes[0]?.legs?.reduce((sum, leg) => 
+                    sum + (leg.distance?.value || 0), 0) || 0;
+                  return (totalDistance / 1000).toFixed(1);
+                })()} km
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500">Tahmini Süre</span>
+              <span className="text-sm font-bold text-gray-900">
+                {(() => {
+                  const totalDuration = directions.routes[0]?.legs?.reduce((sum, leg) => 
+                    sum + (leg.duration?.value || 0), 0) || 0;
+                  return Math.round(totalDuration / 60);
+                })()} dk
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500">Durak Sayısı</span>
+              <span className="text-sm font-bold text-gray-900">
+                {markers.length}
+              </span>
+            </div>
+          </div>
+        </div>
       )}
-    </GoogleMap>
+
+      {/* Top Right Badge */}
+      <div 
+        className="absolute bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full shadow-lg px-4 py-2"
+        style={{ 
+          top: '16px', 
+          right: '120px', 
+          zIndex: 10
+        }}
+      >
+        <div className="flex items-center space-x-2">
+          <Navigation className="w-4 h-4" />
+          <span className="text-sm font-medium">Google Maps</span>
+        </div>
+      </div>
+    </div>
   );
 };
 
