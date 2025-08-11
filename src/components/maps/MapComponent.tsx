@@ -6,7 +6,7 @@ import {
   DirectionsRenderer,
   InfoWindow
 } from '@react-google-maps/api';
-import { MapPin, Navigation, Home, Loader2, Package, Clock, Phone, Star, ChevronRight } from 'lucide-react';
+import { MapPin, Navigation, Home, Loader2, Package, Clock, Phone, Star } from 'lucide-react';
 import { LatLng, MarkerData } from '@/types/maps';
 import { Customer } from '@/types';
 
@@ -29,7 +29,7 @@ interface MapComponentProps {
   onCustomerSelect?: (customerId: string) => void;
 }
 
-// Ultra modern harita stili - Circuit/Uber benzeri
+// Ultra modern harita stili
 const modernMapStyle = [
   {
     "elementType": "geometry",
@@ -147,6 +147,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [selectedMarker, setSelectedMarker] = useState<MarkerData | null>(null);
   const [hoveredMarker, setHoveredMarker] = useState<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   const initialBoundsSet = useRef(false);
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -182,7 +183,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
       maxZoom: 19
     };
 
-    // Google Maps yüklüyse position'ları ekle
     if (typeof window !== 'undefined' && window.google && window.google.maps) {
       baseOptions.zoomControlOptions = {
         position: window.google.maps.ControlPosition.RIGHT_CENTER
@@ -196,21 +196,24 @@ const MapComponent: React.FC<MapComponentProps> = ({
   }, []);
 
   const onLoad = useCallback((map: google.maps.Map) => {
+    console.log('Map loaded successfully');
     setMap(map);
     
-    // Trafik katmanı
-    if (showTraffic && window.google && window.google.maps) {
-      const trafficLayer = new window.google.maps.TrafficLayer();
-      trafficLayer.setMap(map);
-    }
+    // Map'in gerçekten hazır olduğundan emin olmak için kısa bir gecikme
+    setTimeout(() => {
+      setMapReady(true);
+      console.log('Map is ready for markers');
+    }, 100);
 
     if (onMapLoad) {
       onMapLoad(map);
     }
-  }, [showTraffic, onMapLoad]);
+  }, [onMapLoad]);
 
   const onUnmount = useCallback(() => {
+    console.log('Map unmounting');
     setMap(null);
+    setMapReady(false);
     initialBoundsSet.current = false;
   }, []);
 
@@ -233,86 +236,43 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   };
 
-  // Custom marker icon - SVG based
-  const createCustomMarkerIcon = (number: string, isDepot: boolean = false, isSelected: boolean = false) => {
+  // Basit marker icon oluştur
+  const createSimpleIcon = (color: string, label?: string) => {
     if (typeof window === 'undefined' || !window.google || !window.google.maps) return undefined;
-
-    if (isDepot) {
-      // Depot için özel SVG icon
-      const depotSvg = `
-        <svg width="56" height="56" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
-          <g filter="url(#shadow)">
-            <circle cx="28" cy="28" r="24" fill="#3B82F6" stroke="white" stroke-width="3"/>
-            <path d="M28 16 L36 24 L36 36 L20 36 L20 24 Z" fill="white"/>
-            <rect x="24" y="28" width="8" height="8" fill="#3B82F6"/>
-          </g>
-          <defs>
-            <filter id="shadow" x="0" y="0" width="200%" height="200%">
-              <feDropShadow dx="0" dy="3" stdDeviation="4" flood-opacity="0.25"/>
-            </filter>
-          </defs>
-        </svg>
-      `;
-      
-      return {
-        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(depotSvg),
-        scaledSize: new window.google.maps.Size(56, 56),
-        anchor: new window.google.maps.Point(28, 28)
-      };
-    }
-
-    // Normal marker için SVG
-    const markerColor = isSelected ? '#EF4444' : '#10B981';
-    const markerSvg = `
-      <svg width="48" height="64" viewBox="0 0 48 64" xmlns="http://www.w3.org/2000/svg">
-        <g filter="url(#shadow)">
-          <path d="M24 0C10.745 0 0 10.745 0 24C0 42 24 64 24 64S48 42 48 24C48 10.745 37.255 0 24 0Z" 
-                fill="${markerColor}" stroke="white" stroke-width="2.5"/>
-          <circle cx="24" cy="24" r="16" fill="white"/>
-          <text x="24" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="${markerColor}">${number}</text>
-        </g>
-        <defs>
-          <filter id="shadow" x="-4" y="-4" width="56" height="72">
-            <feDropShadow dx="0" dy="3" stdDeviation="4" flood-opacity="0.3"/>
-          </filter>
-        </defs>
-      </svg>
-    `;
     
     return {
-      url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(markerSvg),
-      scaledSize: new window.google.maps.Size(48, 64),
-      anchor: new window.google.maps.Point(24, 64)
+      path: window.google.maps.SymbolPath.CIRCLE,
+      scale: 20,
+      fillColor: color,
+      fillOpacity: 1,
+      strokeColor: 'white',
+      strokeWeight: 3,
+      labelOrigin: new window.google.maps.Point(0, 0)
     };
   };
 
-  // İlk yüklemede bounds ayarla
+  // Bounds ayarla
   useEffect(() => {
-    if (map && !initialBoundsSet.current && (markers.length > 0 || depot) && typeof window !== 'undefined' && window.google && window.google.maps) {
+    if (map && mapReady && !initialBoundsSet.current && (markers.length > 0 || depot)) {
+      console.log('Setting bounds with markers:', markers.length);
       const bounds = new window.google.maps.LatLngBounds();
       
-      // Depot'yu ekle
       if (depot) {
         bounds.extend(new window.google.maps.LatLng(depot.lat, depot.lng));
       }
       
-      // Tüm marker'ları ekle
       markers.forEach(marker => {
-        bounds.extend(new window.google.maps.LatLng(marker.position.lat, marker.position.lng));
+        if (marker.position && marker.position.lat && marker.position.lng) {
+          bounds.extend(new window.google.maps.LatLng(marker.position.lat, marker.position.lng));
+        }
       });
       
-      // Bounds'a göre zoom ve center ayarla
       if (markers.length > 0 || depot) {
         map.fitBounds(bounds);
-        
-        // Padding ekle
         const padding = { top: 60, right: 60, bottom: 100, left: 60 };
         map.fitBounds(bounds, padding);
-        
-        // İlk bounds set edildi
         initialBoundsSet.current = true;
         
-        // Çok yakın zoom'u engelle
         setTimeout(() => {
           const currentZoom = map.getZoom();
           if (currentZoom && currentZoom > 16) {
@@ -321,7 +281,18 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }, 100);
       }
     }
-  }, [map, markers.length, depot]);
+  }, [map, mapReady, markers, depot]);
+
+  // Debug log
+  useEffect(() => {
+    console.log('MapComponent state:', {
+      isLoaded,
+      mapReady,
+      markersCount: markers?.length,
+      depotExists: !!depot,
+      mapExists: !!map
+    });
+  }, [isLoaded, mapReady, markers, depot, map]);
 
   // Hata durumu
   if (loadError) {
@@ -364,6 +335,71 @@ const MapComponent: React.FC<MapComponentProps> = ({
     );
   }
 
+  // Marker'ları render et - SADECE mapReady true ise
+  const renderMarkers = () => {
+    if (!mapReady) {
+      console.log('Map not ready yet, skipping markers');
+      return null;
+    }
+
+    const markerElements = [];
+
+    // Depot marker
+    if (depot) {
+      console.log('Adding depot marker at:', depot);
+      markerElements.push(
+        <Marker
+          key="depot-marker"
+          position={depot}
+          icon={createSimpleIcon('#3B82F6')}
+          title="Ana Depo"
+          zIndex={1000}
+          label={{
+            text: 'D',
+            color: 'white',
+            fontSize: '16px',
+            fontWeight: 'bold'
+          }}
+        />
+      );
+    }
+
+    // Customer markers
+    if (markers && markers.length > 0) {
+      markers.forEach((marker, index) => {
+        if (!marker.position || !marker.position.lat || !marker.position.lng) {
+          console.warn(`Invalid marker position for index ${index}:`, marker);
+          return;
+        }
+
+        const orderNumber = marker.label || String(marker.order || index + 1);
+        const isSelected = selectedCustomerId === marker.customerId;
+        
+        console.log(`Adding marker ${orderNumber} at:`, marker.position);
+        
+        markerElements.push(
+          <Marker
+            key={`marker-${marker.customerId || index}-${orderNumber}`}
+            position={marker.position}
+            icon={createSimpleIcon(isSelected ? '#EF4444' : '#10B981')}
+            title={marker.title || `Durak ${orderNumber}`}
+            zIndex={isSelected ? 2000 : 500 + parseInt(orderNumber)}
+            label={{
+              text: orderNumber,
+              color: 'white',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}
+            onClick={() => handleMarkerClick(marker)}
+          />
+        );
+      });
+    }
+
+    console.log(`Rendering ${markerElements.length} markers total`);
+    return markerElements;
+  };
+
   // Harita render
   return (
     <div className="relative rounded-xl overflow-hidden shadow-xl bg-white">
@@ -376,52 +412,19 @@ const MapComponent: React.FC<MapComponentProps> = ({
         onClick={handleMapClick}
         options={getMapOptions()}
       >
-        {/* Depot Marker */}
-        {depot && (
-          <Marker
-            position={depot}
-            icon={createCustomMarkerIcon('', true)}
-            title="Ana Depo - Başlangıç ve Bitiş Noktası"
-            zIndex={1000}
-            animation={window.google && window.google.maps ? window.google.maps.Animation.DROP : undefined}
-          />
-        )}
+        {/* Marker'ları render et */}
+        {renderMarkers()}
 
-        {/* Customer Markers */}
-        {markers && markers.length > 0 && markers.map((marker, index) => {
-          const orderNumber = optimizedOrder && optimizedOrder.length > 0
-            ? optimizedOrder.indexOf(index) + 1
-            : index + 1;
-          
-          const isSelected = selectedCustomerId === marker.customerId;
-          
-          return (
-            <Marker
-              key={`customer-${marker.customerId || index}-${orderNumber}`}
-              position={marker.position}
-              title={marker.title}
-              onClick={() => handleMarkerClick(marker)}
-              onMouseOver={() => setHoveredMarker(marker.customerId || '')}
-              onMouseOut={() => setHoveredMarker(null)}
-              icon={createCustomMarkerIcon(String(orderNumber), false, isSelected)}
-              zIndex={isSelected ? 2000 : 500 + orderNumber}
-              animation={hoveredMarker === marker.customerId || isSelected ? 
-                (window.google && window.google.maps ? window.google.maps.Animation.BOUNCE : undefined) : 
-                undefined}
-            />
-          );
-        })}
-
-        {/* Directions - SADECE optimize edilmiş rota için */}
-        {directions && (
+        {/* Directions */}
+        {directions && mapReady && (
           <DirectionsRenderer
             directions={directions}
             options={{
               suppressMarkers: true,
               polylineOptions: {
                 strokeColor: '#3B82F6',
-                strokeWeight: 3, // Kalınlık azaltıldı (5'ten 3'e)
-                strokeOpacity: 0.8, // Opaklık azaltıldı
+                strokeWeight: 4,
+                strokeOpacity: 0.9,
                 geodesic: true
               },
               preserveViewport: true
@@ -435,7 +438,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
             position={selectedMarker.position}
             onCloseClick={() => setSelectedMarker(null)}
             options={{
-              pixelOffset: new window.google.maps.Size(0, -64)
+              pixelOffset: new window.google.maps.Size(0, -40)
             }}
           >
             <div className="p-3 min-w-[280px]">
@@ -494,7 +497,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         )}
       </GoogleMap>
       
-      {/* Modern Legend - Sol Alt */}
+      {/* Modern Legend */}
       <div 
         className="absolute bg-white/95 backdrop-blur-sm rounded-xl shadow-lg p-4"
         style={{ 
@@ -508,7 +511,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
           <div className="flex items-center space-x-3">
             <div className="relative">
               <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-                <Home className="w-3 h-3 text-white" />
+                <span className="text-white text-xs font-bold">D</span>
               </div>
             </div>
             <span className="text-sm font-medium text-gray-700">Depo</span>
@@ -520,24 +523,18 @@ const MapComponent: React.FC<MapComponentProps> = ({
                   <span className="text-white text-xs font-bold">1</span>
                 </div>
               </div>
-              <span className="text-sm font-medium text-gray-700">Duraklar</span>
-            </div>
-          )}
-          {showTraffic && (
-            <div className="flex items-center space-x-3">
-              <div className="w-6 h-1 bg-gradient-to-r from-green-500 via-yellow-500 to-red-500 rounded"></div>
-              <span className="text-sm font-medium text-gray-700">Trafik</span>
+              <span className="text-sm font-medium text-gray-700">Duraklar ({markers.length})</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Stats Panel - Sol Alt (Legend'ın üstünde) */}
+      {/* Stats Panel */}
       {directions && (
         <div 
           className="absolute bg-white/95 backdrop-blur-sm rounded-xl shadow-lg p-4"
           style={{ 
-            bottom: showTraffic ? '160px' : '140px', 
+            bottom: '120px', 
             left: '20px', 
             zIndex: 10,
             minWidth: '200px'
@@ -588,6 +585,20 @@ const MapComponent: React.FC<MapComponentProps> = ({
           <span className="text-sm font-medium">Google Maps</span>
         </div>
       </div>
+
+      {/* Map Ready Indicator - DEBUG */}
+      {!mapReady && (
+        <div 
+          className="absolute bg-yellow-100 text-yellow-800 rounded px-3 py-1 text-xs"
+          style={{ 
+            top: '60px', 
+            right: '20px', 
+            zIndex: 10
+          }}
+        >
+          Harita hazırlanıyor...
+        </div>
+      )}
     </div>
   );
 };

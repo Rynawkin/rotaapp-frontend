@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useJsApiLoader } from '@react-google-maps/api';
 import { 
   ArrowLeft, 
   Edit, 
@@ -35,6 +36,9 @@ import { LatLng, MarkerData } from '@/types/maps';
 import { routeService, customerService } from '@/services/mockData';
 import { googleMapsService } from '@/services/googleMapsService';
 
+// Google Maps libraries
+const libraries: ("places" | "drawing" | "geometry")[] = ['places'];
+
 const RouteDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -44,10 +48,32 @@ const RouteDetail: React.FC = () => {
   const [mapDirections, setMapDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [optimizing, setOptimizing] = useState(false);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
+  const [mapMarkers, setMapMarkers] = useState<MarkerData[]>([]);
+
+  // Google Maps Loader Hook
+  const { isLoaded: isGoogleMapsLoaded, loadError: googleMapsLoadError } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
+    libraries: libraries,
+    id: 'google-map-script'
+  });
 
   useEffect(() => {
     loadData();
   }, [id]);
+
+  // Route veya customers değiştiğinde marker'ları güncelle
+  useEffect(() => {
+    if (route && route.stops && customers.length > 0) {
+      const markers = generateMapMarkers();
+      console.log('Generated markers:', markers); // DEBUG
+      setMapMarkers(markers);
+      
+      // Google Maps yüklendiyse ve rota optimize edildiyse directions'ı yükle
+      if (isGoogleMapsLoaded && route.optimized) {
+        loadRouteOnMap(route);
+      }
+    }
+  }, [route, customers, isGoogleMapsLoaded]);
 
   const loadData = async () => {
     if (!id) return;
@@ -59,13 +85,23 @@ const RouteDetail: React.FC = () => {
         customerService.getAll()
       ]);
       
+      console.log('Loaded route:', routeData); // DEBUG
+      console.log('Loaded customers:', customersData); // DEBUG
+      
+      // Route stops'larına customer bilgilerini ekle
+      if (routeData && routeData.stops) {
+        routeData.stops = routeData.stops.map(stop => {
+          const customer = customersData.find(c => c.id === stop.customerId);
+          console.log(`Stop ${stop.order}: Customer ${stop.customerId}`, customer); // DEBUG
+          return {
+            ...stop,
+            customer: customer || stop.customer
+          };
+        });
+      }
+      
       setRoute(routeData);
       setCustomers(customersData);
-      
-      // Sadece optimize edilmiş rotalar için haritada yol göster
-      if (routeData && routeData.stops.length > 0 && routeData.optimized) {
-        setTimeout(() => loadRouteOnMap(routeData), 1000);
-      }
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -73,36 +109,63 @@ const RouteDetail: React.FC = () => {
     }
   };
 
+  const generateMapMarkers = (): MarkerData[] => {
+    if (!route || !route.stops || route.stops.length === 0) {
+      console.log('No route or stops to generate markers'); // DEBUG
+      return [];
+    }
+    
+    const markers = route.stops.map((stop) => {
+      const customer = stop.customer || customers.find(c => c.id === stop.customerId);
+      
+      if (!customer) {
+        console.warn(`Customer not found for stop ${stop.order}, customerId: ${stop.customerId}`); // DEBUG
+        return null;
+      }
+      
+      // Koordinatları kontrol et
+      if (!customer.latitude || !customer.longitude) {
+        console.warn(`Invalid coordinates for customer ${customer.name}: lat=${customer.latitude}, lng=${customer.longitude}`); // DEBUG
+        return null;
+      }
+      
+      const marker = {
+        position: {
+          lat: customer.latitude,
+          lng: customer.longitude
+        },
+        title: customer.name || `Durak ${stop.order}`,
+        label: String(stop.order),
+        type: 'customer' as const,
+        customerId: stop.customerId,
+        order: stop.order
+      };
+      
+      console.log(`Created marker for stop ${stop.order}:`, marker); // DEBUG
+      return marker;
+    }).filter(Boolean) as MarkerData[];
+    
+    console.log('All markers:', markers); // DEBUG
+    console.log('First marker position:', markers[0]?.position); // DEBUG
+    return markers;
+  };
+
   const loadRouteOnMap = async (routeData: Route) => {
     if (!routeData.stops || routeData.stops.length === 0) return;
-    if (!routeData.optimized) return; // Optimize edilmemişse directions gösterme
+    if (!routeData.optimized) return;
+    if (!isGoogleMapsLoaded) return;
 
-    // Find depot
-    const depot = { lat: 40.9913, lng: 29.0236 }; // Default depot location
+    const depot = { lat: 40.9913, lng: 29.0236 };
     
-    const waypoints = routeData.stops.map(stop => ({
-      lat: stop.customer?.latitude || 0,
-      lng: stop.customer?.longitude || 0
-    }));
+    const waypoints = routeData.stops.map(stop => {
+      const customer = stop.customer || customers.find(c => c.id === stop.customerId);
+      return {
+        lat: customer?.latitude || 0,
+        lng: customer?.longitude || 0
+      };
+    });
 
-    // Google Maps yüklenene kadar bekle
-    const waitForGoogle = () => {
-      return new Promise((resolve) => {
-        const checkGoogle = () => {
-          if (window.google && window.google.maps) {
-            resolve(true);
-          } else {
-            setTimeout(checkGoogle, 100);
-          }
-        };
-        checkGoogle();
-      });
-    };
-
-    // Google Maps yüklü mü kontrol et
-    const googleReady = await waitForGoogle();
-    
-    if (googleReady) {
+    try {
       googleMapsService.initializeServices();
       
       const directions = await googleMapsService.getDirections(
@@ -112,8 +175,11 @@ const RouteDetail: React.FC = () => {
       );
       
       if (directions) {
+        console.log('Directions loaded successfully'); // DEBUG
         setMapDirections(directions);
       }
+    } catch (error) {
+      console.error('Error loading route on map:', error);
     }
   };
 
@@ -162,8 +228,15 @@ const RouteDetail: React.FC = () => {
     try {
       const optimizedRoute = await routeService.optimize(route.id);
       if (optimizedRoute) {
+        // Optimize edilmiş rotaya customer bilgilerini ekle
+        if (optimizedRoute.stops) {
+          optimizedRoute.stops = optimizedRoute.stops.map(stop => ({
+            ...stop,
+            customer: customers.find(c => c.id === stop.customerId) || stop.customer
+          }));
+        }
+        
         setRoute(optimizedRoute);
-        await loadRouteOnMap(optimizedRoute);
         alert('✅ Rota başarıyla optimize edildi!');
       }
     } catch (error) {
@@ -259,41 +332,102 @@ const RouteDetail: React.FC = () => {
     }
   };
 
-  const getPriorityIcon = (priority: string) => {
-    switch(priority) {
-      case 'high':
-        return <Star className="w-4 h-4 text-red-500" />;
-      case 'normal':
-        return <Star className="w-4 h-4 text-blue-500" />;
-      case 'low':
-        return <Star className="w-4 h-4 text-gray-400" />;
-      default:
-        return null;
-    }
-  };
-
   const calculateProgress = () => {
     if (!route) return 0;
     return Math.round((route.completedDeliveries / route.totalDeliveries) * 100);
   };
 
-  const getMapMarkers = (): MarkerData[] => {
-    if (!route) return [];
-    
-    return route.stops.map((stop, index) => ({
-      position: {
-        lat: stop.customer?.latitude || 0,
-        lng: stop.customer?.longitude || 0
-      },
-      title: stop.customer?.name || `Durak ${index + 1}`,
-      label: String(stop.order),
-      type: 'customer' as const,
-      customerId: stop.customerId
-    }));
-  };
-
   const getDepotLocation = (): LatLng => {
     return { lat: 40.9913, lng: 29.0236 };
+  };
+
+  // Harita bileşenini render eden yardımcı fonksiyon
+  const renderMapComponent = () => {
+    // Google Maps yükleniyor durumu
+    if (!isGoogleMapsLoaded && !googleMapsLoadError) {
+      return (
+        <div className="flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl" style={{ height: '650px' }}>
+          <div className="text-center">
+            <div className="relative">
+              <div className="w-20 h-20 border-4 border-gray-200 rounded-full"></div>
+              <div className="w-20 h-20 border-4 border-blue-600 rounded-full animate-spin absolute top-0 left-0 border-t-transparent"></div>
+            </div>
+            <p className="text-gray-600 mt-4">Google Maps yükleniyor...</p>
+          </div>
+        </div>
+      );
+    }
+
+    // Google Maps yükleme hatası durumu
+    if (googleMapsLoadError) {
+      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+      if (!apiKey || apiKey === 'your_google_maps_api_key_here') {
+        return (
+          <div className="flex items-center justify-center bg-gray-100 rounded-lg" style={{ height: '650px' }}>
+            <div className="text-center">
+              <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+              <p className="text-gray-600">Google Maps API Key eksik</p>
+              <p className="text-sm text-gray-500 mt-1">.env dosyasını kontrol edin</p>
+            </div>
+          </div>
+        );
+      }
+      
+      console.warn('Google Maps yüklenemedi, LeafletMapComponent kullanılıyor:', googleMapsLoadError);
+      return (
+        <div>
+          <div className="mb-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+            <p className="text-sm text-yellow-700 flex items-center">
+              <AlertCircle className="w-4 h-4 mr-2" />
+              Google Maps yüklenemedi. Alternatif harita kullanılıyor.
+            </p>
+          </div>
+          <LeafletMapComponent
+            height="650px"
+            customers={customers}
+            depot={getDepotLocation()}
+            stops={route?.stops.map((stop) => ({
+              customer: stop.customer || customers.find(c => c.id === stop.customerId) || {
+                id: stop.customerId,
+                name: `Müşteri ${stop.customerId}`,
+                address: '',
+                phone: '',
+                latitude: 0,
+                longitude: 0,
+                code: '',
+                priority: 'normal' as const,
+                tags: [],
+                createdAt: new Date(),
+                updatedAt: new Date()
+              },
+              order: stop.order
+            })) || []}
+          />
+        </div>
+      );
+    }
+
+    // Google Maps başarıyla yüklendi
+    if (isGoogleMapsLoaded) {
+      console.log('Rendering MapComponent with markers:', mapMarkers); // DEBUG
+      return (
+        <MapComponent
+          height="650px"
+          markers={mapMarkers}
+          depot={getDepotLocation()}
+          directions={route?.optimized ? mapDirections : null}
+          customers={customers}
+          showTraffic={false}
+          selectedCustomerId={selectedStopId ? route?.stops.find(s => s.id === selectedStopId)?.customerId : undefined}
+          onCustomerSelect={(customerId) => {
+            const stop = route?.stops.find(s => s.customerId === customerId);
+            if (stop) setSelectedStopId(stop.id);
+          }}
+        />
+      );
+    }
+
+    return null;
   };
 
   if (loading) {
@@ -495,6 +629,20 @@ const RouteDetail: React.FC = () => {
         </div>
       </div>
 
+      {/* DEBUG INFO - REMOVE IN PRODUCTION */}
+      <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+        <p className="text-sm font-semibold text-yellow-800">Debug Info:</p>
+        <p className="text-xs text-yellow-700">Markers Count: {mapMarkers.length}</p>
+        <p className="text-xs text-yellow-700">Stops Count: {route.stops.length}</p>
+        <p className="text-xs text-yellow-700">Optimized: {route.optimized ? 'Yes' : 'No'}</p>
+        {mapMarkers.length > 0 && (
+          <>
+            <p className="text-xs text-yellow-700">First Marker Position: lat={mapMarkers[0].position.lat}, lng={mapMarkers[0].position.lng}</p>
+            <p className="text-xs text-yellow-700">Marker Labels: {mapMarkers.map(m => m.label).join(', ')}</p>
+          </>
+        )}
+      </div>
+
       {/* Main Content - Harita ve Duraklar YAN YANA */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Sol Taraf - Harita (2/3 genişlik) */}
@@ -512,43 +660,8 @@ const RouteDetail: React.FC = () => {
             )}
           </div>
 
-          {typeof window !== 'undefined' && window.google && window.google.maps ? (
-            <MapComponent
-              height="650px"
-              markers={getMapMarkers()}
-              depot={getDepotLocation()}
-              directions={route.optimized ? mapDirections : null}
-              customers={customers}
-              showTraffic={true}
-              selectedCustomerId={selectedStopId ? route.stops.find(s => s.id === selectedStopId)?.customerId : undefined}
-              onCustomerSelect={(customerId) => {
-                const stop = route.stops.find(s => s.customerId === customerId);
-                if (stop) setSelectedStopId(stop.id);
-              }}
-            />
-          ) : (
-            <LeafletMapComponent
-              height="650px"
-              customers={customers}
-              depot={getDepotLocation()}
-              stops={route.stops.map((stop, index) => ({
-                customer: stop.customer || customers.find(c => c.id === stop.customerId) || {
-                  id: stop.customerId,
-                  name: `Müşteri ${stop.customerId}`,
-                  address: '',
-                  phone: '',
-                  latitude: 0,
-                  longitude: 0,
-                  code: '',
-                  priority: 'normal' as const,
-                  tags: [],
-                  createdAt: new Date(),
-                  updatedAt: new Date()
-                },
-                order: stop.order
-              }))}
-            />
-          )}
+          {/* Harita Komponenti */}
+          {renderMapComponent()}
 
           {!route.optimized && route.stops.length > 0 && (
             <div className="mt-4 p-3 bg-orange-50 rounded-lg border border-orange-200">
@@ -651,9 +764,8 @@ const RouteDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* Bottom Row - Details and Actions */}
+      {/* Bottom Row - Details */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Details Card */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Detaylar</h2>
           <div className="space-y-4">
