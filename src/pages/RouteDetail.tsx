@@ -18,7 +18,8 @@ import {
   Phone,
   Star,
   Copy,
-  ExternalLink
+  ExternalLink,
+  Timer
 } from 'lucide-react';
 import { Route } from '@/types';
 import { routeService } from '@/services/mockData';
@@ -269,70 +270,113 @@ const RouteDetail: React.FC = () => {
               <h2 className="text-lg font-semibold text-gray-900">Duraklar</h2>
             </div>
             <div className="divide-y divide-gray-200">
-              {route.stops.map((stop, index) => (
-                <div key={stop.id} className="p-4 hover:bg-gray-50">
-                  <div className="flex items-start">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 font-semibold text-sm mr-3">
-                      {index + 1}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h3 className="font-medium text-gray-900">
-                            {stop.customer?.name}
-                            <span className="ml-2 text-xs text-gray-500">
-                              ({stop.customer?.code})
-                            </span>
-                          </h3>
-                          <p className="text-sm text-gray-600 mt-1 flex items-start">
-                            <MapPin className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" />
-                            {stop.customer?.address}
-                          </p>
-                          <div className="flex items-center space-x-4 mt-2 text-sm">
-                            <span className="flex items-center text-gray-500">
-                              <Phone className="w-4 h-4 mr-1" />
-                              {stop.customer?.phone}
-                            </span>
-                            {stop.customer?.timeWindow && (
+              {route.stops.map((stop, index) => {
+                // Get effective values (override or original)
+                const effectivePriority = stop.overridePriority || stop.customer?.priority || 'normal';
+                const effectiveTimeWindow = stop.overrideTimeWindow || stop.customer?.timeWindow;
+                const effectiveServiceTime = stop.serviceTime || stop.customer?.estimatedServiceTime || 10;
+                
+                return (
+                  <div key={stop.id} className="p-4 hover:bg-gray-50">
+                    <div className="flex items-start">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 font-semibold text-sm mr-3">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="font-medium text-gray-900">
+                              {stop.customer?.name}
+                              <span className="ml-2 text-xs text-gray-500">
+                                ({stop.customer?.code})
+                              </span>
+                            </h3>
+                            <p className="text-sm text-gray-600 mt-1 flex items-start">
+                              <MapPin className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" />
+                              {stop.customer?.address}
+                            </p>
+                            <div className="flex items-center flex-wrap gap-3 mt-2 text-sm">
                               <span className="flex items-center text-gray-500">
-                                <Clock className="w-4 h-4 mr-1" />
-                                {stop.customer.timeWindow.start} - {stop.customer.timeWindow.end}
+                                <Phone className="w-4 h-4 mr-1" />
+                                {stop.customer?.phone}
                               </span>
-                            )}
-                            {stop.customer?.priority === 'high' && (
-                              <span className="flex items-center text-red-600">
-                                <Star className="w-4 h-4 mr-1" />
-                                Yüksek Öncelik
+                              {effectiveTimeWindow && (
+                                <span className="flex items-center text-gray-500">
+                                  <Clock className="w-4 h-4 mr-1" />
+                                  {effectiveTimeWindow.start} - {effectiveTimeWindow.end}
+                                  {stop.overrideTimeWindow && (
+                                    <span className="ml-1 text-xs text-orange-600">(düzenlenmiş)</span>
+                                  )}
+                                </span>
+                              )}
+                              <span className="flex items-center text-gray-500">
+                                <Timer className="w-4 h-4 mr-1" />
+                                {effectiveServiceTime} dk
+                                {stop.serviceTime && (
+                                  <span className="ml-1 text-xs text-orange-600">(düzenlenmiş)</span>
+                                )}
                               </span>
+                            </div>
+                            
+                            {/* Priority Badge */}
+                            <div className="mt-2 flex items-center gap-2">
+                              {effectivePriority === 'high' && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                  <Star className="w-3 h-3 mr-1" />
+                                  Yüksek Öncelik
+                                  {stop.overridePriority && <span className="ml-1">(düzenlenmiş)</span>}
+                                </span>
+                              )}
+                              {effectivePriority === 'normal' && stop.overridePriority && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                                  Normal Öncelik (düzenlenmiş)
+                                </span>
+                              )}
+                              {effectivePriority === 'low' && stop.overridePriority && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                                  Düşük Öncelik (düzenlenmiş)
+                                </span>
+                              )}
+                            </div>
+                            
+                            {/* Notes */}
+                            {(stop.customer?.notes || stop.stopNotes) && (
+                              <div className="mt-2 space-y-1">
+                                {stop.stopNotes && (
+                                  <div className="p-2 bg-orange-50 rounded text-xs text-orange-800">
+                                    <strong>Durak Notu:</strong> {stop.stopNotes}
+                                  </div>
+                                )}
+                                {stop.customer?.notes && (
+                                  <div className="p-2 bg-yellow-50 rounded text-xs text-yellow-800">
+                                    <strong>Müşteri Notu:</strong> {stop.customer.notes}
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </div>
-                          {stop.customer?.notes && (
-                            <div className="mt-2 p-2 bg-yellow-50 rounded text-xs text-yellow-800">
-                              <strong>Not:</strong> {stop.customer.notes}
-                            </div>
-                          )}
-                        </div>
-                        <div className="ml-4">
-                          {stop.status === 'completed' && (
-                            <CheckCircle className="w-5 h-5 text-green-600" />
-                          )}
-                          {stop.status === 'arrived' && (
-                            <div className="flex items-center text-blue-600">
-                              <MapPin className="w-5 h-5 animate-pulse" />
-                            </div>
-                          )}
-                          {stop.status === 'pending' && (
-                            <Clock className="w-5 h-5 text-gray-400" />
-                          )}
-                          {stop.status === 'failed' && (
-                            <XCircle className="w-5 h-5 text-red-600" />
-                          )}
+                          <div className="ml-4">
+                            {stop.status === 'completed' && (
+                              <CheckCircle className="w-5 h-5 text-green-600" />
+                            )}
+                            {stop.status === 'arrived' && (
+                              <div className="flex items-center text-blue-600">
+                                <MapPin className="w-5 h-5 animate-pulse" />
+                              </div>
+                            )}
+                            {stop.status === 'pending' && (
+                              <Clock className="w-5 h-5 text-gray-400" />
+                            )}
+                            {stop.status === 'failed' && (
+                              <XCircle className="w-5 h-5 text-red-600" />
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

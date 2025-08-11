@@ -1,6 +1,5 @@
 import { Route, Customer, Driver, Vehicle, Depot } from '@/types';
 
-// Mock Customers
 export const mockCustomers: Customer[] = [
   {
     id: '1',
@@ -13,6 +12,7 @@ export const mockCustomers: Customer[] = [
     longitude: 29.0252,
     timeWindow: { start: '09:00', end: '12:00' },
     priority: 'high',
+    estimatedServiceTime: 15, // YENİ - 15 dakika
     notes: 'Kapı zili bozuk, telefon et',
     tags: ['bakkal', 'vip'],
     createdAt: new Date('2024-01-15'),
@@ -27,6 +27,7 @@ export const mockCustomers: Customer[] = [
     latitude: 41.0227,
     longitude: 29.0173,
     priority: 'normal',
+    estimatedServiceTime: 20, // YENİ - 20 dakika (market daha büyük)
     tags: ['market'],
     createdAt: new Date('2024-01-20'),
     updatedAt: new Date('2024-01-20')
@@ -41,6 +42,7 @@ export const mockCustomers: Customer[] = [
     longitude: 29.0061,
     timeWindow: { start: '14:00', end: '17:00' },
     priority: 'normal',
+    estimatedServiceTime: 10, // YENİ - 10 dakika
     tags: ['şarküteri'],
     createdAt: new Date('2024-02-01'),
     updatedAt: new Date('2024-02-01')
@@ -54,6 +56,7 @@ export const mockCustomers: Customer[] = [
     latitude: 41.0853,
     longitude: 29.0568,
     priority: 'low',
+    estimatedServiceTime: 5, // YENİ - 5 dakika (büfe küçük)
     tags: ['büfe'],
     createdAt: new Date('2024-02-10'),
     updatedAt: new Date('2024-02-10')
@@ -67,6 +70,7 @@ export const mockCustomers: Customer[] = [
     latitude: 40.9826,
     longitude: 29.1276,
     priority: 'high',
+    estimatedServiceTime: 30, // YENİ - 30 dakika (büyük market)
     notes: 'Büyük sipariş, kamyonet gerekli',
     tags: ['market', 'vip'],
     createdAt: new Date('2024-02-15'),
@@ -405,7 +409,7 @@ export const routeService = {
   }
 };
 
-// Customer Service
+// Customer Service - GÜNCELLENMIŞ VERSİYON
 export const customerService = {
   async getAll(): Promise<Customer[]> {
     await delay(400);
@@ -417,6 +421,12 @@ export const customerService = {
     return mockCustomers;
   },
 
+  async getById(id: string): Promise<Customer | null> {
+    await delay(300);
+    const customers = await this.getAll();
+    return customers.find(c => c.id === id) || null;
+  },
+
   async search(query: string): Promise<Customer[]> {
     await delay(300);
     const customers = await this.getAll();
@@ -425,7 +435,8 @@ export const customerService = {
     return customers.filter(c => 
       c.name.toLowerCase().includes(lowQuery) ||
       c.code.toLowerCase().includes(lowQuery) ||
-      c.address.toLowerCase().includes(lowQuery)
+      c.address.toLowerCase().includes(lowQuery) ||
+      c.phone.toLowerCase().includes(lowQuery)
     );
   },
 
@@ -434,12 +445,12 @@ export const customerService = {
     const customers = await this.getAll();
     const newCustomer: Customer = {
       id: Date.now().toString(),
-      code: `MUS${String(customers.length + 1).padStart(3, '0')}`,
+      code: customer.code || `MUS${String(customers.length + 1).padStart(3, '0')}`,
       name: customer.name || '',
       address: customer.address || '',
       phone: customer.phone || '',
-      latitude: customer.latitude || 0,
-      longitude: customer.longitude || 0,
+      latitude: customer.latitude || 40.9869,
+      longitude: customer.longitude || 29.0252,
       priority: customer.priority || 'normal',
       tags: customer.tags || [],
       createdAt: new Date(),
@@ -450,6 +461,61 @@ export const customerService = {
     customers.push(newCustomer);
     localStorage.setItem('customers', JSON.stringify(customers));
     return newCustomer;
+  },
+
+  async update(id: string, updates: Partial<Customer>): Promise<Customer | null> {
+    await delay(400);
+    const customers = await this.getAll();
+    const index = customers.findIndex(c => c.id === id);
+    
+    if (index === -1) return null;
+    
+    customers[index] = { 
+      ...customers[index], 
+      ...updates,
+      updatedAt: new Date() 
+    };
+    localStorage.setItem('customers', JSON.stringify(customers));
+    return customers[index];
+  },
+
+  async delete(id: string): Promise<boolean> {
+    await delay(300);
+    const customers = await this.getAll();
+    const filtered = customers.filter(c => c.id !== id);
+    
+    if (filtered.length === customers.length) return false;
+    
+    localStorage.setItem('customers', JSON.stringify(filtered));
+    return true;
+  },
+
+  async bulkImport(customers: Partial<Customer>[]): Promise<Customer[]> {
+    await delay(1000);
+    const existingCustomers = await this.getAll();
+    const newCustomers: Customer[] = [];
+    
+    for (const customer of customers) {
+      const newCustomer: Customer = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        code: customer.code || `MUS${String(existingCustomers.length + newCustomers.length + 1).padStart(3, '0')}`,
+        name: customer.name || '',
+        address: customer.address || '',
+        phone: customer.phone || '',
+        latitude: customer.latitude || 40.9869,
+        longitude: customer.longitude || 29.0252,
+        priority: customer.priority || 'normal',
+        tags: customer.tags || [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...customer
+      };
+      newCustomers.push(newCustomer);
+    }
+    
+    const allCustomers = [...existingCustomers, ...newCustomers];
+    localStorage.setItem('customers', JSON.stringify(allCustomers));
+    return newCustomers;
   }
 };
 

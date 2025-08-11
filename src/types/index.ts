@@ -8,7 +8,7 @@ export interface User {
   createdAt: Date;
 }
 
-// Customer Types
+// Customer Types - GÜNCELLENMİŞ
 export interface Customer {
   id: string;
   code: string;
@@ -23,6 +23,7 @@ export interface Customer {
     end: string;   // "17:00"
   };
   priority: 'high' | 'normal' | 'low';
+  estimatedServiceTime?: number; // Varsayılan servis süresi (dakika) - YENİ
   notes?: string;
   tags?: string[];
   createdAt: Date;
@@ -84,7 +85,7 @@ export interface Route {
   notes?: string;
 }
 
-// Route Stop Types
+// Route Stop Types - GÜNCELLENMİŞ
 export interface RouteStop {
   id: string;
   routeId: string;
@@ -92,6 +93,15 @@ export interface RouteStop {
   customer?: Customer;
   order: number;
   status: 'pending' | 'arrived' | 'completed' | 'failed';
+  
+  // Override fields - YENİ
+  overrideTimeWindow?: {
+    start: string;
+    end: string;
+  };
+  overridePriority?: 'high' | 'normal' | 'low';
+  serviceTime?: number; // Bu durak için özel servis süresi (dakika)
+  
   estimatedArrival?: Date;
   actualArrival?: Date;
   completedAt?: Date;
@@ -103,6 +113,7 @@ export interface RouteStop {
     notes?: string;
   };
   failureReason?: string;
+  stopNotes?: string; // Bu durak için özel notlar - YENİ
 }
 
 // Journey (Active Route) Types

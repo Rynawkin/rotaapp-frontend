@@ -6,6 +6,10 @@ import RoutesPage from '@/pages/Routes';
 import CreateRoute from '@/pages/CreateRoute';
 import EditRoute from '@/pages/EditRoute';
 import RouteDetail from '@/pages/RouteDetail';
+import Customers from '@/pages/Customers';
+import CreateCustomer from '@/pages/CreateCustomer';
+import EditCustomer from '@/pages/EditCustomer';
+import CustomerDetail from '@/pages/CustomerDetail';
 import Login from '@/pages/Login';
 
 // Protected Route Component
@@ -74,11 +78,20 @@ function App() {
               <MainLayout onLogout={handleLogout}>
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
+                  
+                  {/* Routes Module */}
                   <Route path="/routes" element={<RoutesPage />} />
                   <Route path="/routes/new" element={<CreateRoute />} />
                   <Route path="/routes/:id" element={<RouteDetail />} />
                   <Route path="/routes/:id/edit" element={<EditRoute />} />
-                  <Route path="/customers" element={<div className="p-6">Müşteriler Sayfası - Yakında</div>} />
+                  
+                  {/* Customers Module */}
+                  <Route path="/customers" element={<Customers />} />
+                  <Route path="/customers/new" element={<CreateCustomer />} />
+                  <Route path="/customers/:id" element={<CustomerDetail />} />
+                  <Route path="/customers/:id/edit" element={<EditCustomer />} />
+                  
+                  {/* Other Pages - Coming Soon */}
                   <Route path="/journeys" element={<div className="p-6">Seferler Sayfası - Yakında</div>} />
                   <Route path="/drivers" element={<div className="p-6">Sürücüler Sayfası - Yakında</div>} />
                   <Route path="/depots" element={<div className="p-6">Depolar Sayfası - Yakında</div>} />
@@ -86,6 +99,8 @@ function App() {
                   <Route path="/reports" element={<div className="p-6">Raporlar Sayfası - Yakında</div>} />
                   <Route path="/profile" element={<div className="p-6">Profil Sayfası - Yakında</div>} />
                   <Route path="/activities" element={<div className="p-6">Aktiviteler Sayfası - Yakında</div>} />
+                  
+                  {/* Default redirect */}
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </MainLayout>

@@ -22,6 +22,15 @@ import {
   depotService 
 } from '@/services/mockData';
 
+// Stop data interface for managing customer overrides
+interface StopData {
+  customer: Customer;
+  overrideTimeWindow?: { start: string; end: string };
+  overridePriority?: 'high' | 'normal' | 'low';
+  serviceTime?: number;
+  stopNotes?: string;
+}
+
 interface RouteFormProps {
   initialData?: Route;
   onSubmit: (data: Partial<Route>) => void;
@@ -55,21 +64,33 @@ const RouteForm: React.FC<RouteFormProps> = ({
   const [depots, setDepots] = useState<Depot[]>([]);
   const [loadingLists, setLoadingLists] = useState(true);
 
-  // Selected customers for stops
-  const [selectedCustomers, setSelectedCustomers] = useState<Customer[]>([]);
+  // Stops with override data
+  const [stopsData, setStopsData] = useState<StopData[]>([]);
 
   // Load lists on mount
   useEffect(() => {
     loadLists();
   }, []);
 
-  // Initialize selected customers from initial data
+  // Initialize stops from initial data
   useEffect(() => {
     if (initialData?.stops && customers.length > 0) {
-      const initialCustomers = initialData.stops
-        .map(stop => customers.find(c => c.id === stop.customerId))
-        .filter(Boolean) as Customer[];
-      setSelectedCustomers(initialCustomers);
+      const initialStops: StopData[] = initialData.stops
+        .map(stop => {
+          const customer = customers.find(c => c.id === stop.customerId);
+          if (!customer) return null;
+          
+          return {
+            customer,
+            overrideTimeWindow: stop.overrideTimeWindow,
+            overridePriority: stop.overridePriority,
+            serviceTime: stop.serviceTime,
+            stopNotes: stop.stopNotes
+          };
+        })
+        .filter(Boolean) as StopData[];
+      
+      setStopsData(initialStops);
     }
   }, [initialData, customers]);
 
@@ -95,36 +116,65 @@ const RouteForm: React.FC<RouteFormProps> = ({
   };
 
   const handleAddCustomer = (customer: Customer) => {
-    if (!selectedCustomers.find(c => c.id === customer.id)) {
-      setSelectedCustomers([...selectedCustomers, customer]);
+    if (!stopsData.find(s => s.customer.id === customer.id)) {
+      setStopsData([...stopsData, { 
+        customer,
+        serviceTime: customer.estimatedServiceTime || 10 // Default 10 dakika
+      }]);
     }
   };
 
   const handleRemoveCustomer = (customerId: string) => {
-    setSelectedCustomers(selectedCustomers.filter(c => c.id !== customerId));
+    setStopsData(stopsData.filter(s => s.customer.id !== customerId));
   };
 
-  const handleReorderCustomers = (reorderedCustomers: Customer[]) => {
-    setSelectedCustomers(reorderedCustomers);
+  const handleReorderStops = (reorderedStops: StopData[]) => {
+    setStopsData(reorderedStops);
+  };
+
+  const handleUpdateStop = (index: number, updates: Partial<StopData>) => {
+    const newStops = [...stopsData];
+    newStops[index] = { ...newStops[index], ...updates };
+    setStopsData(newStops);
   };
 
   const handleOptimize = () => {
     // Fake optimization - just shuffle for now
-    const shuffled = [...selectedCustomers].sort(() => Math.random() - 0.5);
-    setSelectedCustomers(shuffled);
+    const shuffled = [...stopsData].sort(() => Math.random() - 0.5);
+    setStopsData(shuffled);
+  };
+
+  const calculateTotalDuration = () => {
+    let totalMinutes = 0;
+    
+    // Add service time for each stop
+    stopsData.forEach(stop => {
+      totalMinutes += stop.serviceTime || stop.customer.estimatedServiceTime || 10;
+    });
+    
+    // Add estimated travel time between stops (fake calculation)
+    if (stopsData.length > 0) {
+      totalMinutes += stopsData.length * 15; // 15 dakika ortalama yol
+    }
+    
+    return totalMinutes;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Create stops from selected customers
-    const stops: RouteStop[] = selectedCustomers.map((customer, index) => ({
+    // Create stops from stops data
+    const stops: RouteStop[] = stopsData.map((stopData, index) => ({
       id: `${Date.now()}-${index}`,
       routeId: initialData?.id || '',
-      customerId: customer.id,
-      customer: customer,
+      customerId: stopData.customer.id,
+      customer: stopData.customer,
       order: index + 1,
       status: 'pending',
+      overrideTimeWindow: stopData.overrideTimeWindow,
+      overridePriority: stopData.overridePriority,
+      serviceTime: stopData.serviceTime,
+      stopNotes: stopData.stopNotes,
       estimatedArrival: new Date(),
       distance: Math.random() * 10 + 2 // Fake distance
     }));
@@ -133,6 +183,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
       ...formData,
       stops,
       totalDeliveries: stops.length,
+      totalDuration: calculateTotalDuration(),
       status: 'planned'
     };
 
@@ -140,13 +191,17 @@ const RouteForm: React.FC<RouteFormProps> = ({
   };
 
   const handleSaveDraft = () => {
-    const stops: RouteStop[] = selectedCustomers.map((customer, index) => ({
+    const stops: RouteStop[] = stopsData.map((stopData, index) => ({
       id: `${Date.now()}-${index}`,
       routeId: initialData?.id || '',
-      customerId: customer.id,
-      customer: customer,
+      customerId: stopData.customer.id,
+      customer: stopData.customer,
       order: index + 1,
       status: 'pending',
+      overrideTimeWindow: stopData.overrideTimeWindow,
+      overridePriority: stopData.overridePriority,
+      serviceTime: stopData.serviceTime,
+      stopNotes: stopData.stopNotes,
       estimatedArrival: new Date()
     }));
 
@@ -154,6 +209,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
       ...formData,
       stops,
       totalDeliveries: stops.length,
+      totalDuration: calculateTotalDuration(),
       status: 'draft'
     };
 
@@ -295,35 +351,43 @@ const RouteForm: React.FC<RouteFormProps> = ({
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Müşteri Seçimi</h2>
-          <button
-            type="button"
-            onClick={handleOptimize}
-            disabled={selectedCustomers.length < 2}
-            className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center text-sm"
-          >
-            <Sparkles className="w-4 h-4 mr-1.5" />
-            Optimize Et
-          </button>
+          <div className="flex items-center space-x-3">
+            {stopsData.length > 0 && (
+              <div className="text-sm text-gray-600">
+                Toplam Süre: <span className="font-semibold">{calculateTotalDuration()} dk</span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleOptimize}
+              disabled={stopsData.length < 2}
+              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center text-sm"
+            >
+              <Sparkles className="w-4 h-4 mr-1.5" />
+              Optimize Et
+            </button>
+          </div>
         </div>
 
         <CustomerSelector
           customers={customers}
-          selectedCustomers={selectedCustomers}
+          selectedCustomers={stopsData.map(s => s.customer)}
           onSelect={handleAddCustomer}
         />
       </div>
 
       {/* Stops List */}
-      {selectedCustomers.length > 0 && (
+      {stopsData.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Duraklar ({selectedCustomers.length})
+            Duraklar ({stopsData.length})
           </h2>
           
           <StopsList
-            customers={selectedCustomers}
+            stops={stopsData}
             onRemove={handleRemoveCustomer}
-            onReorder={handleReorderCustomers}
+            onReorder={handleReorderStops}
+            onUpdateStop={handleUpdateStop}
           />
         </div>
       )}
@@ -334,7 +398,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
           <button
             type="button"
             onClick={handleSaveDraft}
-            disabled={loading || selectedCustomers.length === 0}
+            disabled={loading || stopsData.length === 0}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors flex items-center"
           >
             <Save className="w-4 h-4 mr-2" />
@@ -344,7 +408,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
         
         <button
           type="submit"
-          disabled={loading || selectedCustomers.length === 0}
+          disabled={loading || stopsData.length === 0}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center"
         >
           {loading ? (

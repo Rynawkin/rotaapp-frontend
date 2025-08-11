@@ -5,242 +5,370 @@ import {
   MapPin, 
   Phone, 
   Clock,
-  AlertCircle,
   Star,
-  Hash
+  Edit2,
+  Save,
+  XCircle,
+  AlertCircle,
+  Timer
 } from 'lucide-react';
 import { Customer } from '@/types';
 
-interface StopsListProps {
-  customers: Customer[];
-  onRemove: (customerId: string) => void;
-  onReorder: (customers: Customer[]) => void;
+interface StopData {
+  customer: Customer;
+  overrideTimeWindow?: { start: string; end: string };
+  overridePriority?: 'high' | 'normal' | 'low';
+  serviceTime?: number;
+  stopNotes?: string;
 }
 
-const StopsList: React.FC<StopsListProps> = ({
-  customers,
-  onRemove,
-  onReorder
+interface StopsListProps {
+  stops: StopData[];
+  onRemove: (customerId: string) => void;
+  onReorder: (stops: StopData[]) => void;
+  onUpdateStop: (index: number, updates: Partial<StopData>) => void;
+}
+
+const StopsList: React.FC<StopsListProps> = ({ 
+  stops, 
+  onRemove, 
+  onReorder,
+  onUpdateStop 
 }) => {
-  const [draggedItem, setDraggedItem] = useState<number | null>(null);
-  const [dragOverItem, setDragOverItem] = useState<number | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editData, setEditData] = useState<Partial<StopData>>({});
 
-  const handleDragStart = (index: number) => {
-    setDraggedItem(index);
-  };
-
-  const handleDragEnter = (index: number) => {
-    if (draggedItem === null) return;
-    if (draggedItem !== index) {
-      setDragOverItem(index);
-    }
-  };
-
-  const handleDragEnd = () => {
-    if (draggedItem !== null && dragOverItem !== null) {
-      const newCustomers = [...customers];
-      const draggedCustomer = newCustomers[draggedItem];
-      
-      // Remove dragged item
-      newCustomers.splice(draggedItem, 1);
-      
-      // Insert at new position
-      newCustomers.splice(dragOverItem, 0, draggedCustomer);
-      
-      onReorder(newCustomers);
-    }
-    
-    setDraggedItem(null);
-    setDragOverItem(null);
+  // Drag handlers
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    
+    if (draggedIndex === null || draggedIndex === dropIndex) return;
+
+    const draggedStop = stops[draggedIndex];
+    const newStops = [...stops];
+    
+    // Remove from old position
+    newStops.splice(draggedIndex, 1);
+    
+    // Insert at new position
+    if (draggedIndex < dropIndex) {
+      newStops.splice(dropIndex - 1, 0, draggedStop);
+    } else {
+      newStops.splice(dropIndex, 0, draggedStop);
+    }
+    
+    onReorder(newStops);
+    setDraggedIndex(null);
+  };
+
+  // Edit handlers
+  const startEdit = (index: number) => {
+    const stop = stops[index];
+    setEditingIndex(index);
+    setEditData({
+      overrideTimeWindow: stop.overrideTimeWindow || stop.customer.timeWindow,
+      overridePriority: stop.overridePriority || stop.customer.priority,
+      serviceTime: stop.serviceTime || stop.customer.estimatedServiceTime || 10,
+      stopNotes: stop.stopNotes || ''
+    });
+  };
+
+  const saveEdit = () => {
+    if (editingIndex !== null) {
+      onUpdateStop(editingIndex, editData);
+      setEditingIndex(null);
+      setEditData({});
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingIndex(null);
+    setEditData({});
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'high':
-        return 'border-red-200 bg-red-50';
+        return 'text-red-600 bg-red-50';
       case 'normal':
-        return 'border-blue-200 bg-blue-50';
+        return 'text-blue-600 bg-blue-50';
       case 'low':
-        return 'border-gray-200 bg-gray-50';
+        return 'text-gray-600 bg-gray-50';
       default:
-        return 'border-gray-200 bg-gray-50';
+        return 'text-gray-600 bg-gray-50';
     }
   };
-
-  const getPriorityIcon = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return 'text-red-600';
-      case 'normal':
-        return 'text-blue-600';
-      case 'low':
-        return 'text-gray-600';
-      default:
-        return 'text-gray-600';
-    }
-  };
-
-  const getPriorityText = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return 'Yüksek Öncelik';
-      case 'normal':
-        return 'Normal';
-      case 'low':
-        return 'Düşük Öncelik';
-      default:
-        return priority;
-    }
-  };
-
-  if (customers.length === 0) {
-    return (
-      <div className="text-center py-8 text-gray-500">
-        <MapPin className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-        <p>Henüz durak eklenmedi</p>
-        <p className="text-sm mt-1">Yukarıdan müşteri arayarak durak ekleyin</p>
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-3">
-      {/* Summary */}
-      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-        <div className="flex items-center space-x-4 text-sm">
-          <span className="text-gray-600">
-            Toplam: <strong className="text-gray-900">{customers.length} durak</strong>
-          </span>
-          <span className="text-gray-600">
-            Tahmini süre: <strong className="text-gray-900">~{customers.length * 15} dk</strong>
-          </span>
-        </div>
-        <p className="text-xs text-gray-500 flex items-center">
-          <GripVertical className="w-4 h-4 mr-1" />
-          Sıralamayı değiştirmek için sürükleyin
-        </p>
-      </div>
+    <div className="space-y-2">
+      {stops.map((stop, index) => {
+        const isEditing = editingIndex === index;
+        const effectivePriority = stop.overridePriority || stop.customer.priority;
+        const effectiveTimeWindow = stop.overrideTimeWindow || stop.customer.timeWindow;
+        const effectiveServiceTime = stop.serviceTime || stop.customer.estimatedServiceTime || 10;
 
-      {/* Stops List */}
-      <div className="space-y-2">
-        {customers.map((customer, index) => (
+        return (
           <div
-            key={customer.id}
-            draggable
-            onDragStart={() => handleDragStart(index)}
-            onDragEnter={() => handleDragEnter(index)}
-            onDragEnd={handleDragEnd}
+            key={stop.customer.id}
+            draggable={!isEditing}
+            onDragStart={(e) => handleDragStart(e, index)}
             onDragOver={handleDragOver}
-            className={`
-              relative p-4 bg-white border-2 rounded-lg transition-all cursor-move
-              ${draggedItem === index ? 'opacity-50' : ''}
-              ${dragOverItem === index ? 'border-blue-400 shadow-lg' : 'border-gray-200'}
-              ${getPriorityColor(customer.priority)}
-              hover:shadow-md
-            `}
+            onDrop={(e) => handleDrop(e, index)}
+            className={`bg-gray-50 rounded-lg p-4 cursor-move hover:bg-gray-100 transition-colors ${
+              draggedIndex === index ? 'opacity-50' : ''
+            }`}
           >
             <div className="flex items-start">
-              {/* Drag Handle and Order Number */}
-              <div className="flex items-center mr-3">
-                <GripVertical className="w-5 h-5 text-gray-400 mr-2" />
-                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center border-2 border-gray-300 font-semibold text-sm">
-                  {index + 1}
-                </div>
+              {/* Drag Handle */}
+              <div className="mr-3">
+                <GripVertical className="w-5 h-5 text-gray-400" />
               </div>
 
-              {/* Customer Info */}
+              {/* Order Number */}
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-semibold text-sm mr-3">
+                {index + 1}
+              </div>
+
+              {/* Content */}
               <div className="flex-1">
-                {/* Name and Code */}
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <h4 className="font-medium text-gray-900 flex items-center">
-                      {customer.name}
-                      <span className="ml-2 text-xs text-gray-500">({customer.code})</span>
-                      {customer.priority === 'high' && (
-                        <Star className={`w-4 h-4 ml-2 ${getPriorityIcon(customer.priority)}`} />
-                      )}
-                    </h4>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => onRemove(customer.id)}
-                    className="p-1 hover:bg-gray-100 rounded transition-colors"
-                  >
-                    <X className="w-4 h-4 text-gray-500" />
-                  </button>
-                </div>
+                {!isEditing ? (
+                  // View Mode
+                  <>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900">
+                          {stop.customer.name}
+                          <span className="ml-2 text-xs text-gray-500">
+                            ({stop.customer.code})
+                          </span>
+                        </h4>
+                        
+                        <div className="mt-1 space-y-1">
+                          <p className="text-sm text-gray-600 flex items-start">
+                            <MapPin className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" />
+                            {stop.customer.address}
+                          </p>
+                          
+                          <div className="flex flex-wrap items-center gap-3 text-sm">
+                            <span className="flex items-center text-gray-500">
+                              <Phone className="w-4 h-4 mr-1" />
+                              {stop.customer.phone}
+                            </span>
+                            
+                            {effectiveTimeWindow && (
+                              <span className="flex items-center text-gray-500">
+                                <Clock className="w-4 h-4 mr-1" />
+                                {effectiveTimeWindow.start} - {effectiveTimeWindow.end}
+                                {stop.overrideTimeWindow && (
+                                  <span className="ml-1 text-xs text-orange-600">(düzenlenmiş)</span>
+                                )}
+                              </span>
+                            )}
+                            
+                            <span className="flex items-center text-gray-500">
+                              <Timer className="w-4 h-4 mr-1" />
+                              {effectiveServiceTime} dk
+                              {stop.serviceTime && (
+                                <span className="ml-1 text-xs text-orange-600">(düzenlenmiş)</span>
+                              )}
+                            </span>
+                          </div>
 
-                {/* Address */}
-                <div className="flex items-start text-sm text-gray-600 mb-2">
-                  <MapPin className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" />
-                  <span>{customer.address}</span>
-                </div>
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(effectivePriority)}`}>
+                              {effectivePriority === 'high' && <Star className="w-3 h-3 mr-1" />}
+                              {effectivePriority === 'high' ? 'Yüksek' : effectivePriority === 'normal' ? 'Normal' : 'Düşük'}
+                              {stop.overridePriority && (
+                                <span className="ml-1">(düzenlenmiş)</span>
+                              )}
+                            </span>
+                          </div>
 
-                {/* Additional Info */}
-                <div className="flex items-center space-x-4 text-sm">
-                  {/* Phone */}
-                  <div className="flex items-center text-gray-500">
-                    <Phone className="w-4 h-4 mr-1" />
-                    <span>{customer.phone}</span>
-                  </div>
+                          {(stop.customer.notes || stop.stopNotes) && (
+                            <div className="mt-2 p-2 bg-yellow-50 rounded text-xs text-yellow-800">
+                              {stop.stopNotes && (
+                                <div>
+                                  <strong>Durak Notu:</strong> {stop.stopNotes}
+                                </div>
+                              )}
+                              {stop.customer.notes && (
+                                <div className={stop.stopNotes ? 'mt-1' : ''}>
+                                  <strong>Müşteri Notu:</strong> {stop.customer.notes}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
 
-                  {/* Time Window */}
-                  {customer.timeWindow && (
-                    <div className="flex items-center text-gray-500">
-                      <Clock className="w-4 h-4 mr-1" />
-                      <span>{customer.timeWindow.start} - {customer.timeWindow.end}</span>
+                      {/* Actions */}
+                      <div className="ml-3 flex items-start space-x-1">
+                        <button
+                          onClick={() => startEdit(index)}
+                          className="p-1.5 hover:bg-gray-200 rounded transition-colors"
+                          title="Düzenle"
+                        >
+                          <Edit2 className="w-4 h-4 text-gray-600" />
+                        </button>
+                        <button
+                          onClick={() => onRemove(stop.customer.id)}
+                          className="p-1.5 hover:bg-red-100 rounded transition-colors"
+                          title="Kaldır"
+                        >
+                          <X className="w-4 h-4 text-red-600" />
+                        </button>
+                      </div>
                     </div>
-                  )}
+                  </>
+                ) : (
+                  // Edit Mode
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium text-gray-900">
+                        {stop.customer.name} - Düzenleniyor
+                      </h4>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={saveEdit}
+                          className="p-1.5 bg-green-600 text-white rounded hover:bg-green-700"
+                          title="Kaydet"
+                        >
+                          <Save className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          className="p-1.5 bg-gray-600 text-white rounded hover:bg-gray-700"
+                          title="İptal"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
 
-                  {/* Priority Badge */}
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                    customer.priority === 'high' ? 'bg-red-100 text-red-700' :
-                    customer.priority === 'normal' ? 'bg-blue-100 text-blue-700' :
-                    'bg-gray-100 text-gray-700'
-                  }`}>
-                    {getPriorityText(customer.priority)}
-                  </span>
-                </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {/* Priority Override */}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Öncelik
+                        </label>
+                        <select
+                          value={editData.overridePriority || stop.customer.priority}
+                          onChange={(e) => setEditData({
+                            ...editData,
+                            overridePriority: e.target.value as 'high' | 'normal' | 'low'
+                          })}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="low">Düşük</option>
+                          <option value="normal">Normal</option>
+                          <option value="high">Yüksek</option>
+                        </select>
+                      </div>
 
-                {/* Tags */}
-                {customer.tags && customer.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {customer.tags.map(tag => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600"
-                      >
-                        <Hash className="w-3 h-3 mr-0.5" />
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                      {/* Service Time */}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Servis Süresi (dk)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={editData.serviceTime || stop.customer.estimatedServiceTime || 10}
+                          onChange={(e) => setEditData({
+                            ...editData,
+                            serviceTime: parseInt(e.target.value)
+                          })}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
 
-                {/* Notes */}
-                {customer.notes && (
-                  <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800 flex items-start">
-                    <AlertCircle className="w-3 h-3 mr-1 mt-0.5 flex-shrink-0" />
-                    <span>{customer.notes}</span>
+                      {/* Time Window Override */}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Başlangıç Saati
+                        </label>
+                        <input
+                          type="time"
+                          value={editData.overrideTimeWindow?.start || stop.customer.timeWindow?.start || '09:00'}
+                          onChange={(e) => setEditData({
+                            ...editData,
+                            overrideTimeWindow: {
+                              start: e.target.value,
+                              end: editData.overrideTimeWindow?.end || stop.customer.timeWindow?.end || '17:00'
+                            }
+                          })}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Bitiş Saati
+                        </label>
+                        <input
+                          type="time"
+                          value={editData.overrideTimeWindow?.end || stop.customer.timeWindow?.end || '17:00'}
+                          onChange={(e) => setEditData({
+                            ...editData,
+                            overrideTimeWindow: {
+                              start: editData.overrideTimeWindow?.start || stop.customer.timeWindow?.start || '09:00',
+                              end: e.target.value
+                            }
+                          })}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Stop Notes */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Bu Durak İçin Özel Not
+                      </label>
+                      <textarea
+                        value={editData.stopNotes || ''}
+                        onChange={(e) => setEditData({
+                          ...editData,
+                          stopNotes: e.target.value
+                        })}
+                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        rows={2}
+                        placeholder="Bu teslimat için özel notlar..."
+                      />
+                    </div>
                   </div>
                 )}
               </div>
             </div>
           </div>
-        ))}
-      </div>
+        );
+      })}
 
-      {/* Distance Info */}
-      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <p className="text-sm text-blue-800 flex items-center">
-          <AlertCircle className="w-4 h-4 mr-2" />
-          Mesafe ve süre bilgileri rota optimize edildikten sonra hesaplanacaktır.
-        </p>
-      </div>
+      {stops.length === 0 && (
+        <div className="text-center py-8 text-gray-500">
+          <MapPin className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+          <p>Henüz durak eklenmedi</p>
+          <p className="text-sm mt-1">Yukarıdan müşteri seçerek başlayın</p>
+        </div>
+      )}
+
+      {stops.length > 0 && (
+        <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+          <AlertCircle className="w-4 h-4 inline mr-1" />
+          <strong>İpucu:</strong> Durakları sürükleyerek sırayı değiştirebilir, düzenle butonuna tıklayarak her durak için özel ayarlar yapabilirsiniz.
+        </div>
+      )}
     </div>
   );
 };
