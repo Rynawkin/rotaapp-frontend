@@ -1,106 +1,106 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Route, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Route, Lock, Mail, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 interface LoginProps {
-  onLogin: (token: string, user: any) => void;
+  onLoginSuccess?: () => void;
 }
 
-const Login: React.FC<LoginProps> = ({ onLogin }) => {
+const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('admin@rotaapp.com');
+  const [password, setPassword] = useState('admin123');
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
+    setLoading(true);
 
-    try {
-      // Mock login - gerçek API çağrısı yerine
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simüle edilmiş gecikme
-
+    // Simulate API call
+    setTimeout(() => {
+      // Mock authentication
       if (email === 'admin@rotaapp.com' && password === 'admin123') {
-        // Başarılı login
-        const mockToken = 'mock-jwt-token-' + Date.now();
-        const mockUser = {
-          id: 1,
-          name: 'Admin Kullanıcı',
+        // Store auth data
+        localStorage.setItem('token', 'mock-jwt-token-' + Date.now());
+        localStorage.setItem('user', JSON.stringify({
+          id: '1',
           email: email,
-          role: 'Admin',
-          company: 'RotaApp Demo'
-        };
+          name: 'Admin User',
+          role: 'Admin'
+        }));
 
-        onLogin(mockToken, mockUser);
+        // Call success callback
+        if (onLoginSuccess) {
+          onLoginSuccess();
+        }
+
+        // Navigate to dashboard
         navigate('/');
       } else {
-        setError('Email veya şifre hatalı!');
+        setError('E-posta veya şifre hatalı');
+        setLoading(false);
       }
-    } catch (err) {
-      setError('Bir hata oluştu. Lütfen tekrar deneyin.');
-    } finally {
-      setIsLoading(false);
-    }
+    }, 1000);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
-      <div className="max-w-md w-full space-y-8">
-        {/* Logo ve Başlık */}
-        <div className="text-center">
-          <div className="flex justify-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg">
-              <Route className="w-10 h-10 text-white" />
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="max-w-md w-full">
+        {/* Logo and Title */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-xl shadow-lg mb-4">
+            <Route className="w-10 h-10 text-white" />
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">
-            RotaApp'e Hoş Geldiniz
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Rota optimizasyon platformuna giriş yapın
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900">RotaApp</h1>
+          <p className="text-gray-600 mt-2">Rota Optimizasyon Platformu</p>
         </div>
 
-        {/* Login Form */}
-        <div className="bg-white py-8 px-10 shadow-xl rounded-xl">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            {/* Email Input */}
+        {/* Login Card */}
+        <div className="bg-white rounded-2xl shadow-xl p-8">
+          <h2 className="text-2xl font-semibold text-gray-900 mb-6">Giriş Yap</h2>
+          
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email Adresi
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                E-posta Adresi
               </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="ornek@sirket.com"
-              />
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="ornek@email.com"
+                  required
+                />
+              </div>
             </div>
 
-            {/* Password Input */}
+            {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                 Şifre
               </label>
-              <div className="mt-1 relative">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-gray-400" />
+                </div>
                 <input
                   id="password"
-                  name="password"
                   type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 pr-10"
+                  className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="••••••••"
+                  required
                 />
                 <button
                   type="button"
@@ -120,21 +120,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <input
-                  id="remember-me"
-                  name="remember-me"
+                  id="remember"
                   type="checkbox"
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
+                <label htmlFor="remember" className="ml-2 block text-sm text-gray-700">
                   Beni hatırla
                 </label>
               </div>
-
-              <div className="text-sm">
-                <a href="#" className="font-medium text-blue-600 hover:text-blue-500">
-                  Şifremi unuttum
-                </a>
-              </div>
+              <a href="#" className="text-sm text-blue-600 hover:text-blue-700">
+                Şifremi unuttum
+              </a>
             </div>
 
             {/* Error Message */}
@@ -147,12 +143,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              disabled={loading}
+              className="w-full flex items-center justify-center px-4 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {isLoading ? (
+              {loading ? (
                 <>
-                  <Loader2 className="animate-spin h-5 w-5 mr-2" />
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                   Giriş yapılıyor...
                 </>
               ) : (
@@ -162,17 +158,25 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </form>
 
           {/* Demo Credentials */}
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <div className="bg-blue-50 rounded-lg p-4">
-              <p className="text-sm font-medium text-blue-900 mb-2">Demo Hesabı:</p>
-              <p className="text-xs text-blue-700">Email: admin@rotaapp.com</p>
-              <p className="text-xs text-blue-700">Şifre: admin123</p>
-            </div>
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+            <p className="text-sm font-medium text-blue-900 mb-2">Demo Giriş Bilgileri:</p>
+            <p className="text-xs text-blue-700">Email: admin@rotaapp.com</p>
+            <p className="text-xs text-blue-700">Şifre: admin123</p>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Hesabınız yok mu?{' '}
+              <a href="#" className="font-medium text-blue-600 hover:text-blue-700">
+                Kayıt olun
+              </a>
+            </p>
           </div>
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-sm text-gray-600">
+        {/* Copyright */}
+        <p className="text-center text-sm text-gray-500 mt-8">
           © 2024 RotaApp. Tüm hakları saklıdır.
         </p>
       </div>
