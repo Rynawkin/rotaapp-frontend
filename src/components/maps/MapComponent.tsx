@@ -4,8 +4,7 @@ import {
   useJsApiLoader,
   Marker,
   DirectionsRenderer,
-  InfoWindow,
-  Polyline
+  InfoWindow
 } from '@react-google-maps/api';
 import { MapPin, Navigation, Home, Loader2, Package, Clock, Phone, Star, ChevronRight } from 'lucide-react';
 import { LatLng, MarkerData } from '@/types/maps';
@@ -18,7 +17,7 @@ interface MapComponentProps {
   zoom?: number;
   height?: string;
   markers?: MarkerData[];
-  directions?: google.maps.DirectionsResult;
+  directions?: google.maps.DirectionsResult | null;
   customers?: Customer[];
   depot?: LatLng;
   showTraffic?: boolean;
@@ -91,7 +90,7 @@ const modernMapStyle = [
   {
     "featureType": "road.highway",
     "elementType": "geometry.stroke",
-    "stylers": [{ "color": "#c5cae9" }]
+    "stylers": [{ "color": "#c5cae9", "weight": 1 }]
   },
   {
     "featureType": "road.highway",
@@ -166,34 +165,42 @@ const MapComponent: React.FC<MapComponentProps> = ({
     overflow: 'hidden'
   };
 
-  const mapOptions: google.maps.MapOptions = {
-    disableDefaultUI: false,
-    zoomControl: true,
-    mapTypeControl: false,
-    scaleControl: true,
-    streetViewControl: false,
-    rotateControl: false,
-    fullscreenControl: true,
-    styles: modernMapStyle,
-    gestureHandling: 'greedy', // CTRL tuşu olmadan zoom yapılabilir
-    zoomControlOptions: {
-      position: google.maps?.ControlPosition?.RIGHT_CENTER
-    },
-    fullscreenControlOptions: {
-      position: google.maps?.ControlPosition?.TOP_RIGHT
-    },
-    scrollwheel: true, // Mouse wheel ile zoom
-    disableDoubleClickZoom: false,
-    minZoom: 8,
-    maxZoom: 19
-  };
+  const getMapOptions = useCallback((): google.maps.MapOptions => {
+    const baseOptions: any = {
+      disableDefaultUI: false,
+      zoomControl: true,
+      mapTypeControl: false,
+      scaleControl: true,
+      streetViewControl: false,
+      rotateControl: false,
+      fullscreenControl: true,
+      styles: modernMapStyle,
+      gestureHandling: 'greedy',
+      scrollwheel: true,
+      disableDoubleClickZoom: false,
+      minZoom: 8,
+      maxZoom: 19
+    };
+
+    // Google Maps yüklüyse position'ları ekle
+    if (typeof window !== 'undefined' && window.google && window.google.maps) {
+      baseOptions.zoomControlOptions = {
+        position: window.google.maps.ControlPosition.RIGHT_CENTER
+      };
+      baseOptions.fullscreenControlOptions = {
+        position: window.google.maps.ControlPosition.TOP_RIGHT
+      };
+    }
+
+    return baseOptions;
+  }, []);
 
   const onLoad = useCallback((map: google.maps.Map) => {
     setMap(map);
     
     // Trafik katmanı
-    if (showTraffic) {
-      const trafficLayer = new google.maps.TrafficLayer();
+    if (showTraffic && window.google && window.google.maps) {
+      const trafficLayer = new window.google.maps.TrafficLayer();
       trafficLayer.setMap(map);
     }
 
@@ -228,7 +235,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   // Custom marker icon - SVG based
   const createCustomMarkerIcon = (number: string, isDepot: boolean = false, isSelected: boolean = false) => {
-    if (!window.google || !window.google.maps) return undefined;
+    if (typeof window === 'undefined' || !window.google || !window.google.maps) return undefined;
 
     if (isDepot) {
       // Depot için özel SVG icon
@@ -249,8 +256,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
       
       return {
         url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(depotSvg),
-        scaledSize: new google.maps.Size(56, 56),
-        anchor: new google.maps.Point(28, 28)
+        scaledSize: new window.google.maps.Size(56, 56),
+        anchor: new window.google.maps.Point(28, 28)
       };
     }
 
@@ -274,24 +281,24 @@ const MapComponent: React.FC<MapComponentProps> = ({
     
     return {
       url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(markerSvg),
-      scaledSize: new google.maps.Size(48, 64),
-      anchor: new google.maps.Point(24, 64)
+      scaledSize: new window.google.maps.Size(48, 64),
+      anchor: new window.google.maps.Point(24, 64)
     };
   };
 
   // İlk yüklemede bounds ayarla
   useEffect(() => {
-    if (map && !initialBoundsSet.current && (markers.length > 0 || depot)) {
-      const bounds = new google.maps.LatLngBounds();
+    if (map && !initialBoundsSet.current && (markers.length > 0 || depot) && typeof window !== 'undefined' && window.google && window.google.maps) {
+      const bounds = new window.google.maps.LatLngBounds();
       
       // Depot'yu ekle
       if (depot) {
-        bounds.extend(new google.maps.LatLng(depot.lat, depot.lng));
+        bounds.extend(new window.google.maps.LatLng(depot.lat, depot.lng));
       }
       
       // Tüm marker'ları ekle
       markers.forEach(marker => {
-        bounds.extend(new google.maps.LatLng(marker.position.lat, marker.position.lng));
+        bounds.extend(new window.google.maps.LatLng(marker.position.lat, marker.position.lng));
       });
       
       // Bounds'a göre zoom ve center ayarla
@@ -367,7 +374,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         onLoad={onLoad}
         onUnmount={onUnmount}
         onClick={handleMapClick}
-        options={mapOptions}
+        options={getMapOptions()}
       >
         {/* Depot Marker */}
         {depot && (
@@ -376,7 +383,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
             icon={createCustomMarkerIcon('', true)}
             title="Ana Depo - Başlangıç ve Bitiş Noktası"
             zIndex={1000}
-            animation={google.maps.Animation.DROP}
+            animation={window.google && window.google.maps ? window.google.maps.Animation.DROP : undefined}
           />
         )}
 
@@ -398,12 +405,14 @@ const MapComponent: React.FC<MapComponentProps> = ({
               onMouseOut={() => setHoveredMarker(null)}
               icon={createCustomMarkerIcon(String(orderNumber), false, isSelected)}
               zIndex={isSelected ? 2000 : 500 + orderNumber}
-              animation={hoveredMarker === marker.customerId || isSelected ? google.maps.Animation.BOUNCE : undefined}
+              animation={hoveredMarker === marker.customerId || isSelected ? 
+                (window.google && window.google.maps ? window.google.maps.Animation.BOUNCE : undefined) : 
+                undefined}
             />
           );
         })}
 
-        {/* Directions - Optimize edilmiş rota */}
+        {/* Directions - SADECE optimize edilmiş rota için */}
         {directions && (
           <DirectionsRenderer
             directions={directions}
@@ -411,8 +420,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
               suppressMarkers: true,
               polylineOptions: {
                 strokeColor: '#3B82F6',
-                strokeWeight: 5,
-                strokeOpacity: 0.85,
+                strokeWeight: 3, // Kalınlık azaltıldı (5'ten 3'e)
+                strokeOpacity: 0.8, // Opaklık azaltıldı
                 geodesic: true
               },
               preserveViewport: true
@@ -420,31 +429,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
           />
         )}
 
-        {/* Alternatif: Basit polyline (directions yoksa) */}
-        {!directions && depot && markers.length > 0 && (
-          <Polyline
-            path={[
-              depot,
-              ...markers.map(m => m.position),
-              depot
-            ]}
-            options={{
-              strokeColor: '#3B82F6',
-              strokeWeight: 4,
-              strokeOpacity: 0.8,
-              geodesic: true,
-              strokePattern: [{ repeat: '10px', icon: { path: google.maps.SymbolPath.CIRCLE, scale: 1 } }]
-            }}
-          />
-        )}
-
         {/* Info Window */}
-        {selectedMarker && (
+        {selectedMarker && window.google && window.google.maps && (
           <InfoWindow
             position={selectedMarker.position}
             onCloseClick={() => setSelectedMarker(null)}
             options={{
-              pixelOffset: new google.maps.Size(0, -64)
+              pixelOffset: new window.google.maps.Size(0, -64)
             }}
           >
             <div className="p-3 min-w-[280px]">

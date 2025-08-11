@@ -74,7 +74,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
   // Stops with override data
   const [stopsData, setStopsData] = useState<StopData[]>([]);
 
-  // Map State - HAR��TA VARSAYILAN OLARAK AÇIK
+  // Map State - HARİTA VARSAYILAN OLARAK AÇIK
   const [mapCenter, setMapCenter] = useState<LatLng>({ lat: 40.9869, lng: 29.0252 });
   const [mapDirections, setMapDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [optimizing, setOptimizing] = useState(false);
@@ -112,9 +112,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
   useEffect(() => {
     if (stopsData.length > 0) {
       // Biraz gecikme ekle ki Google Maps yüklensin
-      const timer = setTimeout(() => {
-        updateMapRoute();
-      }, 500);
+      const timer = setTimeout(() => updateMapRoute(), 500);
       return () => clearTimeout(timer);
     }
   }, [stopsData]);
@@ -336,13 +334,13 @@ const RouteForm: React.FC<RouteFormProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Create stops from stops data
+    // Create stops from stops data WITH ORDER VALUES
     const stops: RouteStop[] = stopsData.map((stopData, index) => ({
       id: `${Date.now()}-${index}`,
       routeId: initialData?.id || '',
       customerId: stopData.customer.id,
       customer: stopData.customer,
-      order: index + 1,
+      order: index + 1, // ÖNEMLİ: Order değeri burada set ediliyor
       status: 'pending',
       overrideTimeWindow: stopData.overrideTimeWindow,
       overridePriority: stopData.overridePriority,
@@ -370,7 +368,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
       routeId: initialData?.id || '',
       customerId: stopData.customer.id,
       customer: stopData.customer,
-      order: index + 1,
+      order: index + 1, // ÖNEMLİ: Order değeri burada da set ediliyor
       status: 'pending',
       overrideTimeWindow: stopData.overrideTimeWindow,
       overridePriority: stopData.overridePriority,
@@ -408,7 +406,20 @@ const RouteForm: React.FC<RouteFormProps> = ({
   // Handle map load - Google Maps servisleri başlatma
   const handleMapLoad = (map: google.maps.Map) => {
     googleMapsService.initializeServices(map);
-    console.log('✅ Google Maps servisleri yüklendi');
+  };
+
+  // Get map markers with order numbers
+  const getMapMarkers = (): MarkerData[] => {
+    return stopsData.map((stop, index) => ({
+      position: {
+        lat: stop.customer.latitude,
+        lng: stop.customer.longitude
+      },
+      title: stop.customer.name,
+      label: String(index + 1), // Düzgün sıra numarası
+      type: 'customer' as const,
+      customerId: stop.customer.id
+    }));
   };
 
   if (loadingLists) {
@@ -615,16 +626,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
           <MapComponent
             center={mapCenter}
             height="600px"
-            markers={stopsData.map((stop, index) => ({
-              position: {
-                lat: stop.customer.latitude,
-                lng: stop.customer.longitude
-              },
-              title: stop.customer.name,
-              label: String(index + 1),
-              type: 'customer' as const,
-              customerId: stop.customer.id
-            }))}
+            markers={getMapMarkers()}
             depot={getDepotLocation()}
             directions={mapDirections}
             customers={stopsData.map(s => s.customer)}

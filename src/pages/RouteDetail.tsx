@@ -41,10 +41,9 @@ const RouteDetail: React.FC = () => {
   const [route, setRoute] = useState<Route | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showMap, setShowMap] = useState(false);
   const [mapDirections, setMapDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [optimizing, setOptimizing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'stops' | 'timeline'>('overview');
+  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -63,8 +62,8 @@ const RouteDetail: React.FC = () => {
       setRoute(routeData);
       setCustomers(customersData);
       
-      // Haritayı biraz gecikmeyle yükle (Google Maps'in yüklenmesini bekle)
-      if (routeData && routeData.stops.length > 0) {
+      // Sadece optimize edilmiş rotalar için haritada yol göster
+      if (routeData && routeData.stops.length > 0 && routeData.optimized) {
         setTimeout(() => loadRouteOnMap(routeData), 1000);
       }
     } catch (error) {
@@ -76,6 +75,7 @@ const RouteDetail: React.FC = () => {
 
   const loadRouteOnMap = async (routeData: Route) => {
     if (!routeData.stops || routeData.stops.length === 0) return;
+    if (!routeData.optimized) return; // Optimize edilmemişse directions gösterme
 
     // Find depot
     const depot = { lat: 40.9913, lng: 29.0236 }; // Default depot location
@@ -113,11 +113,7 @@ const RouteDetail: React.FC = () => {
       
       if (directions) {
         setMapDirections(directions);
-        setShowMap(true);
       }
-    } else {
-      // Google Maps yüklenemezse sadece haritayı göster
-      setShowMap(true);
     }
   };
 
@@ -154,7 +150,6 @@ const RouteDetail: React.FC = () => {
   const handleStartJourney = () => {
     if (!route) return;
     alert('Sefer başlatma özelliği yakında eklenecek!');
-    // TODO: Journey modülü tamamlandığında implement edilecek
   };
 
   const handleOptimize = async () => {
@@ -182,7 +177,6 @@ const RouteDetail: React.FC = () => {
   const handleExport = () => {
     if (!route) return;
     
-    // Create CSV content
     const csvContent = [
       ['Sıra', 'Müşteri', 'Adres', 'Telefon', 'Durum', 'Mesafe', 'Süre'],
       ...route.stops.map(stop => [
@@ -196,13 +190,16 @@ const RouteDetail: React.FC = () => {
       ])
     ].map(row => row.join(',')).join('\n');
 
-    // Download CSV
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${route.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+  };
+
+  const handleStopClick = (stopId: string) => {
+    setSelectedStopId(stopId);
   };
 
   const getStatusBadge = (status: string) => {
@@ -280,7 +277,6 @@ const RouteDetail: React.FC = () => {
     return Math.round((route.completedDeliveries / route.totalDeliveries) * 100);
   };
 
-  // Prepare map markers
   const getMapMarkers = (): MarkerData[] => {
     if (!route) return [];
     
@@ -297,7 +293,6 @@ const RouteDetail: React.FC = () => {
   };
 
   const getDepotLocation = (): LatLng => {
-    // Default depot location (should be fetched from depot data)
     return { lat: 40.9913, lng: 29.0236 };
   };
 
@@ -500,9 +495,165 @@ const RouteDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* Route Information */}
+      {/* Main Content - Harita ve Duraklar YAN YANA */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Details */}
+        {/* Sol Taraf - Harita (2/3 genişlik) */}
+        <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+              <Map className="w-5 h-5 mr-2" />
+              Rota Haritası
+            </h2>
+            {!route.optimized && route.stops.length > 0 && (
+              <span className="text-sm text-orange-600 flex items-center">
+                <AlertCircle className="w-4 h-4 mr-1" />
+                Optimize edilmemiş
+              </span>
+            )}
+          </div>
+
+          {typeof window !== 'undefined' && window.google && window.google.maps ? (
+            <MapComponent
+              height="650px"
+              markers={getMapMarkers()}
+              depot={getDepotLocation()}
+              directions={route.optimized ? mapDirections : null}
+              customers={customers}
+              showTraffic={true}
+              selectedCustomerId={selectedStopId ? route.stops.find(s => s.id === selectedStopId)?.customerId : undefined}
+              onCustomerSelect={(customerId) => {
+                const stop = route.stops.find(s => s.customerId === customerId);
+                if (stop) setSelectedStopId(stop.id);
+              }}
+            />
+          ) : (
+            <LeafletMapComponent
+              height="650px"
+              customers={customers}
+              depot={getDepotLocation()}
+              stops={route.stops.map((stop, index) => ({
+                customer: stop.customer || customers.find(c => c.id === stop.customerId) || {
+                  id: stop.customerId,
+                  name: `Müşteri ${stop.customerId}`,
+                  address: '',
+                  phone: '',
+                  latitude: 0,
+                  longitude: 0,
+                  code: '',
+                  priority: 'normal' as const,
+                  tags: [],
+                  createdAt: new Date(),
+                  updatedAt: new Date()
+                },
+                order: stop.order
+              }))}
+            />
+          )}
+
+          {!route.optimized && route.stops.length > 0 && (
+            <div className="mt-4 p-3 bg-orange-50 rounded-lg border border-orange-200">
+              <p className="text-sm text-orange-700 flex items-center">
+                <AlertCircle className="w-4 h-4 mr-2" />
+                <strong>Bilgi:</strong> Rota henüz optimize edilmemiş. Optimize Et butonuna basarak rotayı optimize edebilirsiniz.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Sağ Taraf - Duraklar Listesi (1/3 genişlik) */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="p-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+              <MapPin className="w-5 h-5 mr-2" />
+              Duraklar ({route.stops.length})
+            </h2>
+          </div>
+          
+          <div className="max-h-[650px] overflow-y-auto">
+            {route.stops.length === 0 ? (
+              <div className="p-6 text-center text-gray-500">
+                <MapPin className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                <p>Bu rotada henüz durak yok</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {route.stops.map((stop) => (
+                  <div 
+                    key={stop.id}
+                    onClick={() => handleStopClick(stop.id)}
+                    className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
+                      selectedStopId === stop.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                    }`}
+                  >
+                    <div className="flex items-start">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-semibold text-sm mr-3 flex-shrink-0">
+                        {stop.order}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <h4 className="font-medium text-gray-900 truncate">
+                            {stop.customer?.name || `Müşteri ${stop.customerId}`}
+                          </h4>
+                          {getStopStatusBadge(stop.status)}
+                        </div>
+                        
+                        <p className="text-xs text-gray-600 truncate mb-2">
+                          {stop.customer?.address}
+                        </p>
+                        
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                          {stop.customer?.phone && (
+                            <span className="flex items-center">
+                              <Phone className="w-3 h-3 mr-0.5" />
+                              {stop.customer.phone}
+                            </span>
+                          )}
+                          
+                          {(stop.serviceTime || stop.customer?.estimatedServiceTime) && (
+                            <span className="flex items-center">
+                              <Timer className="w-3 h-3 mr-0.5" />
+                              {stop.serviceTime || stop.customer?.estimatedServiceTime}dk
+                            </span>
+                          )}
+                          
+                          {stop.distance && (
+                            <span className="flex items-center">
+                              <Navigation className="w-3 h-3 mr-0.5" />
+                              {stop.distance}km
+                            </span>
+                          )}
+                        </div>
+
+                        {stop.customer?.timeWindow && (
+                          <div className="mt-2 flex items-center text-xs text-gray-600">
+                            <Clock className="w-3 h-3 mr-1" />
+                            {stop.overrideTimeWindow?.start || stop.customer.timeWindow.start} - 
+                            {stop.overrideTimeWindow?.end || stop.customer.timeWindow.end}
+                          </div>
+                        )}
+
+                        {(stop.stopNotes || stop.customer?.notes) && (
+                          <div className="mt-2">
+                            {stop.stopNotes && (
+                              <div className="p-1.5 bg-yellow-50 rounded text-xs text-yellow-700">
+                                {stop.stopNotes}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Row - Details and Actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Details Card */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Detaylar</h2>
           <div className="space-y-4">
@@ -547,30 +698,6 @@ const RouteDetail: React.FC = () => {
                 </p>
               </div>
             </div>
-            
-            {route.startedAt && (
-              <div className="flex items-start space-x-3">
-                <Play className="w-5 h-5 text-gray-400 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm text-gray-600">Başlangıç</p>
-                  <p className="font-medium">
-                    {new Date(route.startedAt).toLocaleString('tr-TR')}
-                  </p>
-                </div>
-              </div>
-            )}
-            
-            {route.completedAt && (
-              <div className="flex items-start space-x-3">
-                <CheckCircle className="w-5 h-5 text-gray-400 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm text-gray-600">Tamamlanma</p>
-                  <p className="font-medium">
-                    {new Date(route.completedAt).toLocaleString('tr-TR')}
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
           
           {route.notes && (
@@ -580,221 +707,6 @@ const RouteDetail: React.FC = () => {
               </p>
             </div>
           )}
-        </div>
-
-        {/* Map or Stops */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Tabs */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="border-b border-gray-200">
-              <nav className="flex space-x-8 px-6" aria-label="Tabs">
-                <button
-                  onClick={() => setShowMap(false)}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                    !showMap
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <MapPin className="w-4 h-4 inline mr-2" />
-                  Duraklar ({route.stops.length})
-                </button>
-                <button
-                  onClick={() => setShowMap(true)}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                    showMap
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <Map className="w-4 h-4 inline mr-2" />
-                  Harita
-                </button>
-              </nav>
-            </div>
-
-            <div className="p-6">
-              {!showMap ? (
-                // Stops List
-                <div className="space-y-3">
-                  {route.stops.map((stop, index) => (
-                    <div 
-                      key={stop.id} 
-                      className={`p-4 rounded-lg border ${
-                        stop.status === 'completed' ? 'bg-green-50 border-green-200' :
-                        stop.status === 'failed' ? 'bg-red-50 border-red-200' :
-                        stop.status === 'arrived' ? 'bg-blue-50 border-blue-200' :
-                        'bg-gray-50 border-gray-200'
-                      }`}
-                    >
-                      <div className="flex items-start">
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-semibold text-sm mr-4 flex-shrink-0">
-                          {stop.order}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-2">
-                                <h4 className="font-medium text-gray-900">
-                                  {stop.customer?.name || `Müşteri ${stop.customerId}`}
-                                </h4>
-                                {stop.customer && getPriorityIcon(stop.overridePriority || stop.customer.priority)}
-                                {getStopStatusBadge(stop.status)}
-                              </div>
-                              
-                              <p className="text-sm text-gray-600 mt-1">
-                                <MapPin className="w-3 h-3 inline mr-1" />
-                                {stop.customer?.address}
-                              </p>
-                              
-                              <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-gray-500">
-                                {stop.customer?.phone && (
-                                  <span className="flex items-center">
-                                    <Phone className="w-3 h-3 mr-1" />
-                                    {stop.customer.phone}
-                                  </span>
-                                )}
-                                
-                                {stop.customer?.timeWindow && (
-                                  <span className="flex items-center">
-                                    <Clock className="w-3 h-3 mr-1" />
-                                    {stop.overrideTimeWindow?.start || stop.customer.timeWindow.start} - 
-                                    {stop.overrideTimeWindow?.end || stop.customer.timeWindow.end}
-                                  </span>
-                                )}
-                                
-                                {(stop.serviceTime || stop.customer?.estimatedServiceTime) && (
-                                  <span className="flex items-center">
-                                    <Timer className="w-3 h-3 mr-1" />
-                                    {stop.serviceTime || stop.customer?.estimatedServiceTime} dk
-                                  </span>
-                                )}
-                                
-                                {stop.distance && (
-                                  <span className="flex items-center">
-                                    <Navigation className="w-3 h-3 mr-1" />
-                                    {stop.distance} km
-                                  </span>
-                                )}
-                              </div>
-                              
-                              {/* Stop Notes */}
-                              {(stop.stopNotes || stop.customer?.notes) && (
-                                <div className="mt-3 space-y-1">
-                                  {stop.stopNotes && (
-                                    <div className="p-2 bg-yellow-50 rounded text-xs text-yellow-800">
-                                      <strong>Durak Notu:</strong> {stop.stopNotes}
-                                    </div>
-                                  )}
-                                  {stop.customer?.notes && (
-                                    <div className="p-2 bg-blue-50 rounded text-xs text-blue-800">
-                                      <strong>Müşteri Notu:</strong> {stop.customer.notes}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                              
-                              {/* Delivery Proof */}
-                              {stop.deliveryProof && (
-                                <div className="mt-3 p-2 bg-green-50 rounded">
-                                  <p className="text-xs font-medium text-green-800 mb-1">Teslimat Kanıtı</p>
-                                  {stop.deliveryProof.signature && (
-                                    <p className="text-xs text-green-700">✓ İmza alındı</p>
-                                  )}
-                                  {stop.deliveryProof.photo && (
-                                    <p className="text-xs text-green-700">✓ Fotoğraf çekildi</p>
-                                  )}
-                                  {stop.deliveryProof.notes && (
-                                    <p className="text-xs text-green-700 mt-1">
-                                      Not: {stop.deliveryProof.notes}
-                                    </p>
-                                  )}
-                                </div>
-                              )}
-                              
-                              {/* Failure Reason */}
-                              {stop.failureReason && (
-                                <div className="mt-3 p-2 bg-red-50 rounded">
-                                  <p className="text-xs font-medium text-red-800">
-                                    Başarısız Teslimat: {stop.failureReason}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                            
-                            {/* Stop Actions */}
-                            <div className="ml-4 flex items-start space-x-1">
-                              {stop.customer && (
-                                <Link
-                                  to={`/customers/${stop.customerId}`}
-                                  className="p-1.5 hover:bg-gray-200 rounded transition-colors"
-                                  title="Müşteri Detayı"
-                                >
-                                  <Eye className="w-4 h-4 text-gray-600" />
-                                </Link>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {route.stops.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <MapPin className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                      <p>Bu rotada henüz durak yok</p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                // Map View
-                <div>
-                  {/* MapComponent zaten yüklendi mi kontrol et */}
-                  {typeof window !== 'undefined' && window.google && window.google.maps ? (
-                    <MapComponent
-                      height="500px"
-                      markers={getMapMarkers()}
-                      depot={getDepotLocation()}
-                      directions={mapDirections}
-                      customers={customers}
-                      showTraffic={true}
-                    />
-                  ) : (
-                    <LeafletMapComponent
-                      height="500px"
-                      customers={customers}
-                      depot={getDepotLocation()}
-                      stops={route.stops.map((stop, index) => ({
-                        customer: stop.customer || customers.find(c => c.id === stop.customerId) || {
-                          id: stop.customerId,
-                          name: `Müşteri ${stop.customerId}`,
-                          address: '',
-                          phone: '',
-                          latitude: 0,
-                          longitude: 0,
-                          code: '',
-                          priority: 'normal' as const,
-                          tags: [],
-                          createdAt: new Date(),
-                          updatedAt: new Date()
-                        },
-                        order: stop.order
-                      }))}
-                    />
-                  )}
-                  {mapDirections && (
-                    <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                      <p className="text-sm text-blue-700">
-                        <strong>📍 Rota:</strong> Haritada gösterilen rota, 
-                        {route.optimized ? ' optimize edilmiş durumda.' : ' henüz optimize edilmemiş.'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     </div>
