@@ -20,6 +20,10 @@ import Vehicles from '@/pages/Vehicles';
 import CreateVehicle from '@/pages/CreateVehicle';
 import EditVehicle from '@/pages/EditVehicle';
 import VehicleDetail from '@/pages/VehicleDetail';
+import Depots from '@/pages/Depots';
+import CreateDepot from '@/pages/CreateDepot';
+import EditDepot from '@/pages/EditDepot';
+import DepotDetail from '@/pages/DepotDetail';
 import Journeys from '@/pages/Journeys';
 import LiveTracking from '@/pages/LiveTracking';
 import Reports from '@/pages/Reports';
@@ -150,6 +154,28 @@ function App() {
         <Route path="/vehicles/:id/edit" element={
           <ProtectedRoute>
             <EditVehicle />
+          </ProtectedRoute>
+        } />
+        
+        {/* Depots Module - TAMAMLANDI */}
+        <Route path="/depots" element={
+          <ProtectedRoute>
+            <Depots />
+          </ProtectedRoute>
+        } />
+        <Route path="/depots/new" element={
+          <ProtectedRoute>
+            <CreateDepot />
+          </ProtectedRoute>
+        } />
+        <Route path="/depots/:id" element={
+          <ProtectedRoute>
+            <DepotDetail />
+          </ProtectedRoute>
+        } />
+        <Route path="/depots/:id/edit" element={
+          <ProtectedRoute>
+            <EditDepot />
           </ProtectedRoute>
         } />
         

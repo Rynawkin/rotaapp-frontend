@@ -696,15 +696,129 @@ export const vehicleService = {
   }
 };
 
-// Depot Service
+// Depot Service - TAMAMLANMIŞ VERSİYON
+// mockData.ts dosyanızda en alttaki depotService'i bu kodla değiştirin:
+
 export const depotService = {
   async getAll(): Promise<Depot[]> {
-    await delay(200);
+    await delay(400);
     const saved = localStorage.getItem('depots');
     if (saved) {
       return JSON.parse(saved);
     }
     localStorage.setItem('depots', JSON.stringify(mockDepots));
     return mockDepots;
+  },
+
+  async getById(id: string): Promise<Depot | null> {
+    await delay(300);
+    const depots = await this.getAll();
+    return depots.find(d => d.id === id) || null;
+  },
+
+  async search(query: string): Promise<Depot[]> {
+    await delay(300);
+    const depots = await this.getAll();
+    const lowQuery = query.toLowerCase();
+    
+    return depots.filter(d => 
+      d.name.toLowerCase().includes(lowQuery) ||
+      d.address.toLowerCase().includes(lowQuery)
+    );
+  },
+
+  async create(depot: Partial<Depot>): Promise<Depot> {
+    await delay(500);
+    const depots = await this.getAll();
+    
+    // Eğer default olarak işaretlenmişse, diğerlerinin default'unu kaldır
+    if (depot.isDefault) {
+      depots.forEach(d => d.isDefault = false);
+    }
+    
+    const newDepot: Depot = {
+      id: Date.now().toString(),
+      name: depot.name || '',
+      address: depot.address || '',
+      latitude: depot.latitude || 40.9869,
+      longitude: depot.longitude || 29.0252,
+      isDefault: depot.isDefault || false,
+      workingHours: depot.workingHours || {
+        monday: { open: '08:00', close: '18:00' },
+        tuesday: { open: '08:00', close: '18:00' },
+        wednesday: { open: '08:00', close: '18:00' },
+        thursday: { open: '08:00', close: '18:00' },
+        friday: { open: '08:00', close: '18:00' },
+        saturday: { open: '09:00', close: '14:00' },
+        sunday: { open: 'closed', close: 'closed' }
+      },
+      ...depot
+    };
+    
+    depots.push(newDepot);
+    localStorage.setItem('depots', JSON.stringify(depots));
+    return newDepot;
+  },
+
+  async update(id: string, updates: Partial<Depot>): Promise<Depot | null> {
+    await delay(400);
+    const depots = await this.getAll();
+    const index = depots.findIndex(d => d.id === id);
+    
+    if (index === -1) return null;
+    
+    // Eğer default olarak işaretlenmişse, diğerlerinin default'unu kaldır
+    if (updates.isDefault) {
+      depots.forEach(d => d.isDefault = false);
+    }
+    
+    depots[index] = { 
+      ...depots[index], 
+      ...updates
+    };
+    localStorage.setItem('depots', JSON.stringify(depots));
+    return depots[index];
+  },
+
+  async delete(id: string): Promise<boolean> {
+    await delay(300);
+    const depots = await this.getAll();
+    const depotToDelete = depots.find(d => d.id === id);
+    
+    // Ana depo silinemez
+    if (depotToDelete?.isDefault) {
+      throw new Error('Ana depo silinemez. Önce başka bir depoyu ana depo olarak belirleyin.');
+    }
+    
+    const filtered = depots.filter(d => d.id !== id);
+    
+    if (filtered.length === depots.length) return false;
+    
+    localStorage.setItem('depots', JSON.stringify(filtered));
+    return true;
+  },
+
+  async setDefault(id: string): Promise<Depot | null> {
+    await delay(400);
+    const depots = await this.getAll();
+    
+    // Tüm depoların default'unu kaldır
+    depots.forEach(d => d.isDefault = false);
+    
+    // Seçilen depoyu default yap
+    const depot = depots.find(d => d.id === id);
+    if (depot) {
+      depot.isDefault = true;
+      localStorage.setItem('depots', JSON.stringify(depots));
+      return depot;
+    }
+    
+    return null;
+  },
+
+  async getDefault(): Promise<Depot | null> {
+    await delay(200);
+    const depots = await this.getAll();
+    return depots.find(d => d.isDefault) || null;
   }
 };
