@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Plus,
   Search,
@@ -18,10 +18,11 @@ import {
   CheckCircle,
   AlertCircle,
   XCircle,
-  Loader2
+  Loader2,
+  Play
 } from 'lucide-react';
 import { Route } from '@/types';
-import { routeService } from '@/services/mockData';
+import { routeService, journeyService } from '@/services/mockData';
 
 const Routes: React.FC = () => {
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -30,6 +31,7 @@ const Routes: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedDate, setSelectedDate] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   // Load routes
   useEffect(() => {
@@ -83,6 +85,21 @@ const Routes: React.FC = () => {
     };
     await routeService.create(newRoute);
     loadRoutes();
+  };
+
+  // Start journey from route
+  const handleStartJourney = async (route: Route) => {
+    try {
+      if (!route.driverId || !route.vehicleId) {
+        alert('Sefer başlatmak için rotaya sürücü ve araç atamanız gerekiyor.');
+        return;
+      }
+      
+      await journeyService.startFromRoute(route.id);
+      navigate(`/journeys/${route.id}`);
+    } catch (error: any) {
+      alert(error.message || 'Sefer başlatılamadı');
+    }
   };
 
   // Get status badge
@@ -445,6 +462,21 @@ const Routes: React.FC = () => {
                                 <Edit className="w-4 h-4 mr-2" />
                                 Düzenle
                               </Link>
+                              
+                              {/* Sefer Başlat Butonu - YENİ */}
+                              {(route.status === 'planned' || route.status === 'draft') && route.driverId && route.vehicleId && (
+                                <button
+                                  onClick={() => {
+                                    handleStartJourney(route);
+                                    setDropdownOpen(null);
+                                  }}
+                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-green-700 w-full text-left"
+                                >
+                                  <Play className="w-4 h-4 mr-2" />
+                                  Sefer Başlat
+                                </button>
+                              )}
+                              
                               <button
                                 onClick={() => {
                                   handleDuplicate(route);

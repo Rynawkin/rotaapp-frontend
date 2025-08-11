@@ -25,6 +25,7 @@ import CreateDepot from '@/pages/CreateDepot';
 import EditDepot from '@/pages/EditDepot';
 import DepotDetail from '@/pages/DepotDetail';
 import Journeys from '@/pages/Journeys';
+import JourneyDetail from '@/pages/JourneyDetail';
 import LiveTracking from '@/pages/LiveTracking';
 import Reports from '@/pages/Reports';
 import Settings from '@/pages/Settings';
@@ -179,10 +180,15 @@ function App() {
           </ProtectedRoute>
         } />
         
-        {/* Journeys Module */}
+        {/* Journeys Module - YENİ TAMAMLANDI */}
         <Route path="/journeys" element={
           <ProtectedRoute>
             <Journeys />
+          </ProtectedRoute>
+        } />
+        <Route path="/journeys/:id" element={
+          <ProtectedRoute>
+            <JourneyDetail />
           </ProtectedRoute>
         } />
         

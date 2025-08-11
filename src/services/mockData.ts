@@ -1,4 +1,4 @@
-import { Route, Customer, Driver, Vehicle, Depot } from '@/types';
+import { Route, Customer, Driver, Vehicle, Depot, Journey } from '@/types';
 
 export const mockCustomers: Customer[] = [
   {
@@ -820,5 +820,276 @@ export const depotService = {
     await delay(200);
     const depots = await this.getAll();
     return depots.find(d => d.isDefault) || null;
+  }
+};
+
+// Mock Journeys
+export const mockJourneys: Journey[] = [
+  {
+    id: '1',
+    routeId: '1',
+    route: mockRoutes[0],
+    status: 'in_progress',
+    currentStopIndex: 1,
+    startedAt: new Date(),
+    totalDistance: 5.2,
+    totalDuration: 25,
+    liveLocation: {
+      latitude: 40.9950,
+      longitude: 29.0280,
+      speed: 35,
+      heading: 45,
+      timestamp: new Date()
+    }
+  },
+  {
+    id: '2',
+    routeId: '3',
+    route: mockRoutes[2],
+    status: 'completed',
+    currentStopIndex: 1,
+    startedAt: new Date(Date.now() - 86400000),
+    completedAt: new Date(Date.now() - 82800000),
+    totalDistance: 9.2,
+    totalDuration: 45
+  }
+];
+
+// Journey Service
+export const journeyService = {
+  async getAll(): Promise<Journey[]> {
+    await delay(400);
+    const saved = localStorage.getItem('journeys');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+    localStorage.setItem('journeys', JSON.stringify(mockJourneys));
+    return mockJourneys;
+  },
+
+  async getById(id: string): Promise<Journey | null> {
+    await delay(300);
+    const journeys = await this.getAll();
+    return journeys.find(j => j.id === id) || null;
+  },
+
+  async getActive(): Promise<Journey[]> {
+    await delay(300);
+    const journeys = await this.getAll();
+    return journeys.filter(j => 
+      j.status === 'started' || 
+      j.status === 'in_progress' || 
+      j.status === 'preparing'
+    );
+  },
+
+  async getByRouteId(routeId: string): Promise<Journey | null> {
+    await delay(300);
+    const journeys = await this.getAll();
+    return journeys.find(j => j.routeId === routeId && j.status !== 'completed') || null;
+  },
+
+  async startFromRoute(routeId: string): Promise<Journey> {
+    await delay(500);
+    
+    // Rotayı al
+    const route = await routeService.getById(routeId);
+    if (!route) {
+      throw new Error('Rota bulunamadı');
+    }
+
+    // Bu rota için aktif bir journey var mı kontrol et
+    const existingJourney = await this.getByRouteId(routeId);
+    if (existingJourney) {
+      throw new Error('Bu rota için zaten aktif bir sefer var');
+    }
+
+    // Rotayı in_progress durumuna güncelle
+    await routeService.update(routeId, { 
+      status: 'in_progress',
+      startedAt: new Date()
+    });
+
+    // Yeni journey oluştur
+    const journeys = await this.getAll();
+    const newJourney: Journey = {
+      id: Date.now().toString(),
+      routeId,
+      route: { ...route, status: 'in_progress' },
+      status: 'preparing',
+      currentStopIndex: 0,
+      startedAt: new Date(),
+      totalDistance: 0,
+      totalDuration: 0,
+      liveLocation: {
+        latitude: route.stops[0]?.customer?.latitude || 40.9869,
+        longitude: route.stops[0]?.customer?.longitude || 29.0252,
+        speed: 0,
+        heading: 0,
+        timestamp: new Date()
+      }
+    };
+
+    journeys.push(newJourney);
+    localStorage.setItem('journeys', JSON.stringify(journeys));
+    return newJourney;
+  },
+
+  async updateStatus(id: string, status: Journey['status']): Promise<Journey | null> {
+    await delay(400);
+    const journeys = await this.getAll();
+    const index = journeys.findIndex(j => j.id === id);
+    
+    if (index === -1) return null;
+    
+    const updates: Partial<Journey> = { status };
+    
+    if (status === 'completed') {
+      updates.completedAt = new Date();
+      
+      // Rotayı da tamamlandı olarak güncelle
+      await routeService.update(journeys[index].routeId, {
+        status: 'completed',
+        completedAt: new Date(),
+        completedDeliveries: journeys[index].route.totalDeliveries
+      });
+    } else if (status === 'cancelled') {
+      // Rotayı iptal edildi olarak güncelle
+      await routeService.update(journeys[index].routeId, {
+        status: 'cancelled'
+      });
+    }
+    
+    journeys[index] = { ...journeys[index], ...updates };
+    localStorage.setItem('journeys', JSON.stringify(journeys));
+    return journeys[index];
+  },
+
+  async checkInStop(journeyId: string, stopId: string): Promise<Journey | null> {
+    await delay(500);
+    const journeys = await this.getAll();
+    const journey = journeys.find(j => j.id === journeyId);
+    
+    if (!journey) return null;
+    
+    // Stop'u güncelle
+    const stopIndex = journey.route.stops.findIndex(s => s.id === stopId);
+    if (stopIndex !== -1) {
+      journey.route.stops[stopIndex].status = 'arrived';
+      journey.route.stops[stopIndex].actualArrival = new Date();
+      journey.currentStopIndex = stopIndex;
+      journey.status = 'in_progress';
+      
+      // Mesafe ve süre güncelle
+      journey.totalDistance += journey.route.stops[stopIndex].distance || 0;
+      journey.totalDuration += journey.route.stops[stopIndex].duration || 0;
+    }
+    
+    localStorage.setItem('journeys', JSON.stringify(journeys));
+    return journey;
+  },
+
+  async completeStop(
+    journeyId: string, 
+    stopId: string, 
+    proof?: { signature?: string; photo?: string; notes?: string }
+  ): Promise<Journey | null> {
+    await delay(500);
+    const journeys = await this.getAll();
+    const journey = journeys.find(j => j.id === journeyId);
+    
+    if (!journey) return null;
+    
+    // Stop'u tamamla
+    const stopIndex = journey.route.stops.findIndex(s => s.id === stopId);
+    if (stopIndex !== -1) {
+      journey.route.stops[stopIndex].status = 'completed';
+      journey.route.stops[stopIndex].completedAt = new Date();
+      if (proof) {
+        journey.route.stops[stopIndex].deliveryProof = proof;
+      }
+      
+      // Tamamlanan teslimat sayısını güncelle
+      journey.route.completedDeliveries++;
+      
+      // Eğer son duraksa, journey'i tamamla
+      const remainingStops = journey.route.stops.filter(s => s.status === 'pending' || s.status === 'arrived');
+      if (remainingStops.length === 0) {
+        journey.status = 'completed';
+        journey.completedAt = new Date();
+        
+        // Rotayı da tamamla
+        await routeService.update(journey.routeId, {
+          status: 'completed',
+          completedAt: new Date(),
+          completedDeliveries: journey.route.totalDeliveries
+        });
+      }
+    }
+    
+    localStorage.setItem('journeys', JSON.stringify(journeys));
+    return journey;
+  },
+
+  async failStop(journeyId: string, stopId: string, reason: string): Promise<Journey | null> {
+    await delay(500);
+    const journeys = await this.getAll();
+    const journey = journeys.find(j => j.id === journeyId);
+    
+    if (!journey) return null;
+    
+    // Stop'u başarısız olarak işaretle
+    const stopIndex = journey.route.stops.findIndex(s => s.id === stopId);
+    if (stopIndex !== -1) {
+      journey.route.stops[stopIndex].status = 'failed';
+      journey.route.stops[stopIndex].failureReason = reason;
+      
+      // Bir sonraki durağa geç
+      journey.currentStopIndex = stopIndex + 1;
+    }
+    
+    localStorage.setItem('journeys', JSON.stringify(journeys));
+    return journey;
+  },
+
+  async updateLocation(journeyId: string, location: Journey['liveLocation']): Promise<Journey | null> {
+    await delay(200);
+    const journeys = await this.getAll();
+    const journey = journeys.find(j => j.id === journeyId);
+    
+    if (!journey) return null;
+    
+    journey.liveLocation = location;
+    localStorage.setItem('journeys', JSON.stringify(journeys));
+    return journey;
+  },
+
+  async simulateMovement(journeyId: string): Promise<void> {
+    const journey = await this.getById(journeyId);
+    if (!journey || !journey.liveLocation) return;
+    
+    // Mevcut durak
+    const currentStop = journey.route.stops[journey.currentStopIndex];
+    if (!currentStop || !currentStop.customer) return;
+    
+    // Hedef koordinatlar
+    const targetLat = currentStop.customer.latitude;
+    const targetLng = currentStop.customer.longitude;
+    
+    // Mevcut koordinatlar
+    let currentLat = journey.liveLocation.latitude;
+    let currentLng = journey.liveLocation.longitude;
+    
+    // Hareket simülasyonu (hedefin %10'u kadar yaklaş)
+    const latDiff = (targetLat - currentLat) * 0.1;
+    const lngDiff = (targetLng - currentLng) * 0.1;
+    
+    await this.updateLocation(journeyId, {
+      latitude: currentLat + latDiff,
+      longitude: currentLng + lngDiff,
+      speed: Math.random() * 30 + 20, // 20-50 km/h arası
+      heading: Math.atan2(lngDiff, latDiff) * 180 / Math.PI,
+      timestamp: new Date()
+    });
   }
 };
