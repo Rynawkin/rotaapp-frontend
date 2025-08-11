@@ -3,6 +3,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import MainLayout from '@/layouts/MainLayout';
 import Dashboard from '@/pages/Dashboard';
 import RoutesPage from '@/pages/Routes';
+import CreateRoute from '@/pages/CreateRoute';
+import EditRoute from '@/pages/EditRoute';
+import RouteDetail from '@/pages/RouteDetail';
 import Login from '@/pages/Login';
 
 // Protected Route Component
@@ -72,9 +75,9 @@ function App() {
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/routes" element={<RoutesPage />} />
-                  <Route path="/routes/new" element={<div className="p-6">Yeni Rota Sayfası - Yakında</div>} />
-                  <Route path="/routes/:id" element={<div className="p-6">Rota Detay Sayfası - Yakında</div>} />
-                  <Route path="/routes/:id/edit" element={<div className="p-6">Rota Düzenleme Sayfası - Yakında</div>} />
+                  <Route path="/routes/new" element={<CreateRoute />} />
+                  <Route path="/routes/:id" element={<RouteDetail />} />
+                  <Route path="/routes/:id/edit" element={<EditRoute />} />
                   <Route path="/customers" element={<div className="p-6">Müşteriler Sayfası - Yakında</div>} />
                   <Route path="/journeys" element={<div className="p-6">Seferler Sayfası - Yakında</div>} />
                   <Route path="/drivers" element={<div className="p-6">Sürücüler Sayfası - Yakında</div>} />
