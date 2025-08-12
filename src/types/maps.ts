@@ -1,3 +1,4 @@
+// src/types/maps.ts
 // Google Maps Types
 export interface LatLng {
   lat: number;
@@ -12,11 +13,13 @@ export interface MapConfig {
 
 export interface MarkerData {
   position: LatLng;
-  title: string;
+  title?: string;
   label?: string;
   icon?: string;
-  type: 'depot' | 'customer' | 'driver';
+  type?: 'depot' | 'customer' | 'driver' | 'stop' | 'vehicle';
   customerId?: string;
+  order?: number;
+  status?: 'pending' | 'arrived' | 'completed' | 'failed';
 }
 
 export interface RouteOptimizationRequest {

@@ -33,11 +33,25 @@ import MapComponent from '@/components/maps/MapComponent';
 import LeafletMapComponent from '@/components/maps/LeafletMapComponent';
 import { Route, RouteStop, Customer } from '@/types';
 import { LatLng, MarkerData } from '@/types/maps';
-import { routeService, customerService } from '@/services/mockData';
+import { routeService, customerService, journeyService } from '@/services/mockData';
 import { googleMapsService } from '@/services/googleMapsService';
 
 // Google Maps libraries
 const libraries: ("places" | "drawing" | "geometry")[] = ['places'];
+
+// Dakikayı saat ve dakika formatına çevir
+const formatDuration = (totalMinutes: number): string => {
+  if (!totalMinutes || totalMinutes === 0) return '0 dakika';
+  if (totalMinutes < 60) {
+    return `${totalMinutes} dakika`;
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (minutes === 0) {
+    return `${hours} saat`;
+  }
+  return `${hours} saat ${minutes} dakika`;
+};
 
 const RouteDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -213,9 +227,38 @@ const RouteDetail: React.FC = () => {
     }
   };
 
-  const handleStartJourney = () => {
+  const handleStartJourney = async () => {
     if (!route) return;
-    alert('Sefer başlatma özelliği yakında eklenecek!');
+    
+    // Sürücü ve araç kontrolü
+    if (!route.driverId || !route.vehicleId) {
+      alert('⚠️ Sefer başlatmak için önce sürücü ve araç ataması yapmalısınız!');
+      navigate(`/routes/${route.id}/edit`);
+      return;
+    }
+    
+    // Durak kontrolü
+    if (!route.stops || route.stops.length === 0) {
+      alert('⚠️ Sefer başlatmak için en az bir durak eklemelisiniz!');
+      return;
+    }
+    
+    try {
+      // Sefer başlat
+      const journey = await journeyService.startFromRoute(route.id);
+      
+      if (journey) {
+        alert('✅ Sefer başarıyla başlatıldı! Sizi sefer detay sayfasına yönlendiriyoruz...');
+        
+        // Journeys sayfasına yönlendir
+        setTimeout(() => {
+          navigate(`/journeys/${journey.id}`);
+        }, 1000);
+      }
+    } catch (error: any) {
+      console.error('Sefer başlatma hatası:', error);
+      alert(`❌ Sefer başlatılamadı: ${error.message || 'Bilinmeyen bir hata oluştu'}`);
+    }
   };
 
   const handleOptimize = async () => {
@@ -492,13 +535,30 @@ const RouteDetail: React.FC = () => {
           
           {/* Action Buttons */}
           <div className="flex items-center space-x-2">
-            {route.status === 'planned' && (
+            {/* Sefer Başlat Butonu - draft, planned durumlarında göster */}
+            {(route.status === 'draft' || route.status === 'planned') && (
               <button
                 onClick={handleStartJourney}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
               >
                 <Play className="w-4 h-4 mr-2" />
                 Seferi Başlat
+              </button>
+            )}
+            
+            {/* Devam Ediyor ise Sefere Git */}
+            {route.status === 'in_progress' && (
+              <button
+                onClick={async () => {
+                  const journey = await journeyService.getByRouteId(route.id);
+                  if (journey) {
+                    navigate(`/journeys/${journey.id}`);
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+              >
+                <Navigation className="w-4 h-4 mr-2" />
+                Sefere Git
               </button>
             )}
             
@@ -597,7 +657,7 @@ const RouteDetail: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">Mesafe</p>
               <p className="text-2xl font-bold text-gray-900">
-                {route.totalDistance ? `${route.totalDistance}` : '0'} <span className="text-sm">km</span>
+                {route.totalDistance ? `${route.totalDistance.toFixed(1)}` : '0'} <span className="text-sm">km</span>
               </p>
             </div>
             <Navigation className="w-8 h-8 text-purple-600 opacity-20" />
@@ -609,7 +669,7 @@ const RouteDetail: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">Süre</p>
               <p className="text-2xl font-bold text-gray-900">
-                {route.totalDuration || '0'} <span className="text-sm">dk</span>
+                {route.totalDuration ? formatDuration(route.totalDuration) : '0 dakika'}
               </p>
             </div>
             <Clock className="w-8 h-8 text-orange-600 opacity-20" />

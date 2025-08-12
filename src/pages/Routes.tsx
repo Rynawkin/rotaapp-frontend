@@ -87,18 +87,29 @@ const Routes: React.FC = () => {
     loadRoutes();
   };
 
-  // Start journey from route
+  // Start journey from route - DÜZELTME
   const handleStartJourney = async (route: Route) => {
     try {
       if (!route.driverId || !route.vehicleId) {
-        alert('Sefer başlatmak için rotaya sürücü ve araç atamanız gerekiyor.');
+        alert('⚠️ Sefer başlatmak için rotaya sürücü ve araç atamanız gerekiyor.');
+        navigate(`/routes/${route.id}/edit`);
         return;
       }
       
-      await journeyService.startFromRoute(route.id);
-      navigate(`/journeys/${route.id}`);
+      if (!route.stops || route.stops.length === 0) {
+        alert('⚠️ Sefer başlatmak için en az bir durak eklemelisiniz!');
+        return;
+      }
+      
+      const journey = await journeyService.startFromRoute(route.id);
+      
+      if (journey) {
+        alert('✅ Sefer başarıyla başlatıldı!');
+        // Journey ID'si ile yönlendir, route ID değil!
+        navigate(`/journeys/${journey.id}`);
+      }
     } catch (error: any) {
-      alert(error.message || 'Sefer başlatılamadı');
+      alert(`❌ ${error.message || 'Sefer başlatılamadı'}`);
     }
   };
 
@@ -463,8 +474,8 @@ const Routes: React.FC = () => {
                                 Düzenle
                               </Link>
                               
-                              {/* Sefer Başlat Butonu - YENİ */}
-                              {(route.status === 'planned' || route.status === 'draft') && route.driverId && route.vehicleId && (
+                              {/* Sefer Başlat Butonu - DÜZELTME */}
+                              {(route.status === 'planned' || route.status === 'draft') && route.stops && route.stops.length > 0 && (
                                 <button
                                   onClick={() => {
                                     handleStartJourney(route);
@@ -474,6 +485,23 @@ const Routes: React.FC = () => {
                                 >
                                   <Play className="w-4 h-4 mr-2" />
                                   Sefer Başlat
+                                </button>
+                              )}
+                              
+                              {/* Sefere Git - in_progress durumunda */}
+                              {route.status === 'in_progress' && (
+                                <button
+                                  onClick={async () => {
+                                    const journey = await journeyService.getByRouteId(route.id);
+                                    if (journey) {
+                                      navigate(`/journeys/${journey.id}`);
+                                    }
+                                    setDropdownOpen(null);
+                                  }}
+                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-blue-700 w-full text-left"
+                                >
+                                  <Navigation className="w-4 h-4 mr-2" />
+                                  Sefere Git
                                 </button>
                               )}
                               

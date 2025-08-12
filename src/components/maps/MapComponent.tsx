@@ -529,47 +529,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
         </div>
       </div>
 
-      {/* Stats Panel */}
-      {directions && (
-        <div 
-          className="absolute bg-white/95 backdrop-blur-sm rounded-xl shadow-lg p-4"
-          style={{ 
-            bottom: '120px', 
-            left: '20px', 
-            zIndex: 10,
-            minWidth: '200px'
-          }}
-        >
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500">Toplam Mesafe</span>
-              <span className="text-sm font-bold text-gray-900">
-                {(() => {
-                  const totalDistance = directions.routes[0]?.legs?.reduce((sum, leg) => 
-                    sum + (leg.distance?.value || 0), 0) || 0;
-                  return (totalDistance / 1000).toFixed(1);
-                })()} km
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500">Tahmini Süre</span>
-              <span className="text-sm font-bold text-gray-900">
-                {(() => {
-                  const totalDuration = directions.routes[0]?.legs?.reduce((sum, leg) => 
-                    sum + (leg.duration?.value || 0), 0) || 0;
-                  return Math.round(totalDuration / 60);
-                })()} dk
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500">Durak Sayısı</span>
-              <span className="text-sm font-bold text-gray-900">
-                {markers.length}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Top Right Badge */}
       <div 

@@ -190,7 +190,7 @@ export const mockDepots: Depot[] = [
   }
 ];
 
-// Mock Routes
+// Mock Routes - İLK ROUTE'UN STATUS'U PLANNED OLARAK DEĞİŞTİRİLDİ
 export const mockRoutes: Route[] = [
   {
     id: '1',
@@ -201,7 +201,7 @@ export const mockRoutes: Route[] = [
     vehicleId: '1',
     vehicle: mockVehicles[0],
     depotId: '1',
-    status: 'in_progress',
+    status: 'planned',  // 'in_progress' yerine 'planned' - Sefer başlatılabilir durumda
     stops: [
       {
         id: '1-1',
@@ -209,9 +209,8 @@ export const mockRoutes: Route[] = [
         customerId: '1',
         customer: mockCustomers[0],
         order: 1,
-        status: 'completed',
+        status: 'pending',
         estimatedArrival: new Date(),
-        actualArrival: new Date(),
         duration: 15,
         distance: 5.2
       },
@@ -221,7 +220,7 @@ export const mockRoutes: Route[] = [
         customerId: '2',
         customer: mockCustomers[1],
         order: 2,
-        status: 'arrived',
+        status: 'pending',
         estimatedArrival: new Date(),
         duration: 10,
         distance: 3.8
@@ -240,10 +239,9 @@ export const mockRoutes: Route[] = [
     totalDistance: 16.5,
     totalDuration: 75,
     totalDeliveries: 3,
-    completedDeliveries: 1,
+    completedDeliveries: 0,
     optimized: true,
-    createdAt: new Date(),
-    startedAt: new Date()
+    createdAt: new Date()
   },
   {
     id: '2',
@@ -322,7 +320,7 @@ export const mockRoutes: Route[] = [
 // Helper functions with fake delays
 export const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Route Service
+// Route Service - GÜNCELLENMİŞ create() ve update() metodları
 export const routeService = {
   async getAll(): Promise<Route[]> {
     await delay(500);
@@ -343,19 +341,36 @@ export const routeService = {
   async create(route: Partial<Route>): Promise<Route> {
     await delay(500);
     const routes = await this.getAll();
+    
+    // Driver ve Vehicle bilgilerini al
+    let driver = route.driver;
+    let vehicle = route.vehicle;
+    
+    if (!driver && route.driverId) {
+      driver = await driverService.getById(route.driverId) || undefined;
+    }
+    
+    if (!vehicle && route.vehicleId) {
+      vehicle = await vehicleService.getById(route.vehicleId) || undefined;
+    }
+    
     const newRoute: Route = {
       id: Date.now().toString(),
       name: route.name || 'Yeni Rota',
       date: route.date || new Date(),
       depotId: route.depotId || '1',
-      status: 'draft',
+      status: route.status || 'draft',
       stops: route.stops || [],
-      totalDistance: 0,
-      totalDuration: 0,
+      totalDistance: route.totalDistance || 0,
+      totalDuration: route.totalDuration || 0,
       totalDeliveries: route.stops?.length || 0,
       completedDeliveries: 0,
-      optimized: false,
+      optimized: route.optimized || false,
       createdAt: new Date(),
+      driverId: route.driverId,
+      driver: driver,  // Driver objesini ekle
+      vehicleId: route.vehicleId,
+      vehicle: vehicle,  // Vehicle objesini ekle
       ...route
     };
     
@@ -371,7 +386,25 @@ export const routeService = {
     
     if (index === -1) return null;
     
-    routes[index] = { ...routes[index], ...updates };
+    // Driver ve Vehicle bilgilerini güncelle
+    let driver = updates.driver;
+    let vehicle = updates.vehicle;
+    
+    if (!driver && updates.driverId && updates.driverId !== routes[index].driverId) {
+      driver = await driverService.getById(updates.driverId) || undefined;
+    }
+    
+    if (!vehicle && updates.vehicleId && updates.vehicleId !== routes[index].vehicleId) {
+      vehicle = await vehicleService.getById(updates.vehicleId) || undefined;
+    }
+    
+    routes[index] = { 
+      ...routes[index], 
+      ...updates,
+      driver: driver || routes[index].driver,
+      vehicle: vehicle || routes[index].vehicle
+    };
+    
     localStorage.setItem('routes', JSON.stringify(routes));
     return routes[index];
   },
@@ -518,7 +551,7 @@ export const customerService = {
   }
 };
 
-// Driver Service - GÜNCELLENMİŞ VERSİYON
+// Driver Service
 export const driverService = {
   async getAll(): Promise<Driver[]> {
     await delay(400);
@@ -607,7 +640,7 @@ export const driverService = {
   }
 };
 
-// Vehicle Service - TAMAMLANMIŞ VERSİYON
+// Vehicle Service
 export const vehicleService = {
   async getAll(): Promise<Vehicle[]> {
     await delay(400);
@@ -696,9 +729,7 @@ export const vehicleService = {
   }
 };
 
-// Depot Service - TAMAMLANMIŞ VERSİYON
-// mockData.ts dosyanızda en alttaki depotService'i bu kodla değiştirin:
-
+// Depot Service
 export const depotService = {
   async getAll(): Promise<Depot[]> {
     await delay(400);
@@ -823,39 +854,10 @@ export const depotService = {
   }
 };
 
-// Mock Journeys
-export const mockJourneys: Journey[] = [
-  {
-    id: '1',
-    routeId: '1',
-    route: mockRoutes[0],
-    status: 'in_progress',
-    currentStopIndex: 1,
-    startedAt: new Date(),
-    totalDistance: 5.2,
-    totalDuration: 25,
-    liveLocation: {
-      latitude: 40.9950,
-      longitude: 29.0280,
-      speed: 35,
-      heading: 45,
-      timestamp: new Date()
-    }
-  },
-  {
-    id: '2',
-    routeId: '3',
-    route: mockRoutes[2],
-    status: 'completed',
-    currentStopIndex: 1,
-    startedAt: new Date(Date.now() - 86400000),
-    completedAt: new Date(Date.now() - 82800000),
-    totalDistance: 9.2,
-    totalDuration: 45
-  }
-];
+// Mock Journeys - BOŞ ARRAY İLE BAŞLA
+export const mockJourneys: Journey[] = [];
 
-// Journey Service
+// Journey Service - GÜNCELLENMİŞ startFromRoute() metodu
 export const journeyService = {
   async getAll(): Promise<Journey[]> {
     await delay(400);
@@ -876,6 +878,7 @@ export const journeyService = {
   async getActive(): Promise<Journey[]> {
     await delay(300);
     const journeys = await this.getAll();
+    // preparing, started ve in_progress durumlarındaki journey'leri döndür
     return journeys.filter(j => 
       j.status === 'started' || 
       j.status === 'in_progress' || 
@@ -898,25 +901,41 @@ export const journeyService = {
       throw new Error('Rota bulunamadı');
     }
 
+    // Sürücü ve araç kontrolü
+    if (!route.driverId || !route.vehicleId) {
+      throw new Error('Rotaya sürücü ve araç ataması yapılmamış');
+    }
+
+    // Durak kontrolü
+    if (!route.stops || route.stops.length === 0) {
+      throw new Error('Rotada durak bulunmuyor');
+    }
+
     // Bu rota için aktif bir journey var mı kontrol et
     const existingJourney = await this.getByRouteId(routeId);
     if (existingJourney) {
       throw new Error('Bu rota için zaten aktif bir sefer var');
     }
 
+    // Sürücü ve araç bilgilerini al
+    const driver = await driverService.getById(route.driverId);
+    const vehicle = await vehicleService.getById(route.vehicleId);
+
     // Rotayı in_progress durumuna güncelle
-    await routeService.update(routeId, { 
+    const updatedRoute = await routeService.update(routeId, { 
       status: 'in_progress',
-      startedAt: new Date()
+      startedAt: new Date(),
+      driver: driver || undefined,  // Driver bilgisini ekle
+      vehicle: vehicle || undefined  // Vehicle bilgisini ekle
     });
 
-    // Yeni journey oluştur
+    // Yeni journey oluştur - GÜNCELLENMİŞ ROUTE'U KULLAN
     const journeys = await this.getAll();
     const newJourney: Journey = {
       id: Date.now().toString(),
       routeId,
-      route: { ...route, status: 'in_progress' },
-      status: 'preparing',
+      route: updatedRoute || route,  // Güncellenmiş route'u kullan
+      status: 'in_progress',  // Direkt 'in_progress' olarak başlat
       currentStopIndex: 0,
       startedAt: new Date(),
       totalDistance: 0,
@@ -924,7 +943,7 @@ export const journeyService = {
       liveLocation: {
         latitude: route.stops[0]?.customer?.latitude || 40.9869,
         longitude: route.stops[0]?.customer?.longitude || 29.0252,
-        speed: 0,
+        speed: Math.random() * 30 + 20,  // 20-50 km/h arası başlangıç hızı
         heading: 0,
         timestamp: new Date()
       }
