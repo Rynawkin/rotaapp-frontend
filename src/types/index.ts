@@ -163,3 +163,106 @@ export interface DashboardStats {
   failedToday: number;
   onTimeRate: number;
 }
+
+// Report Types - YENİ
+export interface DeliveryTrend {
+  date: string;
+  completed: number;
+  failed: number;
+  total: number;
+}
+
+export interface DriverPerformanceReport {
+  driverId: string;
+  driverName: string;
+  totalDeliveries: number;
+  completedDeliveries: number;
+  avgDeliveryTime: number;
+  totalDistance: number;
+  rating: number;
+  successRate?: number;
+}
+
+export interface VehicleUtilizationReport {
+  vehicleId: string;
+  plateNumber: string;
+  vehicleType?: string;
+  totalRoutes: number;
+  totalDistance: number;
+  totalDuration?: number;
+  utilizationRate: number;
+  avgDistancePerRoute?: number;
+  status?: Vehicle['status'];
+}
+
+export interface CustomerAnalyticsReport {
+  customerId: string;
+  customerName: string;
+  totalOrders: number;
+  completedOrders: number;
+  failedOrders: number;
+  avgServiceTime: number;
+  priority: Customer['priority'];
+  lastOrderDate?: Date;
+}
+
+export interface RouteEfficiencyReport {
+  routeId: string;
+  routeName: string;
+  plannedDeliveries: number;
+  actualDeliveries: number;
+  plannedDistance: number;
+  actualDistance: number;
+  plannedDuration: number;
+  actualDuration: number;
+  efficiencyScore: number;
+  optimizationSavings?: number;
+}
+
+export interface TimeBasedReport {
+  period: string; // 'hourly' | 'daily' | 'weekly' | 'monthly'
+  deliveries: number;
+  distance: number;
+  duration: number;
+  drivers: number;
+  vehicles: number;
+}
+
+export interface ReportFilters {
+  startDate?: Date;
+  endDate?: Date;
+  driverId?: string;
+  vehicleId?: string;
+  customerId?: string;
+  routeStatus?: Route['status'];
+  priority?: Customer['priority'];
+  depotId?: string;
+}
+
+export interface ReportSummary {
+  totalDeliveries: number;
+  successRate: number;
+  avgDeliveryTime: number;
+  totalDistance: number;
+  totalDuration: number;
+  activeDrivers: number;
+  activeVehicles: number;
+  totalCustomers: number;
+  onTimeDeliveryRate: number;
+  fuelEfficiency?: number;
+  costPerDelivery?: number;
+}
+
+export interface KPIMetric {
+  id: string;
+  name: string;
+  value: number | string;
+  unit?: string;
+  change?: number;
+  changeType?: 'increase' | 'decrease' | 'neutral';
+  target?: number;
+  icon?: string;
+  color?: string;
+  description?: string;
+  lastUpdated?: Date;
+}

@@ -6,11 +6,40 @@ import {
 } from '@/types/maps';
 import { Customer } from '@/types';
 
+// Öncelik ayarları interface'i
+interface PrioritySettings {
+  high: { maxDelay: number; weight: number };
+  normal: { maxDelay: number; weight: number };
+  low: { maxDelay: number; weight: number };
+}
+
 class GoogleMapsService {
   private directionsService: google.maps.DirectionsService | null = null;
   private distanceMatrixService: google.maps.DistanceMatrixService | null = null;
   private geocoder: google.maps.Geocoder | null = null;
   private placesService: google.maps.places.PlacesService | null = null;
+
+  // Öncelik ayarlarını localStorage'dan al
+  private getPrioritySettings(): PrioritySettings {
+    const savedSettings = localStorage.getItem('appSettings');
+    if (savedSettings) {
+      const settings = JSON.parse(savedSettings);
+      if (settings.delivery?.prioritySettings) {
+        const ps = settings.delivery.prioritySettings;
+        return {
+          high: { maxDelay: ps.high.maxDelay || 30, weight: 3 },
+          normal: { maxDelay: ps.normal.maxDelay || 60, weight: 2 },
+          low: { maxDelay: ps.low.maxDelay || 120, weight: 1 }
+        };
+      }
+    }
+    // Varsayılan değerler
+    return {
+      high: { maxDelay: 30, weight: 3 },
+      normal: { maxDelay: 60, weight: 2 },
+      low: { maxDelay: 120, weight: 1 }
+    };
+  }
 
   // Services'i initialize et
   initializeServices(map?: google.maps.Map) {
@@ -120,7 +149,7 @@ class GoogleMapsService {
     });
   }
 
-  // Rota Optimize Et - TSP Algoritması ile
+  // Rota Optimize Et - Öncelik Destekli TSP Algoritması
   async optimizeRoute(
     depot: LatLng,
     waypoints: OptimizationWaypoint[],
@@ -131,27 +160,60 @@ class GoogleMapsService {
       return null;
     }
 
-    // Önce mesafe matrisini hesapla
-    const locations = [depot, ...waypoints.map(w => w.location)];
-    const distanceMatrix = await this.calculateDistanceMatrix(locations, locations);
+    // Önce önceliklere göre grupla
+    const priorityGroups = this.groupByPriority(waypoints);
+    const sortedWaypoints: OptimizationWaypoint[] = [];
     
-    if (!distanceMatrix) {
-      return null;
+    // Önce yüksek öncelikli müşteriler
+    if (priorityGroups.high.length > 0) {
+      const highPriorityOptimized = await this.optimizeGroup(
+        depot, 
+        priorityGroups.high, 
+        optimizationMode
+      );
+      sortedWaypoints.push(...highPriorityOptimized);
+    }
+    
+    // Sonra normal öncelikli müşteriler
+    if (priorityGroups.normal.length > 0) {
+      const lastLocation = sortedWaypoints.length > 0 
+        ? sortedWaypoints[sortedWaypoints.length - 1].location 
+        : depot;
+      
+      const normalPriorityOptimized = await this.optimizeGroup(
+        lastLocation, 
+        priorityGroups.normal, 
+        optimizationMode
+      );
+      sortedWaypoints.push(...normalPriorityOptimized);
+    }
+    
+    // En son düşük öncelikli müşteriler
+    if (priorityGroups.low.length > 0) {
+      const lastLocation = sortedWaypoints.length > 0 
+        ? sortedWaypoints[sortedWaypoints.length - 1].location 
+        : depot;
+      
+      const lowPriorityOptimized = await this.optimizeGroup(
+        lastLocation, 
+        priorityGroups.low, 
+        optimizationMode
+      );
+      sortedWaypoints.push(...lowPriorityOptimized);
     }
 
-    // TSP algoritması ile optimize et
-    const optimizedIndices = this.solveTSP(distanceMatrix, optimizationMode);
-    
-    // İlk eleman depot olduğu için waypoint indekslerini ayarla
-    const optimizedOrder = optimizedIndices.slice(1).map(i => i - 1);
-    
-    // Optimize edilmiş waypoint'leri sırala
-    const optimizedWaypoints = optimizedOrder.map(i => waypoints[i]);
+    // Optimize edilmiş waypoint'lerin orijinal indekslerini bul
+    const optimizedOrder = sortedWaypoints.map(sw => 
+      waypoints.findIndex(w => 
+        w.location.lat === sw.location.lat && 
+        w.location.lng === sw.location.lng
+      )
+    );
 
     // Google Directions ile rotayı çiz
     const directionResult = await this.getDirections(
       depot,
-      optimizedWaypoints.map(w => w.location),
+      sortedWaypoints.map(w => w.location),
       depot
     );
 
@@ -167,20 +229,64 @@ class GoogleMapsService {
     }
 
     // Servis sürelerini ekle
-    optimizedWaypoints.forEach(wp => {
+    sortedWaypoints.forEach(wp => {
       totalDuration += wp.serviceTime * 60; // dakika -> saniye
     });
+
+    // Zaman penceresi kontrolü ve gecikme hesaplama
+    const violations = this.checkTimeWindowViolations(sortedWaypoints, totalDuration);
 
     return {
       optimizedOrder,
       totalDistance: totalDistance / 1000, // metre -> km
       totalDuration: Math.round(totalDuration / 60), // saniye -> dakika
-      waypoints: optimizedWaypoints,
-      route: directionResult || undefined
+      waypoints: sortedWaypoints,
+      route: directionResult || undefined,
+      violations // Zaman penceresi ihlalleri varsa ekle
     };
   }
 
-  // TSP Çözümü - Nearest Neighbor Algoritması
+  // Önceliklere göre grupla
+  private groupByPriority(waypoints: OptimizationWaypoint[]): {
+    high: OptimizationWaypoint[];
+    normal: OptimizationWaypoint[];
+    low: OptimizationWaypoint[];
+  } {
+    return {
+      high: waypoints.filter(w => w.priority === 'high'),
+      normal: waypoints.filter(w => w.priority === 'normal'),
+      low: waypoints.filter(w => w.priority === 'low')
+    };
+  }
+
+  // Grup içinde optimize et
+  private async optimizeGroup(
+    startLocation: LatLng,
+    waypoints: OptimizationWaypoint[],
+    mode: 'distance' | 'duration'
+  ): Promise<OptimizationWaypoint[]> {
+    if (waypoints.length === 0) return [];
+    if (waypoints.length === 1) return waypoints;
+
+    // Grup içindeki noktalar için mesafe matrisi hesapla
+    const locations = [startLocation, ...waypoints.map(w => w.location)];
+    const distanceMatrix = await this.calculateDistanceMatrix(locations, locations);
+    
+    if (!distanceMatrix) {
+      return waypoints; // Optimizasyon yapılamadı, orijinal sırayı koru
+    }
+
+    // TSP algoritması ile optimize et (başlangıç noktası dahil)
+    const optimizedIndices = this.solveTSP(distanceMatrix, mode);
+    
+    // İlk eleman başlangıç noktası olduğu için onu çıkar
+    const groupIndices = optimizedIndices.slice(1).map(i => i - 1);
+    
+    // Optimize edilmiş sırada waypoint'leri döndür
+    return groupIndices.map(i => waypoints[i]);
+  }
+
+  // TSP Çözümü - Nearest Neighbor Algoritması (Öncelik Ağırlıklı)
   private solveTSP(
     distanceMatrix: DistanceMatrixResult[][],
     mode: 'distance' | 'duration'
@@ -189,7 +295,7 @@ class GoogleMapsService {
     const visited = new Array(n).fill(false);
     const tour: number[] = [];
     
-    // Depodan başla (index 0)
+    // Başlangıç noktasından başla (index 0)
     let current = 0;
     visited[current] = true;
     tour.push(current);
@@ -222,6 +328,44 @@ class GoogleMapsService {
     return tour;
   }
 
+  // Zaman penceresi ihlallerini kontrol et
+  private checkTimeWindowViolations(
+    waypoints: OptimizationWaypoint[], 
+    totalDuration: number
+  ): string[] {
+    const violations: string[] = [];
+    const prioritySettings = this.getPrioritySettings();
+    let currentTime = 0; // Dakika cinsinden
+
+    waypoints.forEach((wp, index) => {
+      currentTime += wp.serviceTime || 10;
+      
+      // Öncelik bazlı max gecikme kontrolü
+      const maxDelay = wp.priority === 'high' 
+        ? prioritySettings.high.maxDelay
+        : wp.priority === 'normal'
+        ? prioritySettings.normal.maxDelay
+        : prioritySettings.low.maxDelay;
+
+      // Zaman penceresi kontrolü
+      if (wp.timeWindow) {
+        const windowStart = this.timeToMinutes(wp.timeWindow.start);
+        const windowEnd = this.timeToMinutes(wp.timeWindow.end);
+        
+        if (currentTime > windowEnd + maxDelay) {
+          violations.push(
+            `⚠️ Durak ${index + 1}: Zaman penceresi aşıldı (Max gecikme: ${maxDelay} dk)`
+          );
+        }
+      }
+      
+      // Tahmini varış süresi ekle (basitleştirilmiş)
+      currentTime += 15; // Ortalama seyahat süresi
+    });
+
+    return violations;
+  }
+
   // Google Directions API ile rota çiz
   async getDirections(
     origin: LatLng,
@@ -243,7 +387,7 @@ class GoogleMapsService {
             stopover: true
           })),
           travelMode: google.maps.TravelMode.DRIVING,
-          optimizeWaypoints: false, // Zaten optimize ettik
+          optimizeWaypoints: false, // Zaten öncelik bazlı optimize ettik
           unitSystem: google.maps.UnitSystem.METRIC,
           region: 'TR'
         },
@@ -269,15 +413,30 @@ class GoogleMapsService {
 
   // Zaman penceresi kısıtlamalarını kontrol et
   validateTimeWindows(waypoints: OptimizationWaypoint[], startTime: string): boolean {
-    // Basit validasyon - ileride geliştirilecek
+    const prioritySettings = this.getPrioritySettings();
+    let currentMinutes = this.timeToMinutes(startTime);
+    
     return waypoints.every(wp => {
       if (!wp.timeWindow) return true;
       
-      const start = this.timeToMinutes(wp.timeWindow.start);
-      const end = this.timeToMinutes(wp.timeWindow.end);
-      const current = this.timeToMinutes(startTime);
+      const windowStart = this.timeToMinutes(wp.timeWindow.start);
+      const windowEnd = this.timeToMinutes(wp.timeWindow.end);
       
-      return current >= start && current <= end;
+      // Öncelik bazlı max gecikme toleransı ekle
+      const maxDelay = wp.priority === 'high' 
+        ? prioritySettings.high.maxDelay
+        : wp.priority === 'normal'
+        ? prioritySettings.normal.maxDelay
+        : prioritySettings.low.maxDelay;
+      
+      // Gecikme toleransı ile kontrol et
+      const canDeliver = currentMinutes >= windowStart && 
+                         currentMinutes <= (windowEnd + maxDelay);
+      
+      // Servis süresi ve tahmini seyahat süresi ekle
+      currentMinutes += (wp.serviceTime || 10) + 15;
+      
+      return canDeliver;
     });
   }
 
@@ -302,6 +461,47 @@ class GoogleMapsService {
       timeWindow: overrides?.timeWindow || customer.timeWindow,
       priority: overrides?.priority || customer.priority,
       serviceTime: overrides?.serviceTime || customer.estimatedServiceTime || 10
+    };
+  }
+
+  // Öncelik bazlı rota önerisi
+  suggestRouteWithPriorities(
+    depot: LatLng,
+    customers: Customer[]
+  ): {
+    suggestedOrder: Customer[];
+    estimatedTime: number;
+    priorityBreakdown: {
+      high: number;
+      normal: number;
+      low: number;
+    };
+  } {
+    const prioritySettings = this.getPrioritySettings();
+    
+    // Müşterileri önceliğe göre grupla
+    const highPriority = customers.filter(c => c.priority === 'high');
+    const normalPriority = customers.filter(c => c.priority === 'normal');
+    const lowPriority = customers.filter(c => c.priority === 'low');
+    
+    // Önerilen sıralama: önce yüksek, sonra normal, en son düşük
+    const suggestedOrder = [...highPriority, ...normalPriority, ...lowPriority];
+    
+    // Tahmini süre hesapla
+    let estimatedTime = 0;
+    suggestedOrder.forEach(customer => {
+      estimatedTime += customer.estimatedServiceTime || 10; // Servis süresi
+      estimatedTime += 15; // Ortalama seyahat süresi
+    });
+    
+    return {
+      suggestedOrder,
+      estimatedTime,
+      priorityBreakdown: {
+        high: highPriority.length,
+        normal: normalPriority.length,
+        low: lowPriority.length
+      }
     };
   }
 }

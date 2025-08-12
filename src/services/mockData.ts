@@ -438,6 +438,75 @@ export const routeService = {
     };
     
     return this.update(id, optimizedRoute);
+  },
+
+  // REPORT İÇİN YENİ METODLAR
+  async getByDateRange(startDate: Date, endDate: Date): Promise<Route[]> {
+    await delay(300);
+    const routes = await this.getAll();
+    return routes.filter(r => {
+      const routeDate = new Date(r.date);
+      return routeDate >= startDate && routeDate <= endDate;
+    });
+  },
+
+  async getByStatus(status: Route['status']): Promise<Route[]> {
+    await delay(300);
+    const routes = await this.getAll();
+    return routes.filter(r => r.status === status);
+  },
+
+  async getByDriverId(driverId: string): Promise<Route[]> {
+    await delay(300);
+    const routes = await this.getAll();
+    return routes.filter(r => r.driverId === driverId);
+  },
+
+  async getStats(): Promise<{
+    total: number;
+    completed: number;
+    inProgress: number;
+    planned: number;
+    cancelled: number;
+    totalDistance: number;
+    totalDuration: number;
+    avgDeliveryTime: number;
+    successRate: number;
+  }> {
+    await delay(400);
+    const routes = await this.getAll();
+    
+    const total = routes.length;
+    const completed = routes.filter(r => r.status === 'completed').length;
+    const inProgress = routes.filter(r => r.status === 'in_progress').length;
+    const planned = routes.filter(r => r.status === 'planned').length;
+    const cancelled = routes.filter(r => r.status === 'cancelled').length;
+    
+    const totalDistance = routes.reduce((acc, r) => acc + (r.totalDistance || 0), 0);
+    const totalDuration = routes.reduce((acc, r) => acc + (r.totalDuration || 0), 0);
+    
+    const completedRoutes = routes.filter(r => r.status === 'completed');
+    const avgDeliveryTime = completedRoutes.length > 0
+      ? totalDuration / completedRoutes.length
+      : 0;
+    
+    const totalDeliveries = routes.reduce((acc, r) => acc + r.totalDeliveries, 0);
+    const completedDeliveries = routes.reduce((acc, r) => acc + r.completedDeliveries, 0);
+    const successRate = totalDeliveries > 0
+      ? Math.round((completedDeliveries / totalDeliveries) * 100)
+      : 0;
+    
+    return {
+      total,
+      completed,
+      inProgress,
+      planned,
+      cancelled,
+      totalDistance: Math.round(totalDistance),
+      totalDuration: Math.round(totalDuration),
+      avgDeliveryTime: Math.round(avgDeliveryTime),
+      successRate
+    };
   }
 };
 
@@ -548,6 +617,43 @@ export const customerService = {
     const allCustomers = [...existingCustomers, ...newCustomers];
     localStorage.setItem('customers', JSON.stringify(allCustomers));
     return newCustomers;
+  },
+
+  // REPORT İÇİN YENİ METODLAR
+  async getByPriority(priority: Customer['priority']): Promise<Customer[]> {
+    await delay(300);
+    const customers = await this.getAll();
+    return customers.filter(c => c.priority === priority);
+  },
+
+  async getStats(): Promise<{
+    total: number;
+    highPriority: number;
+    normalPriority: number;
+    lowPriority: number;
+    withTimeWindow: number;
+    avgServiceTime: number;
+  }> {
+    await delay(400);
+    const customers = await this.getAll();
+    
+    const total = customers.length;
+    const highPriority = customers.filter(c => c.priority === 'high').length;
+    const normalPriority = customers.filter(c => c.priority === 'normal').length;
+    const lowPriority = customers.filter(c => c.priority === 'low').length;
+    const withTimeWindow = customers.filter(c => c.timeWindow).length;
+    
+    const totalServiceTime = customers.reduce((acc, c) => acc + (c.estimatedServiceTime || 15), 0);
+    const avgServiceTime = total > 0 ? Math.round(totalServiceTime / total) : 0;
+    
+    return {
+      total,
+      highPriority,
+      normalPriority,
+      lowPriority,
+      withTimeWindow,
+      avgServiceTime
+    };
   }
 };
 
@@ -637,6 +743,38 @@ export const driverService = {
 
   async updateStatus(id: string, status: 'available' | 'busy' | 'offline'): Promise<Driver | null> {
     return this.update(id, { status });
+  },
+
+  // REPORT İÇİN YENİ METODLAR
+  async getPerformanceStats(): Promise<Array<{
+    driver: Driver;
+    completedRoutes: number;
+    totalDeliveries: number;
+    avgRating: number;
+    totalDistance: number;
+    avgDeliveryTime: number;
+  }>> {
+    await delay(500);
+    const drivers = await this.getAll();
+    const routes = await routeService.getAll();
+    
+    return drivers.map(driver => {
+      const driverRoutes = routes.filter(r => r.driverId === driver.id);
+      const completedRoutes = driverRoutes.filter(r => r.status === 'completed').length;
+      const totalDeliveries = driverRoutes.reduce((acc, r) => acc + r.completedDeliveries, 0);
+      const totalDistance = driverRoutes.reduce((acc, r) => acc + (r.totalDistance || 0), 0);
+      const totalDuration = driverRoutes.reduce((acc, r) => acc + (r.totalDuration || 0), 0);
+      const avgDeliveryTime = completedRoutes > 0 ? totalDuration / completedRoutes : 0;
+      
+      return {
+        driver,
+        completedRoutes,
+        totalDeliveries,
+        avgRating: driver.rating || 0,
+        totalDistance: Math.round(totalDistance),
+        avgDeliveryTime: Math.round(avgDeliveryTime)
+      };
+    });
   }
 };
 
@@ -726,6 +864,43 @@ export const vehicleService = {
 
   async updateStatus(id: string, status: 'active' | 'maintenance' | 'inactive'): Promise<Vehicle | null> {
     return this.update(id, { status });
+  },
+
+  // REPORT İÇİN YENİ METODLAR
+  async getUtilizationStats(): Promise<Array<{
+    vehicle: Vehicle;
+    totalRoutes: number;
+    totalDistance: number;
+    totalDuration: number;
+    utilizationRate: number;
+    avgDistancePerRoute: number;
+  }>> {
+    await delay(500);
+    const vehicles = await this.getAll();
+    const routes = await routeService.getAll();
+    
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    return vehicles.map(vehicle => {
+      const vehicleRoutes = routes.filter(r => r.vehicleId === vehicle.id);
+      const recentRoutes = vehicleRoutes.filter(r => new Date(r.date) >= thirtyDaysAgo);
+      
+      const totalRoutes = vehicleRoutes.length;
+      const totalDistance = vehicleRoutes.reduce((acc, r) => acc + (r.totalDistance || 0), 0);
+      const totalDuration = vehicleRoutes.reduce((acc, r) => acc + (r.totalDuration || 0), 0);
+      const utilizationRate = Math.min(100, Math.round((recentRoutes.length / 30) * 100));
+      const avgDistancePerRoute = totalRoutes > 0 ? totalDistance / totalRoutes : 0;
+      
+      return {
+        vehicle,
+        totalRoutes,
+        totalDistance: Math.round(totalDistance),
+        totalDuration: Math.round(totalDuration),
+        utilizationRate,
+        avgDistancePerRoute: Math.round(avgDistancePerRoute)
+      };
+    });
   }
 };
 
@@ -1110,5 +1285,193 @@ export const journeyService = {
       heading: Math.atan2(lngDiff, latDiff) * 180 / Math.PI,
       timestamp: new Date()
     });
+  },
+
+  // REPORT İÇİN YENİ METODLAR
+  async getByDateRange(startDate: Date, endDate: Date): Promise<Journey[]> {
+    await delay(300);
+    const journeys = await this.getAll();
+    return journeys.filter(j => {
+      const journeyDate = j.startedAt ? new Date(j.startedAt) : new Date();
+      return journeyDate >= startDate && journeyDate <= endDate;
+    });
+  },
+
+  async getStats(): Promise<{
+    total: number;
+    completed: number;
+    inProgress: number;
+    cancelled: number;
+    avgDuration: number;
+    avgDistance: number;
+  }> {
+    await delay(400);
+    const journeys = await this.getAll();
+    
+    const total = journeys.length;
+    const completed = journeys.filter(j => j.status === 'completed').length;
+    const inProgress = journeys.filter(j => 
+      j.status === 'in_progress' || j.status === 'started' || j.status === 'preparing'
+    ).length;
+    const cancelled = journeys.filter(j => j.status === 'cancelled').length;
+    
+    const completedJourneys = journeys.filter(j => j.status === 'completed');
+    const totalDuration = completedJourneys.reduce((acc, j) => acc + j.totalDuration, 0);
+    const totalDistance = completedJourneys.reduce((acc, j) => acc + j.totalDistance, 0);
+    
+    const avgDuration = completedJourneys.length > 0 
+      ? Math.round(totalDuration / completedJourneys.length)
+      : 0;
+    const avgDistance = completedJourneys.length > 0
+      ? Math.round(totalDistance / completedJourneys.length)
+      : 0;
+    
+    return {
+      total,
+      completed,
+      inProgress,
+      cancelled,
+      avgDuration,
+      avgDistance
+    };
+  }
+};
+
+// REPORT SERVICE - YENİ
+export const reportService = {
+  async getDeliveryTrends(days: number = 7): Promise<Array<{
+    date: string;
+    completed: number;
+    failed: number;
+    total: number;
+  }>> {
+    await delay(500);
+    const routes = await routeService.getAll();
+    const trends = [];
+    
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const dayRoutes = routes.filter(r => {
+        const routeDate = new Date(r.date).toISOString().split('T')[0];
+        return routeDate === dateStr;
+      });
+      
+      const completed = dayRoutes.reduce((acc, r) => acc + r.completedDeliveries, 0);
+      const total = dayRoutes.reduce((acc, r) => acc + r.totalDeliveries, 0);
+      const failed = total - completed;
+      
+      trends.push({
+        date: dateStr,
+        completed,
+        failed,
+        total
+      });
+    }
+    
+    return trends;
+  },
+
+  async getDriverPerformance(): Promise<Array<{
+    driverId: string;
+    driverName: string;
+    totalDeliveries: number;
+    completedDeliveries: number;
+    avgDeliveryTime: number;
+    totalDistance: number;
+    rating: number;
+  }>> {
+    await delay(500);
+    const drivers = await driverService.getAll();
+    const routes = await routeService.getAll();
+    
+    return drivers.map(driver => {
+      const driverRoutes = routes.filter(r => r.driverId === driver.id);
+      const completedRoutes = driverRoutes.filter(r => r.status === 'completed');
+      
+      const totalDeliveries = driverRoutes.reduce((acc, r) => acc + r.totalDeliveries, 0);
+      const completedDeliveries = driverRoutes.reduce((acc, r) => acc + r.completedDeliveries, 0);
+      const totalDistance = driverRoutes.reduce((acc, r) => acc + (r.totalDistance || 0), 0);
+      const totalDuration = completedRoutes.reduce((acc, r) => acc + (r.totalDuration || 0), 0);
+      const avgDeliveryTime = completedRoutes.length > 0 
+        ? totalDuration / completedRoutes.length
+        : 0;
+      
+      return {
+        driverId: driver.id,
+        driverName: driver.name,
+        totalDeliveries,
+        completedDeliveries,
+        avgDeliveryTime: Math.round(avgDeliveryTime),
+        totalDistance: Math.round(totalDistance),
+        rating: driver.rating || 0
+      };
+    });
+  },
+
+  async getVehicleUtilization(): Promise<Array<{
+    vehicleId: string;
+    plateNumber: string;
+    totalRoutes: number;
+    totalDistance: number;
+    utilizationRate: number;
+  }>> {
+    await delay(500);
+    const vehicles = await vehicleService.getAll();
+    const routes = await routeService.getAll();
+    
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    return vehicles.map(vehicle => {
+      const vehicleRoutes = routes.filter(r => r.vehicleId === vehicle.id);
+      const recentRoutes = vehicleRoutes.filter(r => new Date(r.date) >= thirtyDaysAgo);
+      const totalDistance = vehicleRoutes.reduce((acc, r) => acc + (r.totalDistance || 0), 0);
+      const utilizationRate = Math.min(100, Math.round((recentRoutes.length / 30) * 100));
+      
+      return {
+        vehicleId: vehicle.id,
+        plateNumber: vehicle.plateNumber,
+        totalRoutes: vehicleRoutes.length,
+        totalDistance: Math.round(totalDistance),
+        utilizationRate
+      };
+    });
+  },
+
+  async getSummaryStats(): Promise<{
+    totalDeliveries: number;
+    successRate: number;
+    avgDeliveryTime: number;
+    totalDistance: number;
+    activeDrivers: number;
+    activeVehicles: number;
+    totalCustomers: number;
+  }> {
+    await delay(500);
+    const [routeStats, drivers, vehicles, customers] = await Promise.all([
+      routeService.getStats(),
+      driverService.getAll(),
+      vehicleService.getAll(),
+      customerService.getAll()
+    ]);
+    
+    const activeDrivers = drivers.filter(d => 
+      d.status === 'available' || d.status === 'busy'
+    ).length;
+    
+    const activeVehicles = vehicles.filter(v => v.status === 'active').length;
+    
+    return {
+      totalDeliveries: routeStats.completed,
+      successRate: routeStats.successRate,
+      avgDeliveryTime: routeStats.avgDeliveryTime,
+      totalDistance: routeStats.totalDistance,
+      activeDrivers,
+      activeVehicles,
+      totalCustomers: customers.length
+    };
   }
 };
