@@ -2,6 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Disable text selection globally to prevent unwanted cursor */
+* {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Enable text selection only for specific elements */
+input,
+textarea,
+[contenteditable="true"],
+.select-text,
+.selectable,
+p,
+h1, h2, h3, h4, h5, h6,
+span,
+td,
+th {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* Buttons and interactive elements should not have text cursor */
+button,
+a,
+select,
+.btn,
+.button,
+.clickable {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  cursor: pointer;
+}
+
 /* Custom scrollbar styles */
 ::-webkit-scrollbar {
   width: 8px;
@@ -32,6 +71,16 @@ html {
   outline: none;
 }
 
+/* Better focus indication for accessibility */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
 /* Custom animations */
 @keyframes slideIn {
   from {
@@ -59,4 +108,33 @@ html {
 
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
+}
+
+/* Prevent text cursor on div containers */
+div {
+  cursor: default;
+}
+
+/* Interactive divs should have pointer cursor */
+div[role="button"],
+div.clickable,
+div.interactive {
+  cursor: pointer;
+}
+
+/* Cards and containers should not show text cursor */
+.card,
+.panel,
+.container,
+.wrapper {
+  cursor: default;
+}
+
+/* Table cells with data should allow text selection */
+td[data-selectable="true"],
+.data-cell {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   TrendingUp, 
   Users, 
@@ -20,6 +20,7 @@ import {
 
 const Dashboard: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('today');
+  const navigate = useNavigate();
   
   // Mock data
   const stats = [
@@ -106,6 +107,44 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // Rapor İndirme Fonksiyonu
+  const handleDownloadReport = () => {
+    // CSV formatında rapor oluştur
+    const reportData = [
+      ['Dashboard Raporu', new Date().toLocaleDateString('tr-TR')],
+      [''],
+      ['Genel İstatistikler'],
+      ['Metrik', 'Değer', 'Değişim'],
+      ...stats.map(stat => [stat.title, stat.value, stat.change]),
+      [''],
+      ['Günlük Rotalar'],
+      ['Sürücü', 'Araç', 'Durum', 'İlerleme', 'Teslimatlar'],
+      ...todayRoutes.map(route => [
+        route.driver,
+        route.vehicle,
+        getStatusText(route.status),
+        `${route.progress}%`,
+        route.deliveries
+      ]),
+      [''],
+      ['Haftalık Performans'],
+      ['Gün', 'Teslimat', 'Hedef'],
+      ...weeklyData.map(data => [data.day, data.deliveries.toString(), data.target.toString()])
+    ];
+
+    // CSV string oluştur
+    const csvContent = reportData.map(row => row.join(',')).join('\n');
+    
+    // Blob ve download link oluştur
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `dashboard_raporu_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -125,7 +164,10 @@ const Dashboard: React.FC = () => {
             <option value="month">Bu Ay</option>
             <option value="year">Bu Yıl</option>
           </select>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center">
+          <button 
+            onClick={handleDownloadReport}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+          >
             <Calendar className="w-4 h-4 mr-2" />
             Rapor İndir
           </button>
@@ -218,12 +260,12 @@ const Dashboard: React.FC = () => {
               </div>
             ))}
           </div>
-          <Link 
-            to="/activities" 
+          <button 
+            onClick={() => navigate('/journeys')}
             className="block w-full mt-4 text-sm text-blue-600 hover:text-blue-700 font-medium text-center"
           >
-            Tümünü Gör →
-          </Link>
+            Tüm Seferleri Gör →
+          </button>
         </div>
       </div>
 

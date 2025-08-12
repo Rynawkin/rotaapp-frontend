@@ -8,10 +8,14 @@ import {
   Plus, 
   Info,
   Star,
-  Navigation
+  Navigation,
+  Search
 } from 'lucide-react';
 import { Depot } from '@/types';
 import MapComponent from '@/components/maps/MapComponent';
+import { useJsApiLoader, Autocomplete } from '@react-google-maps/api';
+
+const libraries: ("places" | "drawing" | "geometry")[] = ['places'];
 
 interface DepotFormProps {
   depot?: Depot;
@@ -43,6 +47,15 @@ const DepotForm: React.FC<DepotFormProps> = ({ depot, onSubmit, onCancel }) => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [showMap, setShowMap] = useState(false);
+  const [useGoogleSearch, setUseGoogleSearch] = useState(true);
+  const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
+  
+  // Google Maps API
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: libraries,
+  });
+
   const [formData, setFormData] = useState<Partial<Depot>>({
     name: depot?.name || '',
     address: depot?.address || '',
@@ -57,10 +70,47 @@ const DepotForm: React.FC<DepotFormProps> = ({ depot, onSubmit, onCancel }) => {
   // Edit modunda başlangıçta haritayı göster
   useEffect(() => {
     if (depot) {
-      // Edit modunda haritayı otomatik göster
       setShowMap(true);
     }
   }, [depot]);
+
+  // Google Places Autocomplete handlers
+  const onLoad = (autocompleteInstance: google.maps.places.Autocomplete) => {
+    setAutocomplete(autocompleteInstance);
+    // İstanbul ve Türkiye'ye odakla
+    autocompleteInstance.setComponentRestrictions({ country: 'tr' });
+    autocompleteInstance.setOptions({
+      bounds: new google.maps.LatLngBounds(
+        new google.maps.LatLng(40.8, 28.6), // İstanbul güneybatı
+        new google.maps.LatLng(41.3, 29.5)  // İstanbul kuzeydoğu
+      ),
+      strictBounds: false
+    });
+  };
+
+  const onPlaceChanged = () => {
+    if (autocomplete !== null) {
+      const place = autocomplete.getPlace();
+      
+      if (place.geometry && place.geometry.location) {
+        // Depo adını güncelle (eğer boşsa)
+        if (!formData.name && place.name) {
+          setFormData(prev => ({ ...prev, name: place.name }));
+        }
+
+        // Adresi ve koordinatları güncelle
+        setFormData(prev => ({
+          ...prev,
+          address: place.formatted_address || '',
+          latitude: place.geometry!.location!.lat(),
+          longitude: place.geometry!.location!.lng()
+        }));
+
+        // Haritayı göster
+        setShowMap(true);
+      }
+    }
+  };
 
   const handleMapClick = (latLng: { lat: number; lng: number }) => {
     setFormData(prev => ({
@@ -185,6 +235,56 @@ const DepotForm: React.FC<DepotFormProps> = ({ depot, onSubmit, onCancel }) => {
           Temel Bilgiler
         </h3>
 
+        {/* Google Search Toggle */}
+        {isLoaded && (
+          <div className="mb-4">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={useGoogleSearch}
+                onChange={(e) => setUseGoogleSearch(e.target.checked)}
+                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Google Adres Araması Kullan
+              </span>
+              <Search className="w-4 h-4 text-gray-400" />
+            </label>
+            {useGoogleSearch && (
+              <p className="text-xs text-gray-500 mt-1 ml-6">
+                Adres yazarak Google'dan otomatik konum bilgisi alabilirsiniz
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Google Places Search Box */}
+        {isLoaded && useGoogleSearch && (
+          <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Search className="w-4 h-4 inline mr-1" />
+              Adres Ara (Google)
+            </label>
+            <Autocomplete
+              onLoad={onLoad}
+              onPlaceChanged={onPlaceChanged}
+              options={{
+                types: ['address'],
+                componentRestrictions: { country: 'tr' }
+              }}
+            >
+              <input
+                type="text"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Adres veya yer adı yazın (örn: Kadıköy İskelesi, Atatürk Havalimanı)"
+              />
+            </Autocomplete>
+            <p className="text-xs text-blue-600 mt-2">
+              💡 Adres seçtiğinizde konum bilgileri otomatik doldurulacak
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -292,7 +392,7 @@ const DepotForm: React.FC<DepotFormProps> = ({ depot, onSubmit, onCancel }) => {
             {showMap ? 'Haritayı Gizle' : 'Haritada Göster'}
           </button>
           
-          {showMap && (
+          {showMap && isLoaded && (
             <div className="h-96 rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
               <MapComponent
                 center={{ lat: formData.latitude || 40.9869, lng: formData.longitude || 29.0252 }}

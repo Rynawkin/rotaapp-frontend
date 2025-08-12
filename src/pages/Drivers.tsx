@@ -79,6 +79,76 @@ const Drivers: React.FC = () => {
     loadDrivers();
   };
 
+  // Export drivers to CSV
+  const handleExport = () => {
+    const csvContent = [
+      ['ID', 'Ad Soyad', 'Telefon', 'Email', 'Ehliyet No', 'Durum', 'Puan', 'Toplam Teslimat', 'Kayıt Tarihi'],
+      ...filteredDrivers.map(driver => [
+        driver.id,
+        driver.name,
+        driver.phone,
+        driver.email || '',
+        driver.licenseNumber,
+        driver.status,
+        driver.rating || 0,
+        driver.totalDeliveries || 0,
+        new Date(driver.createdAt).toLocaleDateString('tr-TR')
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `suruculer-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Import drivers from CSV
+  const handleImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv';
+    
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const csv = event.target?.result as string;
+        const lines = csv.split('\n');
+        const headers = lines[0].split(',');
+        
+        // Skip header row and process data
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',');
+          if (values.length > 1) {
+            await driverService.create({
+              name: values[1]?.trim(),
+              phone: values[2]?.trim(),
+              email: values[3]?.trim() || undefined,
+              licenseNumber: values[4]?.trim(),
+              status: 'available',
+              rating: parseFloat(values[6]) || 0,
+              totalDeliveries: parseInt(values[7]) || 0
+            });
+          }
+        }
+        
+        loadDrivers();
+        alert('Sürücüler başarıyla içe aktarıldı!');
+      };
+      
+      reader.readAsText(file);
+    };
+    
+    input.click();
+  };
+
   // Get status color
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -147,11 +217,17 @@ const Drivers: React.FC = () => {
           <p className="text-gray-600 mt-1">Tüm sürücüleri yönetin ve takip edin</p>
         </div>
         <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-          <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center">
+          <button 
+            onClick={handleImport}
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center"
+          >
             <Upload className="w-4 h-4 mr-2" />
             Import
           </button>
-          <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center">
+          <button 
+            onClick={handleExport}
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center"
+          >
             <Download className="w-4 h-4 mr-2" />
             Export
           </button>

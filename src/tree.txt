@@ -1,0 +1,93 @@
+Folder PATH listing
+Volume serial number is 0257-CDB1
+C:.
+|   App.tsx
+|   index.css
+|   main.tsx
+|   tree.txt
+|   vite-env.d.ts
+|   
++---assets
+|       react.svg
+|       
++---components
+|   +---customers
+|   |       CustomerForm.tsx
+|   |       
+|   +---depots
+|   |       DepotForm.tsx
+|   |       
+|   +---drivers
+|   |       DriverForm.tsx
+|   |       
+|   +---maps
+|   |       LeafletMapComponent.tsx
+|   |       MapComponent.tsx
+|   |       
+|   +---routes
+|   |       CustomerSelector.tsx
+|   |       RouteForm.tsx
+|   |       StopsList.tsx
+|   |       
+|   +---tracking
+|   |       JourneyDetails.tsx
+|   |       LiveMap.tsx
+|   |       VehicleCard.tsx
+|   |       
+|   \---vehicles
+|           VehicleForm.tsx
+|           
++---hooks
++---layouts
+|       MainLayout.tsx
+|       
++---pages
+|   |   CreateCustomer.tsx
+|   |   CreateDepot.tsx
+|   |   CreateDriver.tsx
+|   |   CreateRoute.tsx
+|   |   CreateVehicle.tsx
+|   |   CustomerDetail.tsx
+|   |   Customers.tsx
+|   |   Dashboard.tsx
+|   |   DepotDetail.tsx
+|   |   Depots.tsx
+|   |   DriverDetail.tsx
+|   |   Drivers.tsx
+|   |   EditCustomer.tsx
+|   |   EditDepot.tsx
+|   |   EditDriver.tsx
+|   |   EditRoute.tsx
+|   |   EditVehicle.tsx
+|   |   JourneyDetail.tsx
+|   |   Journeys.tsx
+|   |   LiveTracking.tsx
+|   |   Login.tsx
+|   |   Onboarding.tsx
+|   |   Reports.tsx
+|   |   RouteDetail.tsx
+|   |   Routes.tsx
+|   |   Settings.tsx
+|   |   Signup.tsx
+|   |   TestMap.tsx
+|   |   VehicleDetail.tsx
+|   |   Vehicles.tsx
+|   |   
+|   \---superadmin
+|           SuperAdminDashboard.tsx
+|           WorkspaceDetail.tsx
+|           WorkspaceEdit.tsx
+|           
++---services
+|       api.ts
+|       auth.service.ts
+|       googleMapsService.ts
+|       mockData.ts
+|       simpleOptimizationService.ts
+|       
++---types
+|       api.types.ts
+|       index.ts
+|       maps.ts
+|       
+\---utils

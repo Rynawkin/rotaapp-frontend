@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft,
   Edit,
@@ -20,16 +20,20 @@ import {
   Activity,
   Hash,
   AlertTriangle,
-  Settings
+  Settings,
+  Plus
 } from 'lucide-react';
 import { Vehicle, Route as RouteType } from '@/types';
 import { vehicleService, routeService } from '@/services/mockData';
 
 const VehicleDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [routes, setRoutes] = useState<RouteType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
+  const [maintenanceNote, setMaintenanceNote] = useState('');
 
   useEffect(() => {
     loadVehicleData();
@@ -55,6 +59,33 @@ const VehicleDetail: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!vehicle) return;
+    
+    if (window.confirm('Bu aracı silmek istediğinizden emin misiniz?')) {
+      await vehicleService.delete(vehicle.id);
+      navigate('/vehicles');
+    }
+  };
+
+  const handleAssignRoute = () => {
+    navigate('/routes/new', { state: { vehicleId: id } });
+  };
+
+  const handleSetMaintenance = async () => {
+    if (!vehicle) return;
+    
+    await vehicleService.updateStatus(vehicle.id, 'maintenance');
+    setShowMaintenanceModal(false);
+    setMaintenanceNote('');
+    alert('Araç bakıma alındı!');
+    loadVehicleData();
+  };
+
+  const handleEditSettings = () => {
+    navigate(`/vehicles/${id}/edit`, { state: { tab: 'maintenance' } });
   };
 
   const getVehicleIcon = (type: string) => {
@@ -195,7 +226,10 @@ const VehicleDetail: React.FC = () => {
             <Edit className="w-4 h-4 mr-2" />
             Düzenle
           </Link>
-          <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center">
+          <button 
+            onClick={handleDelete}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center"
+          >
             <Trash2 className="w-4 h-4 mr-2" />
             Sil
           </button>
@@ -328,15 +362,25 @@ const VehicleDetail: React.FC = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Hızlı İşlemler</h2>
             <div className="space-y-2">
-              <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center">
+              <button 
+                onClick={handleAssignRoute}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+              >
                 <Route className="w-4 h-4 mr-2" />
                 Rotaya Ata
               </button>
-              <button className="w-full px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center">
+              <button 
+                onClick={() => setShowMaintenanceModal(true)}
+                className="w-full px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center"
+                disabled={vehicle.status === 'maintenance'}
+              >
                 <Wrench className="w-4 h-4 mr-2" />
-                Bakıma Al
+                {vehicle.status === 'maintenance' ? 'Bakımda' : 'Bakıma Al'}
               </button>
-              <button className="w-full px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center">
+              <button 
+                onClick={handleEditSettings}
+                className="w-full px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center"
+              >
                 <Settings className="w-4 h-4 mr-2" />
                 Ayarlar
               </button>
@@ -345,7 +389,16 @@ const VehicleDetail: React.FC = () => {
 
           {/* Maintenance Schedule */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Bakım Takvimi</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Bakım Takvimi</h2>
+              <button 
+                onClick={() => navigate(`/vehicles/${id}/edit`, { state: { tab: 'maintenance' } })}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                title="Bakım takvimini düzenle"
+              >
+                <Edit className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
             <div className="space-y-3">
               <div className="flex items-start">
                 <div className="p-2 bg-green-100 rounded-lg mr-3">
@@ -353,7 +406,9 @@ const VehicleDetail: React.FC = () => {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">Son Bakım</p>
-                  <p className="text-xs text-gray-600">15 Ocak 2024 - 125,000 km</p>
+                  <p className="text-xs text-gray-600">
+                    {vehicle.maintenanceSchedule?.lastMaintenance || '15 Ocak 2024 - 125,000 km'}
+                  </p>
                 </div>
               </div>
               <div className="flex items-start">
@@ -362,8 +417,12 @@ const VehicleDetail: React.FC = () => {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">Sonraki Bakım</p>
-                  <p className="text-xs text-gray-600">15 Nisan 2024 - 150,000 km</p>
-                  <p className="text-xs text-orange-600 mt-1">2,500 km kaldı</p>
+                  <p className="text-xs text-gray-600">
+                    {vehicle.maintenanceSchedule?.nextMaintenance || '15 Nisan 2024 - 150,000 km'}
+                  </p>
+                  <p className="text-xs text-orange-600 mt-1">
+                    {vehicle.maintenanceSchedule?.remainingKm || '2,500 km kaldı'}
+                  </p>
                 </div>
               </div>
               <div className="flex items-start">
@@ -372,9 +431,18 @@ const VehicleDetail: React.FC = () => {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">Yağ Değişimi</p>
-                  <p className="text-xs text-gray-600">1 Mart 2024 - 135,000 km</p>
+                  <p className="text-xs text-gray-600">
+                    {vehicle.maintenanceSchedule?.oilChange || '1 Mart 2024 - 135,000 km'}
+                  </p>
                 </div>
               </div>
+              <button 
+                onClick={() => navigate(`/vehicles/${id}/edit`, { state: { tab: 'maintenance' } })}
+                className="w-full mt-2 px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors flex items-center justify-center"
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Bakım Ekle
+              </button>
             </div>
           </div>
 
@@ -384,24 +452,72 @@ const VehicleDetail: React.FC = () => {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Bu Ay</span>
-                <span className="text-sm font-medium text-gray-900">2,450 km</span>
+                <span className="text-sm font-medium text-gray-900">
+                  {vehicle.monthlyKm || '2,450 km'}
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Ortalama Günlük</span>
-                <span className="text-sm font-medium text-gray-900">82 km</span>
+                <span className="text-sm font-medium text-gray-900">
+                  {vehicle.dailyAvgKm || '82 km'}
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Toplam Mesafe</span>
-                <span className="text-sm font-medium text-gray-900">147,500 km</span>
+                <span className="text-sm font-medium text-gray-900">
+                  {vehicle.totalKm || '147,500 km'}
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Yakıt Tüketimi</span>
-                <span className="text-sm font-medium text-gray-900">7.8 L/100km</span>
+                <span className="text-sm font-medium text-gray-900">
+                  {vehicle.fuelConsumption || '7.8 L/100km'}
+                </span>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Maintenance Modal */}
+      {showMaintenanceModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Aracı Bakıma Al</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Bakım Notu
+                </label>
+                <textarea
+                  value={maintenanceNote}
+                  onChange={(e) => setMaintenanceNote(e.target.value)}
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Yapılacak bakım işlemleri..."
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <button
+                  onClick={() => {
+                    setShowMaintenanceModal(false);
+                    setMaintenanceNote('');
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleSetMaintenance}
+                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
+                >
+                  Bakıma Al
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Calendar,
   Clock,
@@ -88,6 +88,9 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
   // Stops with override data
   const [stopsData, setStopsData] = useState<StopData[]>([]);
+  
+  // Flag to track if initial stops have been loaded
+  const initialStopsLoadedRef = useRef(false);
 
   // Map State
   const [mapCenter, setMapCenter] = useState<LatLng>({ lat: 40.9869, lng: 29.0252 });
@@ -101,27 +104,54 @@ const RouteForm: React.FC<RouteFormProps> = ({
     loadLists();
   }, []);
 
-  // Initialize stops from initial data
+  // DÜZELTİLMİŞ: Initialize stops from initial data - sadece bir kez çalışır
   useEffect(() => {
-    if (initialData?.stops && customers.length > 0) {
-      const initialStops: StopData[] = initialData.stops
-        .map(stop => {
-          const customer = customers.find(c => c.id === stop.customerId);
-          if (!customer) return null;
-          
-          return {
-            customer,
-            overrideTimeWindow: stop.overrideTimeWindow,
-            overridePriority: stop.overridePriority,
-            serviceTime: stop.serviceTime,
-            stopNotes: stop.stopNotes
-          };
-        })
-        .filter(Boolean) as StopData[];
-      
-      setStopsData(initialStops);
+    // Eğer daha önce yüklendiyse veya initialData yoksa çıkış yap
+    if (initialStopsLoadedRef.current || !initialData?.stops || initialData.stops.length === 0) {
+      return;
     }
-  }, [initialData, customers]);
+
+    // Eğer müşteriler henüz yüklenmediyse çıkış yap
+    if (customers.length === 0) {
+      return;
+    }
+
+    // Initial stops'ları yükle
+    const initialStops: StopData[] = initialData.stops
+      .map(stop => {
+        // Önce stop'un içindeki customer'ı kontrol et
+        let customer = stop.customer;
+        
+        // Eğer stop'ta customer yoksa, customers listesinden bul
+        if (!customer) {
+          customer = customers.find(c => c.id === stop.customerId);
+        }
+        
+        if (!customer) {
+          console.warn(`Customer not found for stop with customerId: ${stop.customerId}`);
+          return null;
+        }
+        
+        return {
+          customer,
+          overrideTimeWindow: stop.overrideTimeWindow,
+          overridePriority: stop.overridePriority,
+          serviceTime: stop.serviceTime || customer.estimatedServiceTime || 10,
+          stopNotes: stop.stopNotes
+        };
+      })
+      .filter(Boolean) as StopData[];
+    
+    if (initialStops.length > 0) {
+      setStopsData(initialStops);
+      initialStopsLoadedRef.current = true; // Yüklendiğini işaretle
+      
+      // Eğer rota optimize edilmişse, optimized order'ı da ayarla
+      if (initialData.optimized) {
+        setOptimizedOrder(initialStops.map((_, index) => index));
+      }
+    }
+  }, [initialData, customers]); // customers dependency'si kalıyor ama ref kontrolü ile
 
   // Müşteri eklendiğinde otomatik olarak haritada göster
   useEffect(() => {
@@ -215,6 +245,15 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
       if (directions) {
         setMapDirections(directions);
+        
+        // Eğer initialData'da totalDistance ve totalDuration varsa onları kullan
+        if (initialData?.totalDistance && initialData?.totalDuration) {
+          setFormData(prev => ({
+            ...prev,
+            totalDistance: initialData.totalDistance,
+            totalDuration: initialData.totalDuration
+          }));
+        }
       }
     }
   };
@@ -351,7 +390,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
     }
     
     const stops: RouteStop[] = stopsData.map((stopData, index) => ({
-      id: `${Date.now()}-${index}`,
+      id: isEdit && initialData?.stops?.[index]?.id ? initialData.stops[index].id : `${Date.now()}-${index}`,
       routeId: initialData?.id || '',
       customerId: stopData.customer.id,
       customer: stopData.customer,
@@ -383,7 +422,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
   const handleSaveDraft = () => {
     const stops: RouteStop[] = stopsData.map((stopData, index) => ({
-      id: `${Date.now()}-${index}`,
+      id: isEdit && initialData?.stops?.[index]?.id ? initialData.stops[index].id : `${Date.now()}-${index}`,
       routeId: initialData?.id || '',
       customerId: stopData.customer.id,
       customer: stopData.customer,

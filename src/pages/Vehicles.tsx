@@ -80,6 +80,76 @@ const Vehicles: React.FC = () => {
     loadVehicles();
   };
 
+  // Export vehicles to CSV
+  const handleExport = () => {
+    const csvContent = [
+      ['ID', 'Plaka', 'Tip', 'Marka', 'Model', 'Yıl', 'Kapasite (kg)', 'Durum', 'Yakıt Tipi'],
+      ...filteredVehicles.map(vehicle => [
+        vehicle.id,
+        vehicle.plateNumber,
+        vehicle.type,
+        vehicle.brand,
+        vehicle.model,
+        vehicle.year,
+        vehicle.capacity,
+        vehicle.status,
+        vehicle.fuelType
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `araclar-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Import vehicles from CSV
+  const handleImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv';
+    
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const csv = event.target?.result as string;
+        const lines = csv.split('\n');
+        
+        // Skip header row and process data
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',');
+          if (values.length > 1) {
+            await vehicleService.create({
+              plateNumber: values[1]?.trim(),
+              type: values[2]?.trim() as Vehicle['type'] || 'car',
+              brand: values[3]?.trim(),
+              model: values[4]?.trim(),
+              year: parseInt(values[5]) || new Date().getFullYear(),
+              capacity: parseInt(values[6]) || 1000,
+              status: 'active',
+              fuelType: values[8]?.trim() as Vehicle['fuelType'] || 'diesel'
+            });
+          }
+        }
+        
+        loadVehicles();
+        alert('Araçlar başarıyla içe aktarıldı!');
+      };
+      
+      reader.readAsText(file);
+    };
+    
+    input.click();
+  };
+
   // Get vehicle type icon
   const getVehicleIcon = (type: string) => {
     switch (type) {
@@ -201,11 +271,17 @@ const Vehicles: React.FC = () => {
           <p className="text-gray-600 mt-1">Tüm araçları yönetin ve takip edin</p>
         </div>
         <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-          <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center">
+          <button 
+            onClick={handleImport}
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center"
+          >
             <Upload className="w-4 h-4 mr-2" />
             Import
           </button>
-          <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center">
+          <button 
+            onClick={handleExport}
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center"
+          >
             <Download className="w-4 h-4 mr-2" />
             Export
           </button>

@@ -27,7 +27,8 @@ import {
   Zap,
   FileText,
   Download,
-  Eye
+  Eye,
+  Share2
 } from 'lucide-react';
 import MapComponent from '@/components/maps/MapComponent';
 import LeafletMapComponent from '@/components/maps/LeafletMapComponent';
@@ -63,6 +64,7 @@ const RouteDetail: React.FC = () => {
   const [optimizing, setOptimizing] = useState(false);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [mapMarkers, setMapMarkers] = useState<MarkerData[]>([]);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   // Google Maps Loader Hook
   const { isLoaded: isGoogleMapsLoaded, loadError: googleMapsLoadError } = useJsApiLoader({
@@ -79,7 +81,6 @@ const RouteDetail: React.FC = () => {
   useEffect(() => {
     if (route && route.stops && customers.length > 0) {
       const markers = generateMapMarkers();
-      console.log('Generated markers:', markers); // DEBUG
       setMapMarkers(markers);
       
       // Google Maps yüklendiyse ve rota optimize edildiyse directions'ı yükle
@@ -99,14 +100,10 @@ const RouteDetail: React.FC = () => {
         customerService.getAll()
       ]);
       
-      console.log('Loaded route:', routeData); // DEBUG
-      console.log('Loaded customers:', customersData); // DEBUG
-      
       // Route stops'larına customer bilgilerini ekle
       if (routeData && routeData.stops) {
         routeData.stops = routeData.stops.map(stop => {
           const customer = customersData.find(c => c.id === stop.customerId);
-          console.log(`Stop ${stop.order}: Customer ${stop.customerId}`, customer); // DEBUG
           return {
             ...stop,
             customer: customer || stop.customer
@@ -125,7 +122,6 @@ const RouteDetail: React.FC = () => {
 
   const generateMapMarkers = (): MarkerData[] => {
     if (!route || !route.stops || route.stops.length === 0) {
-      console.log('No route or stops to generate markers'); // DEBUG
       return [];
     }
     
@@ -133,13 +129,11 @@ const RouteDetail: React.FC = () => {
       const customer = stop.customer || customers.find(c => c.id === stop.customerId);
       
       if (!customer) {
-        console.warn(`Customer not found for stop ${stop.order}, customerId: ${stop.customerId}`); // DEBUG
         return null;
       }
       
       // Koordinatları kontrol et
       if (!customer.latitude || !customer.longitude) {
-        console.warn(`Invalid coordinates for customer ${customer.name}: lat=${customer.latitude}, lng=${customer.longitude}`); // DEBUG
         return null;
       }
       
@@ -155,12 +149,9 @@ const RouteDetail: React.FC = () => {
         order: stop.order
       };
       
-      console.log(`Created marker for stop ${stop.order}:`, marker); // DEBUG
       return marker;
     }).filter(Boolean) as MarkerData[];
     
-    console.log('All markers:', markers); // DEBUG
-    console.log('First marker position:', markers[0]?.position); // DEBUG
     return markers;
   };
 
@@ -189,7 +180,6 @@ const RouteDetail: React.FC = () => {
       );
       
       if (directions) {
-        console.log('Directions loaded successfully'); // DEBUG
         setMapDirections(directions);
       }
     } catch (error) {
@@ -208,23 +198,71 @@ const RouteDetail: React.FC = () => {
     }
   };
 
+  // DÜZELTİLMİŞ KOPYALAMA FONKSİYONU
   const handleDuplicate = async () => {
     if (!route) return;
     
-    const newRoute = {
-      ...route,
-      id: undefined,
-      name: `${route.name} (Kopya)`,
-      status: 'draft' as const,
-      createdAt: new Date(),
-      startedAt: undefined,
-      completedAt: undefined
-    };
-    
-    const created = await routeService.create(newRoute);
-    if (created) {
-      navigate(`/routes/${created.id}/edit`);
+    try {
+      // Stop'ları temizle ve sıfırla
+      const cleanStops = route.stops.map((stop, index) => ({
+        ...stop,
+        id: `temp-${Date.now()}-${index}`, // Geçici ID
+        routeId: '', // Route ID boş bırak
+        status: 'pending' as const,
+        actualArrival: undefined,
+        completedAt: undefined,
+        deliveryProof: undefined,
+        failureReason: undefined,
+        order: index + 1
+      }));
+      
+      // Yeni rota oluştur
+      const newRoute: Partial<Route> = {
+        name: `${route.name} (Kopya)`,
+        date: new Date(), // Bugünün tarihi
+        driverId: route.driverId,
+        vehicleId: route.vehicleId,
+        depotId: route.depotId,
+        status: 'draft',
+        stops: cleanStops,
+        totalDistance: route.totalDistance,
+        totalDuration: route.totalDuration,
+        totalDeliveries: route.totalDeliveries,
+        completedDeliveries: 0,
+        optimized: route.optimized,
+        notes: route.notes ? `${route.notes} (Kopya)` : '',
+        driver: route.driver,
+        vehicle: route.vehicle
+      };
+      
+      console.log('Creating duplicate route:', newRoute);
+      
+      // Yeni rotayı oluştur
+      const created = await routeService.create(newRoute);
+      
+      console.log('Created route:', created);
+      
+      if (created && created.id) {
+        // Kopyalama başarılı mesajı
+        alert(`✅ Rota başarıyla kopyalandı!\n\nYeni rota: ${created.name}`);
+        
+        // Rotalar sayfasına git (daha güvenli)
+        navigate('/routes');
+      } else {
+        throw new Error('Rota oluşturuldu ancak ID alınamadı');
+      }
+    } catch (error) {
+      console.error('Error duplicating route:', error);
+      alert('❌ Rota kopyalanırken bir hata oluştu. Lütfen tekrar deneyin.');
     }
+  };
+
+  // KOPYALAMA FONKSİYONU - PAYLAŞMAK İÇİN
+  const handleCopyRouteLink = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
   };
 
   const handleStartJourney = async () => {
@@ -306,12 +344,13 @@ const RouteDetail: React.FC = () => {
       ])
     ].map(row => row.join(',')).join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${route.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const handleStopClick = (stopId: string) => {
@@ -452,7 +491,6 @@ const RouteDetail: React.FC = () => {
 
     // Google Maps başarıyla yüklendi
     if (isGoogleMapsLoaded) {
-      console.log('Rendering MapComponent with markers:', mapMarkers); // DEBUG
       return (
         <MapComponent
           height="650px"
@@ -502,6 +540,13 @@ const RouteDetail: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      {/* Copy Success Toast */}
+      {copySuccess && (
+        <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in z-50">
+          ✓ Kopyalandı!
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between">
@@ -580,15 +625,23 @@ const RouteDetail: React.FC = () => {
             <button
               onClick={handleExport}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Excel'e Aktar"
+              title="CSV Olarak İndir"
             >
               <Download className="w-5 h-5 text-gray-600" />
             </button>
             
             <button
+              onClick={handleCopyRouteLink}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Rota Linkini Kopyala"
+            >
+              <Share2 className="w-5 h-5 text-gray-600" />
+            </button>
+            
+            <button
               onClick={handleDuplicate}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Kopyala"
+              title="Rotayı Kopyala"
             >
               <Copy className="w-5 h-5 text-gray-600" />
             </button>
@@ -687,20 +740,6 @@ const RouteDetail: React.FC = () => {
             <Star className="w-8 h-8 text-yellow-600 opacity-20" />
           </div>
         </div>
-      </div>
-
-      {/* DEBUG INFO - REMOVE IN PRODUCTION */}
-      <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-        <p className="text-sm font-semibold text-yellow-800">Debug Info:</p>
-        <p className="text-xs text-yellow-700">Markers Count: {mapMarkers.length}</p>
-        <p className="text-xs text-yellow-700">Stops Count: {route.stops.length}</p>
-        <p className="text-xs text-yellow-700">Optimized: {route.optimized ? 'Yes' : 'No'}</p>
-        {mapMarkers.length > 0 && (
-          <>
-            <p className="text-xs text-yellow-700">First Marker Position: lat={mapMarkers[0].position.lat}, lng={mapMarkers[0].position.lng}</p>
-            <p className="text-xs text-yellow-700">Marker Labels: {mapMarkers.map(m => m.label).join(', ')}</p>
-          </>
-        )}
       </div>
 
       {/* Main Content - Harita ve Duraklar YAN YANA */}

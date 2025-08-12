@@ -1,3 +1,4 @@
+// src/App.tsx
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from '@/layouts/MainLayout';
@@ -29,6 +30,11 @@ import JourneyDetail from '@/pages/JourneyDetail';
 import LiveTracking from '@/pages/LiveTracking';
 import Reports from '@/pages/Reports';
 import Settings from '@/pages/Settings';
+import Signup from '@/pages/Signup';
+import Onboarding from '@/pages/Onboarding';
+import SuperAdminDashboard from '@/pages/superadmin/SuperAdminDashboard';
+import WorkspaceDetail from '@/pages/superadmin/WorkspaceDetail';
+import WorkspaceEdit from '@/pages/superadmin/WorkspaceEdit';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -55,6 +61,8 @@ function App() {
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/test-map" element={<TestMap />} />
         
         {/* Protected Routes */}
@@ -114,7 +122,7 @@ function App() {
           </ProtectedRoute>
         } />
         
-        {/* Drivers Module - TAMAMLANDI */}
+        {/* Drivers Module */}
         <Route path="/drivers" element={
           <ProtectedRoute>
             <Drivers />
@@ -136,7 +144,7 @@ function App() {
           </ProtectedRoute>
         } />
         
-        {/* Vehicles Module - TAMAMLANDI */}
+        {/* Vehicles Module */}
         <Route path="/vehicles" element={
           <ProtectedRoute>
             <Vehicles />
@@ -158,7 +166,7 @@ function App() {
           </ProtectedRoute>
         } />
         
-        {/* Depots Module - TAMAMLANDI */}
+        {/* Depots Module */}
         <Route path="/depots" element={
           <ProtectedRoute>
             <Depots />
@@ -180,7 +188,7 @@ function App() {
           </ProtectedRoute>
         } />
         
-        {/* Journeys Module - YENİ TAMAMLANDI */}
+        {/* Journeys Module */}
         <Route path="/journeys" element={
           <ProtectedRoute>
             <Journeys />
@@ -210,6 +218,23 @@ function App() {
         <Route path="/settings" element={
           <ProtectedRoute>
             <Settings />
+          </ProtectedRoute>
+        } />
+        
+        {/* Super Admin */}
+        <Route path="/super-admin" element={
+          <ProtectedRoute>
+            <SuperAdminDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/super-admin/workspace/:id" element={
+          <ProtectedRoute>
+            <WorkspaceDetail />
+          </ProtectedRoute>
+        } />
+        <Route path="/super-admin/workspace/:id/edit" element={
+          <ProtectedRoute>
+            <WorkspaceEdit />
           </ProtectedRoute>
         } />
         

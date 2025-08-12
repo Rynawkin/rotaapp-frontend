@@ -18,8 +18,12 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Depot } from '@/types';
-import { depotService, routeService } from '@/services/mockData';
+import { depotService, routeService, driverService, vehicleService } from '@/services/mockData';
 import MapComponent from '@/components/maps/MapComponent';
+import { useJsApiLoader } from '@react-google-maps/api';
+
+// TÜM UYGULAMADA AYNI libraries KULLAN
+const libraries: ("places" | "drawing" | "geometry")[] = ['places', 'geometry'];
 
 const DAYS_TR = {
   monday: 'Pazartesi',
@@ -39,10 +43,27 @@ const DepotDetail: React.FC = () => {
   const [deleteModal, setDeleteModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'routes' | 'stats'>('overview');
   const [relatedRoutes, setRelatedRoutes] = useState<any[]>([]);
+  const [depotStats, setDepotStats] = useState({
+    totalRoutes: 0,
+    activeDrivers: 0,
+    totalVehicles: 0,
+    weeklyDeliveries: 0,
+    avgRouteTime: 0,
+    efficiency: 0,
+    onTimeDelivery: 0,
+    monthlyDistance: 0
+  });
+
+  // Google Maps API - TÜM UYGULAMADA AYNI ID KULLAN
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: libraries,
+    id: 'google-map-script' // TÜM MAP COMPONENTLERINDE AYNI ID
+  });
 
   useEffect(() => {
     loadDepot();
-    loadRelatedRoutes();
+    loadRelatedData();
   }, [id]);
 
   const loadDepot = async () => {
@@ -69,13 +90,72 @@ const DepotDetail: React.FC = () => {
     }
   };
 
-  const loadRelatedRoutes = async () => {
+  const loadRelatedData = async () => {
+    if (!id) return;
+    
     try {
-      const routes = await routeService.getAll();
+      const [routes, drivers, vehicles] = await Promise.all([
+        routeService.getAll(),
+        driverService.getAll(),
+        vehicleService.getAll()
+      ]);
+      
       const filtered = routes.filter(r => r.depotId === id);
       setRelatedRoutes(filtered);
+      
+      // İstatistikleri hesapla
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      
+      const weeklyRoutes = filtered.filter(r => new Date(r.date) >= weekAgo);
+      const monthlyRoutes = filtered.filter(r => new Date(r.date) >= monthAgo);
+      const completedRoutes = filtered.filter(r => r.status === 'completed');
+      
+      // Toplam teslimat sayısı (son 7 gün)
+      const weeklyDeliveries = weeklyRoutes.reduce((sum, r) => sum + (r.completedDeliveries || 0), 0);
+      
+      // Ortalama rota süresi (saat cinsinden)
+      const avgRouteTime = completedRoutes.length > 0
+        ? completedRoutes.reduce((sum, r) => sum + (r.totalDuration || 0), 0) / completedRoutes.length / 60
+        : 0;
+      
+      // Verimlilik (tamamlanan/toplam)
+      const totalDeliveries = filtered.reduce((sum, r) => sum + (r.totalDeliveries || 0), 0);
+      const completedDeliveries = filtered.reduce((sum, r) => sum + (r.completedDeliveries || 0), 0);
+      const efficiency = totalDeliveries > 0 ? (completedDeliveries / totalDeliveries) * 100 : 0;
+      
+      // Zamanında teslimat oranı (tamamlanan rotalar için %92 simüle)
+      const onTimeDelivery = completedRoutes.length > 0 ? 92 : 0;
+      
+      // Aylık toplam mesafe
+      const monthlyDistance = monthlyRoutes.reduce((sum, r) => {
+        const distance = typeof r.totalDistance === 'string' 
+          ? parseFloat(r.totalDistance) 
+          : (r.totalDistance || 0);
+        return sum + distance;
+      }, 0);
+      
+      // Bu depoda kullanılan benzersiz sürücüler
+      const uniqueDriverIds = new Set(filtered.filter(r => r.driverId).map(r => r.driverId));
+      const activeDrivers = uniqueDriverIds.size;
+      
+      // Bu depoda kullanılan benzersiz araçlar
+      const uniqueVehicleIds = new Set(filtered.filter(r => r.vehicleId).map(r => r.vehicleId));
+      const totalVehicles = uniqueVehicleIds.size;
+      
+      setDepotStats({
+        totalRoutes: filtered.length,
+        activeDrivers,
+        totalVehicles,
+        weeklyDeliveries,
+        avgRouteTime: Math.round(avgRouteTime * 10) / 10,
+        efficiency: Math.round(efficiency),
+        onTimeDelivery,
+        monthlyDistance: Math.round(monthlyDistance * 10) / 10
+      });
     } catch (error) {
-      console.error('Rotalar yüklenirken hata:', error);
+      console.error('İlgili veriler yüklenirken hata:', error);
     }
   };
 
@@ -108,7 +188,7 @@ const DepotDetail: React.FC = () => {
     
     const now = new Date();
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const todayKey = days[now.getDay()];
+    const todayKey = days[now.getDay()] as keyof typeof depot.workingHours;
     const hours = depot.workingHours[todayKey];
     
     if (!hours || hours.open === 'closed') return false;
@@ -282,7 +362,7 @@ const DepotDetail: React.FC = () => {
                             }`}
                           >
                             <span className={`text-sm ${isToday ? 'font-semibold' : ''}`}>
-                              {DAYS_TR[day]}
+                              {DAYS_TR[day as keyof typeof DAYS_TR]}
                             </span>
                             <span className={`text-sm ${
                               hours.open === 'closed' 
@@ -304,18 +384,28 @@ const DepotDetail: React.FC = () => {
               {/* Map */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Harita Konumu</h3>
-                <div className="h-96 rounded-lg overflow-hidden border border-gray-200">
-                  <MapComponent
-                    center={{ lat: depot.latitude, lng: depot.longitude }}
-                    markers={[
-                      {
-                        position: { lat: depot.latitude, lng: depot.longitude },
-                        title: depot.name
-                      }
-                    ]}
-                    height="100%"
-                    zoom={15}
-                  />
+                <div className="h-96 rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
+                  {isLoaded && depot ? (
+                    <MapComponent
+                      center={{ lat: depot.latitude, lng: depot.longitude }}
+                      markers={[
+                        {
+                          position: { lat: depot.latitude, lng: depot.longitude },
+                          title: depot.name,
+                          label: 'D'
+                        }
+                      ]}
+                      height="384px"
+                      zoom={15}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                        <p className="mt-4 text-gray-600">Harita yükleniyor...</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -346,7 +436,11 @@ const DepotDetail: React.FC = () => {
                         <div>
                           <h4 className="font-semibold text-gray-900">{route.name}</h4>
                           <p className="text-sm text-gray-600 mt-1">
-                            {route.totalDeliveries} teslimat • {route.totalDistance} km
+                            {route.totalDeliveries} teslimat • {
+                              typeof route.totalDistance === 'string' 
+                                ? route.totalDistance 
+                                : `${route.totalDistance} km`
+                            }
                           </p>
                         </div>
                         <span className={`px-3 py-1 text-xs font-medium rounded-full ${
@@ -373,26 +467,26 @@ const DepotDetail: React.FC = () => {
                   <span className="text-sm text-gray-600">Toplam Rota</span>
                   <Route className="w-5 h-5 text-blue-600" />
                 </div>
-                <p className="text-2xl font-bold text-gray-900">{relatedRoutes.length}</p>
-                <p className="text-xs text-gray-500 mt-1">Bu ay</p>
+                <p className="text-2xl font-bold text-gray-900">{depotStats.totalRoutes}</p>
+                <p className="text-xs text-gray-500 mt-1">Tüm zamanlar</p>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-600">Aktif Sürücüler</span>
+                  <span className="text-sm text-gray-600">Kullanılan Sürücüler</span>
                   <Users className="w-5 h-5 text-green-600" />
                 </div>
-                <p className="text-2xl font-bold text-gray-900">8</p>
-                <p className="text-xs text-gray-500 mt-1">Şu anda</p>
+                <p className="text-2xl font-bold text-gray-900">{depotStats.activeDrivers}</p>
+                <p className="text-xs text-gray-500 mt-1">Benzersiz sürücü</p>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-600">Araç Sayısı</span>
+                  <span className="text-sm text-gray-600">Kullanılan Araçlar</span>
                   <Car className="w-5 h-5 text-purple-600" />
                 </div>
-                <p className="text-2xl font-bold text-gray-900">12</p>
-                <p className="text-xs text-gray-500 mt-1">Toplam</p>
+                <p className="text-2xl font-bold text-gray-900">{depotStats.totalVehicles}</p>
+                <p className="text-xs text-gray-500 mt-1">Benzersiz araç</p>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4">
@@ -400,8 +494,8 @@ const DepotDetail: React.FC = () => {
                   <span className="text-sm text-gray-600">Teslimatlar</span>
                   <Package className="w-5 h-5 text-orange-600" />
                 </div>
-                <p className="text-2xl font-bold text-gray-900">247</p>
-                <p className="text-xs text-gray-500 mt-1">Bu hafta</p>
+                <p className="text-2xl font-bold text-gray-900">{depotStats.weeklyDeliveries}</p>
+                <p className="text-xs text-gray-500 mt-1">Son 7 gün</p>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4">
@@ -409,7 +503,7 @@ const DepotDetail: React.FC = () => {
                   <span className="text-sm text-gray-600">Ortalama Süre</span>
                   <Clock className="w-5 h-5 text-indigo-600" />
                 </div>
-                <p className="text-2xl font-bold text-gray-900">4.2</p>
+                <p className="text-2xl font-bold text-gray-900">{depotStats.avgRouteTime}</p>
                 <p className="text-xs text-gray-500 mt-1">Saat/Rota</p>
               </div>
 
@@ -418,8 +512,8 @@ const DepotDetail: React.FC = () => {
                   <span className="text-sm text-gray-600">Verimlilik</span>
                   <TrendingUp className="w-5 h-5 text-green-600" />
                 </div>
-                <p className="text-2xl font-bold text-gray-900">87%</p>
-                <p className="text-xs text-green-600 mt-1">↑ 5% artış</p>
+                <p className="text-2xl font-bold text-gray-900">{depotStats.efficiency}%</p>
+                <p className="text-xs text-gray-500 mt-1">Tamamlanan/Toplam</p>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4">
@@ -427,7 +521,7 @@ const DepotDetail: React.FC = () => {
                   <span className="text-sm text-gray-600">Zamanında Teslimat</span>
                   <Calendar className="w-5 h-5 text-blue-600" />
                 </div>
-                <p className="text-2xl font-bold text-gray-900">92%</p>
+                <p className="text-2xl font-bold text-gray-900">{depotStats.onTimeDelivery}%</p>
                 <p className="text-xs text-gray-500 mt-1">Son 30 gün</p>
               </div>
 
@@ -436,8 +530,8 @@ const DepotDetail: React.FC = () => {
                   <span className="text-sm text-gray-600">Toplam Mesafe</span>
                   <Navigation className="w-5 h-5 text-red-600" />
                 </div>
-                <p className="text-2xl font-bold text-gray-900">3.4k</p>
-                <p className="text-xs text-gray-500 mt-1">km/Bu ay</p>
+                <p className="text-2xl font-bold text-gray-900">{depotStats.monthlyDistance}</p>
+                <p className="text-xs text-gray-500 mt-1">km/Son 30 gün</p>
               </div>
             </div>
           )}

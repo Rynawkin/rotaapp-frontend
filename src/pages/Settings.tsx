@@ -84,12 +84,9 @@ interface NotificationSettings {
 }
 
 interface ThemeSettings {
-  primaryColor: string;
   darkMode: boolean;
-  compactMode: boolean;
   showLogo: boolean;
   sidebarCollapsed: boolean;
-  fontFamily: string;
   fontSize: 'small' | 'medium' | 'large';
 }
 
@@ -218,14 +215,11 @@ const Settings: React.FC = () => {
     }
   });
 
-  // Theme Settings
+  // Theme Settings - Simplified
   const [themeSettings, setThemeSettings] = useState<ThemeSettings>({
-    primaryColor: '#3B82F6',
     darkMode: false,
-    compactMode: false,
     showLogo: true,
     sidebarCollapsed: false,
-    fontFamily: 'Inter',
     fontSize: 'medium'
   });
 
@@ -254,7 +248,15 @@ const Settings: React.FC = () => {
         });
       }
       if (settings.notifications) setNotificationSettings(settings.notifications);
-      if (settings.theme) setThemeSettings(settings.theme);
+      if (settings.theme) {
+        // Yeni theme yapısına uyumlu hale getir
+        setThemeSettings({
+          darkMode: settings.theme.darkMode || false,
+          showLogo: settings.theme.showLogo !== false,
+          sidebarCollapsed: settings.theme.sidebarCollapsed || false,
+          fontSize: settings.theme.fontSize || 'medium'
+        });
+      }
       if (settings.regional) setRegionalSettings(settings.regional);
       if (settings.users) setUsers(settings.users);
     }
@@ -279,32 +281,52 @@ const Settings: React.FC = () => {
 
   const applyThemeSettings = () => {
     const root = document.documentElement;
+    const body = document.body;
     
     // Dark mode
     if (themeSettings.darkMode) {
-      root.classList.add('dark');
+      body.classList.add('dark');
+      // Dark mode colors
+      body.style.backgroundColor = '#111827';
       root.style.setProperty('--bg-primary', '#1F2937');
       root.style.setProperty('--bg-secondary', '#111827');
       root.style.setProperty('--text-primary', '#F9FAFB');
       root.style.setProperty('--text-secondary', '#D1D5DB');
+      root.style.setProperty('--border-color', '#374151');
+      
+      // Update all white backgrounds to dark
+      document.querySelectorAll('.bg-white').forEach(el => {
+        (el as HTMLElement).style.backgroundColor = '#1F2937';
+      });
+      document.querySelectorAll('.text-gray-900').forEach(el => {
+        (el as HTMLElement).style.color = '#F9FAFB';
+      });
+      document.querySelectorAll('.text-gray-700').forEach(el => {
+        (el as HTMLElement).style.color = '#D1D5DB';
+      });
     } else {
-      root.classList.remove('dark');
+      body.classList.remove('dark');
+      // Light mode colors
+      body.style.backgroundColor = '#F9FAFB';
       root.style.setProperty('--bg-primary', '#FFFFFF');
       root.style.setProperty('--bg-secondary', '#F9FAFB');
       root.style.setProperty('--text-primary', '#111827');
       root.style.setProperty('--text-secondary', '#6B7280');
-    }
-    
-    // Primary color
-    root.style.setProperty('--color-primary', themeSettings.primaryColor);
-    
-    // Compact mode
-    if (themeSettings.compactMode) {
-      root.classList.add('compact');
-      root.style.setProperty('--spacing-unit', '0.5rem');
-    } else {
-      root.classList.remove('compact');
-      root.style.setProperty('--spacing-unit', '1rem');
+      root.style.setProperty('--border-color', '#E5E7EB');
+      
+      // Reset to original colors
+      document.querySelectorAll('[style*="background-color"]').forEach(el => {
+        if ((el as HTMLElement).style.backgroundColor === 'rgb(31, 41, 55)') {
+          (el as HTMLElement).style.backgroundColor = '';
+        }
+      });
+      document.querySelectorAll('[style*="color"]').forEach(el => {
+        const element = el as HTMLElement;
+        if (element.style.color === 'rgb(249, 250, 251)' || 
+            element.style.color === 'rgb(209, 213, 219)') {
+          element.style.color = '';
+        }
+      });
     }
     
     // Font size
@@ -313,10 +335,29 @@ const Settings: React.FC = () => {
       medium: '16px', 
       large: '18px'
     };
+    body.style.fontSize = fontSizes[themeSettings.fontSize];
     root.style.setProperty('--font-size-base', fontSizes[themeSettings.fontSize]);
     
-    // Font family
-    root.style.setProperty('--font-family', themeSettings.fontFamily);
+    // Apply font size to specific elements
+    const baseFontSize = parseInt(fontSizes[themeSettings.fontSize]);
+    
+    // Headers
+    document.querySelectorAll('h1').forEach(el => {
+      (el as HTMLElement).style.fontSize = `${baseFontSize * 1.875}px`;
+    });
+    document.querySelectorAll('h2').forEach(el => {
+      (el as HTMLElement).style.fontSize = `${baseFontSize * 1.5}px`;
+    });
+    document.querySelectorAll('h3').forEach(el => {
+      (el as HTMLElement).style.fontSize = `${baseFontSize * 1.25}px`;
+    });
+    
+    // Text elements
+    document.querySelectorAll('p, span, div').forEach(el => {
+      if (!(el as HTMLElement).style.fontSize) {
+        (el as HTMLElement).style.fontSize = fontSizes[themeSettings.fontSize];
+      }
+    });
   };
 
   // Save settings to localStorage
@@ -438,7 +479,15 @@ const Settings: React.FC = () => {
           if (settings.company) setCompanySettings(settings.company);
           if (settings.delivery) setDeliverySettings(settings.delivery);
           if (settings.notifications) setNotificationSettings(settings.notifications);
-          if (settings.theme) setThemeSettings(settings.theme);
+          if (settings.theme) {
+            // Yeni theme yapısına uyumlu hale getir
+            setThemeSettings({
+              darkMode: settings.theme.darkMode || false,
+              showLogo: settings.theme.showLogo !== false,
+              sidebarCollapsed: settings.theme.sidebarCollapsed || false,
+              fontSize: settings.theme.fontSize || 'medium'
+            });
+          }
           if (settings.regional) setRegionalSettings(settings.regional);
           setHasChanges(true);
         } catch (error) {
@@ -1209,120 +1258,83 @@ const Settings: React.FC = () => {
               </div>
             )}
 
-            {/* Theme Settings */}
+            {/* Theme Settings - SIMPLIFIED */}
             {activeTab === 'theme' && (
               <div className="space-y-6">
                 <h2 className="text-lg font-semibold text-gray-900 border-b pb-3">Tema & Görünüm</h2>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Ana Renk</label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="color"
-                        value={themeSettings.primaryColor}
-                        onChange={(e) => {
-                          setThemeSettings({ ...themeSettings, primaryColor: e.target.value });
-                          setHasChanges(true);
-                        }}
-                        className="w-12 h-12 rounded cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        value={themeSettings.primaryColor}
-                        onChange={(e) => {
-                          setThemeSettings({ ...themeSettings, primaryColor: e.target.value });
-                          setHasChanges(true);
-                        }}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <label className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={themeSettings.darkMode}
-                        onChange={(e) => {
-                          setThemeSettings({ ...themeSettings, darkMode: e.target.checked });
-                          setHasChanges(true);
-                        }}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                      />
-                      <div className="flex items-center gap-2">
-                        {themeSettings.darkMode ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                <div className="space-y-6">
+                  {/* Dark Mode */}
+                  <div className="border rounded-lg p-4">
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <div className="flex items-center gap-3">
+                        {themeSettings.darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
                         <div>
                           <span className="font-medium text-gray-900">Karanlık Mod</span>
                           <p className="text-sm text-gray-600">Göz yorgunluğunu azaltır</p>
                         </div>
                       </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={themeSettings.darkMode}
+                          onChange={(e) => {
+                            setThemeSettings({ ...themeSettings, darkMode: e.target.checked });
+                            setHasChanges(true);
+                          }}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                      </label>
                     </label>
-                    
-                    <label className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={themeSettings.compactMode}
-                        onChange={(e) => {
-                          setThemeSettings({ ...themeSettings, compactMode: e.target.checked });
-                          setHasChanges(true);
-                        }}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                      />
-                      <div>
-                        <span className="font-medium text-gray-900">Kompakt Görünüm</span>
-                        <p className="text-sm text-gray-600">Daha fazla içerik göster</p>
-                      </div>
-                    </label>
-                    
-                    <label className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={themeSettings.showLogo}
-                        onChange={(e) => {
-                          setThemeSettings({ ...themeSettings, showLogo: e.target.checked });
-                          setHasChanges(true);
-                        }}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                      />
+                  </div>
+
+                  {/* Font Size */}
+                  <div className="border rounded-lg p-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Font Boyutu</label>
+                    <div className="flex gap-2">
+                      {(['small', 'medium', 'large'] as const).map((size) => (
+                        <button
+                          key={size}
+                          onClick={() => {
+                            setThemeSettings({ ...themeSettings, fontSize: size });
+                            setHasChanges(true);
+                          }}
+                          className={`flex-1 px-4 py-2 rounded-lg transition-colors ${
+                            themeSettings.fontSize === size
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {size === 'small' ? 'Küçük' : size === 'medium' ? 'Orta' : 'Büyük'}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Seçili: {themeSettings.fontSize === 'small' ? 'Küçük (14px)' : themeSettings.fontSize === 'medium' ? 'Orta (16px)' : 'Büyük (18px)'}
+                    </p>
+                  </div>
+
+                  {/* Logo Display */}
+                  <div className="border rounded-lg p-4">
+                    <label className="flex items-center justify-between cursor-pointer">
                       <div>
                         <span className="font-medium text-gray-900">Logo Göster</span>
-                        <p className="text-sm text-gray-600">Sidebar'da şirket logosu</p>
+                        <p className="text-sm text-gray-600">Sidebar'da şirket logosu gösterilsin</p>
                       </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={themeSettings.showLogo}
+                          onChange={(e) => {
+                            setThemeSettings({ ...themeSettings, showLogo: e.target.checked });
+                            setHasChanges(true);
+                          }}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                      </label>
                     </label>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Font Boyutu</label>
-                    <select
-                      value={themeSettings.fontSize}
-                      onChange={(e) => {
-                        setThemeSettings({ ...themeSettings, fontSize: e.target.value as 'small' | 'medium' | 'large' });
-                        setHasChanges(true);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="small">Küçük</option>
-                      <option value="medium">Orta</option>
-                      <option value="large">Büyük</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Font Ailesi</label>
-                    <select
-                      value={themeSettings.fontFamily}
-                      onChange={(e) => {
-                        setThemeSettings({ ...themeSettings, fontFamily: e.target.value });
-                        setHasChanges(true);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="Inter">Inter</option>
-                      <option value="Roboto">Roboto</option>
-                      <option value="Open Sans">Open Sans</option>
-                      <option value="Lato">Lato</option>
-                    </select>
                   </div>
                 </div>
                 

@@ -1,3 +1,4 @@
+// src/layouts/MainLayout.tsx
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
@@ -17,7 +18,8 @@ import {
   ChevronDown,
   Car,
   Package,
-  Settings
+  Settings,
+  Shield
 } from 'lucide-react';
 
 interface MainLayoutProps {
@@ -29,9 +31,34 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Get user info from localStorage
+  const getUserInfo = () => {
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        return JSON.parse(userStr);
+      }
+    } catch (error) {
+      console.error('Error parsing user info:', error);
+    }
+    return { 
+      name: 'Admin Kullanıcı', 
+      role: 'admin', 
+      email: 'admin@rotaapp.com',
+      isSuperAdmin: false
+    };
+  };
+
+  const userInfo = getUserInfo();
+
+  // SUPER ADMIN KONTROLÜ
+  const isSuperAdmin = userInfo.email === 'super@rotaapp.com' || userInfo.isSuperAdmin === true;
+
+  // Menu items
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/', badge: null },
     { icon: Route, label: 'Rotalar', path: '/routes', badge: '3' },
@@ -43,6 +70,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
     { icon: Navigation, label: 'Canlı Takip', path: '/tracking', badge: 'CANLI' },
     { icon: FileText, label: 'Raporlar', path: '/reports', badge: null },
     { icon: Settings, label: 'Ayarlar', path: '/settings', badge: null },
+    ...(isSuperAdmin ? [
+      { icon: Shield, label: 'Super Admin', path: '/super-admin', badge: 'SUPER' }
+    ] : [])
   ];
 
   const notifications = [
@@ -59,26 +89,33 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
 
   const handleLogout = () => {
     localStorage.setItem('isAuthenticated', 'false');
+    localStorage.removeItem('user');
     if (onLogout) {
       onLogout();
     }
     navigate('/login');
   };
 
-  // Get user info from localStorage
-  const getUserInfo = () => {
-    try {
-      const userStr = localStorage.getItem('user');
-      if (userStr) {
-        return JSON.parse(userStr);
-      }
-    } catch (error) {
-      console.error('Error parsing user info:', error);
-    }
-    return { name: 'Admin Kullanıcı', role: 'Yönetici' };
+  const handleProfileClick = () => {
+    setUserMenuOpen(false);
+    // Profil sayfası yoksa settings'e yönlendir
+    navigate('/settings');
   };
 
-  const userInfo = getUserInfo();
+  const handleNotificationClick = (notificationId: number) => {
+    console.log('Notification clicked:', notificationId);
+    setNotificationMenuOpen(false);
+    // Bildirime göre yönlendirme yapılabilir
+  };
+
+  // Rol isimlendirmesi
+  const getRoleDisplayName = () => {
+    if (isSuperAdmin) return 'SaaS Yönetici';
+    if (userInfo.role === 'admin') return 'Firma Yöneticisi';
+    if (userInfo.role === 'manager') return 'Operasyon Müdürü';
+    if (userInfo.role === 'driver') return 'Sürücü';
+    return 'Kullanıcı';
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -155,6 +192,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                       px-2 py-1 text-xs font-semibold rounded-full
                       ${item.badge === 'CANLI' 
                         ? 'bg-green-100 text-green-600 animate-pulse' 
+                        : item.badge === 'SUPER'
+                        ? 'bg-purple-100 text-purple-600'
                         : 'bg-gray-100 text-gray-600'}
                     `}>
                       {item.badge}
@@ -171,13 +210,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
           {/* User Section */}
           <div className="border-t p-4">
             <div className={`flex items-center ${!sidebarOpen && 'justify-center'}`}>
-              <div className="w-10 h-10 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                isSuperAdmin 
+                  ? 'bg-gradient-to-br from-purple-500 to-purple-600' 
+                  : 'bg-gradient-to-br from-gray-400 to-gray-500'
+              }`}>
                 <User className="w-6 h-6 text-white" />
               </div>
               {sidebarOpen && (
                 <div className="ml-3">
                   <p className="text-sm font-semibold text-gray-700">{userInfo.name}</p>
-                  <p className="text-xs text-gray-500">{userInfo.role}</p>
+                  <p className="text-xs text-gray-500">{getRoleDisplayName()}</p>
                 </div>
               )}
             </div>
@@ -217,10 +260,53 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
 
               {/* Notifications */}
               <div className="relative">
-                <button className="p-2 rounded-lg hover:bg-gray-100 relative">
+                <button 
+                  onClick={() => setNotificationMenuOpen(!notificationMenuOpen)}
+                  className="p-2 rounded-lg hover:bg-gray-100 relative"
+                >
                   <Bell className="w-5 h-5 text-gray-600" />
                   <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                 </button>
+
+                {notificationMenuOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setNotificationMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border py-2 z-20">
+                      <div className="px-4 py-2 border-b">
+                        <h3 className="font-semibold text-gray-900">Bildirimler</h3>
+                      </div>
+                      <div className="max-h-80 overflow-y-auto">
+                        {notifications.map(notification => (
+                          <button
+                            key={notification.id}
+                            onClick={() => handleNotificationClick(notification.id)}
+                            className={`w-full px-4 py-3 hover:bg-gray-50 text-left border-b last:border-b-0 ${
+                              notification.unread ? 'bg-blue-50' : ''
+                            }`}
+                          >
+                            <div className="flex justify-between items-start">
+                              <p className={`text-sm ${notification.unread ? 'font-semibold' : ''} text-gray-900`}>
+                                {notification.title}
+                              </p>
+                              {notification.unread && (
+                                <span className="w-2 h-2 bg-blue-600 rounded-full mt-1"></span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">{notification.time}</p>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="px-4 py-2 border-t">
+                        <button className="text-sm text-blue-600 hover:text-blue-700">
+                          Tümünü Gör
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* User Menu */}
@@ -229,7 +315,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                   className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100"
                 >
-                  <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    isSuperAdmin 
+                      ? 'bg-gradient-to-br from-purple-500 to-purple-600' 
+                      : 'bg-gradient-to-br from-gray-400 to-gray-500'
+                  }`}>
                     <User className="w-5 h-5 text-white" />
                   </div>
                   <ChevronDown className="w-4 h-4 text-gray-600" />
@@ -244,24 +334,32 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-1 z-20">
                       <div className="px-4 py-2 border-b">
                         <p className="text-sm font-medium text-gray-900">{userInfo.name}</p>
-                        <p className="text-xs text-gray-500">{userInfo.role}</p>
+                        <p className="text-xs text-gray-500">{userInfo.email}</p>
+                        <span className={`inline-block mt-1 px-2 py-0.5 text-xs rounded-full ${
+                          isSuperAdmin 
+                            ? 'bg-purple-100 text-purple-800' 
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {getRoleDisplayName()}
+                        </span>
                       </div>
-                      <Link 
-                        to="/profile" 
-                        className="flex items-center px-4 py-2 hover:bg-gray-50"
-                        onClick={() => setUserMenuOpen(false)}
+                      <button
+                        onClick={handleProfileClick}
+                        className="w-full flex items-center px-4 py-2 hover:bg-gray-50 text-left"
                       >
                         <User className="w-4 h-4 mr-2 text-gray-600" />
-                        <span className="text-sm text-gray-700">Profil</span>
-                      </Link>
-                      <Link 
-                        to="/settings" 
-                        className="flex items-center px-4 py-2 hover:bg-gray-50"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        <Settings className="w-4 h-4 mr-2 text-gray-600" />
-                        <span className="text-sm text-gray-700">Ayarlar</span>
-                      </Link>
+                        <span className="text-sm text-gray-700">Profil & Ayarlar</span>
+                      </button>
+                      {isSuperAdmin && (
+                        <Link 
+                          to="/super-admin" 
+                          className="flex items-center px-4 py-2 hover:bg-gray-50"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          <Shield className="w-4 h-4 mr-2 text-gray-600" />
+                          <span className="text-sm text-gray-700">Super Admin</span>
+                        </Link>
+                      )}
                       <hr className="my-1" />
                       <button 
                         onClick={handleLogout}

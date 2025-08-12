@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft,
   Edit,
@@ -19,14 +19,18 @@ import {
   MapPin,
   TrendingUp
 } from 'lucide-react';
-import { Driver, Route as RouteType } from '@/types';
-import { driverService, routeService } from '@/services/mockData';
+import { Driver, Route as RouteType, Vehicle } from '@/types';
+import { driverService, routeService, vehicleService } from '@/services/mockData';
 
 const DriverDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [driver, setDriver] = useState<Driver | null>(null);
   const [routes, setRoutes] = useState<RouteType[]>([]);
+  const [availableVehicles, setAvailableVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showVehicleModal, setShowVehicleModal] = useState(false);
+  const [selectedVehicle, setSelectedVehicle] = useState<string>('');
 
   useEffect(() => {
     loadDriverData();
@@ -46,12 +50,39 @@ const DriverDetail: React.FC = () => {
         const allRoutes = await routeService.getAll();
         const driverRoutes = allRoutes.filter(r => r.driverId === id);
         setRoutes(driverRoutes);
+        
+        // Load available vehicles
+        const vehicles = await vehicleService.getAvailable();
+        setAvailableVehicles(vehicles);
       }
     } catch (error) {
       console.error('Error loading driver data:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!driver) return;
+    
+    if (window.confirm('Bu sürücüyü silmek istediğinizden emin misiniz?')) {
+      await driverService.delete(driver.id);
+      navigate('/drivers');
+    }
+  };
+
+  const handleAssignRoute = () => {
+    navigate('/routes/new', { state: { driverId: id } });
+  };
+
+  const handleAssignVehicle = async () => {
+    if (!selectedVehicle || !driver) return;
+    
+    // Burada normalde driver'a vehicle ataması yapılacak
+    // Şimdilik sadece modal'ı kapat
+    setShowVehicleModal(false);
+    setSelectedVehicle('');
+    alert('Araç başarıyla atandı!');
   };
 
   const formatDate = (date: Date) => {
@@ -157,7 +188,10 @@ const DriverDetail: React.FC = () => {
             <Edit className="w-4 h-4 mr-2" />
             Düzenle
           </Link>
-          <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center">
+          <button 
+            onClick={handleDelete}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center"
+          >
             <Trash2 className="w-4 h-4 mr-2" />
             Sil
           </button>
@@ -293,17 +327,19 @@ const DriverDetail: React.FC = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Hızlı İşlemler</h2>
             <div className="space-y-2">
-              <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center">
+              <button 
+                onClick={handleAssignRoute}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+              >
                 <Route className="w-4 h-4 mr-2" />
                 Yeni Rota Ata
               </button>
-              <button className="w-full px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center">
+              <button 
+                onClick={() => setShowVehicleModal(true)}
+                className="w-full px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center"
+              >
                 <Car className="w-4 h-4 mr-2" />
                 Araç Ata
-              </button>
-              <button className="w-full px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center">
-                <Phone className="w-4 h-4 mr-2" />
-                Ara
               </button>
             </div>
           </div>
@@ -332,6 +368,49 @@ const DriverDetail: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Vehicle Assignment Modal */}
+      {showVehicleModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Araç Ata</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Müsait Araçlar
+                </label>
+                <select
+                  value={selectedVehicle}
+                  onChange={(e) => setSelectedVehicle(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Araç Seçin</option>
+                  {availableVehicles.map((vehicle) => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {vehicle.plateNumber} - {vehicle.brand} {vehicle.model}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <button
+                  onClick={() => setShowVehicleModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleAssignVehicle}
+                  disabled={!selectedVehicle}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Ata
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

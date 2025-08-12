@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Plus,
@@ -32,6 +32,7 @@ const Customers: React.FC = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load customers
   useEffect(() => {
@@ -74,6 +75,100 @@ const Customers: React.FC = () => {
     if (window.confirm('Bu müşteriyi silmek istediğinizden emin misiniz?')) {
       await customerService.delete(id);
       loadCustomers();
+    }
+  };
+
+  // Export customers to CSV
+  const handleExport = () => {
+    const csvHeaders = ['Kod', 'İsim', 'Adres', 'Telefon', 'Email', 'Öncelik', 'Zaman Penceresi', 'Etiketler', 'Notlar'];
+    
+    const csvData = filteredCustomers.map(customer => [
+      customer.code,
+      customer.name,
+      customer.address,
+      customer.phone,
+      customer.email || '',
+      getPriorityLabel(customer.priority),
+      customer.timeWindow ? `${customer.timeWindow.start}-${customer.timeWindow.end}` : '',
+      customer.tags?.join(', ') || '',
+      customer.notes || ''
+    ]);
+
+    const csvContent = [
+      csvHeaders.join(','),
+      ...csvData.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `musteriler_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Import customers from CSV
+  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const text = e.target?.result as string;
+      const lines = text.split('\n');
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      
+      const newCustomers: Partial<Customer>[] = [];
+      
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        // CSV satırını parse et (tırnak işaretlerini dikkate al)
+        const values = line.match(/(".*?"|[^,]+)/g)?.map(v => v.replace(/"/g, '').trim()) || [];
+        
+        if (values.length >= 4) { // En az kod, isim, adres, telefon olmalı
+          const [timeStart, timeEnd] = values[6] ? values[6].split('-') : ['', ''];
+          const tags = values[7] ? values[7].split(',').map(t => t.trim()) : [];
+          
+          newCustomers.push({
+            code: values[0],
+            name: values[1],
+            address: values[2],
+            phone: values[3],
+            email: values[4] || undefined,
+            priority: values[5]?.toLowerCase() === 'yüksek' ? 'high' : 
+                     values[5]?.toLowerCase() === 'düşük' ? 'low' : 'normal',
+            timeWindow: timeStart && timeEnd ? { start: timeStart.trim(), end: timeEnd.trim() } : undefined,
+            tags: tags.length > 0 ? tags : undefined,
+            notes: values[8] || undefined,
+            // Varsayılan koordinatlar (gerçek uygulamada geocoding API kullanılabilir)
+            latitude: 40.9869 + Math.random() * 0.1,
+            longitude: 29.0252 + Math.random() * 0.1
+          });
+        }
+      }
+      
+      if (newCustomers.length > 0) {
+        try {
+          await customerService.bulkImport(newCustomers);
+          alert(`✅ ${newCustomers.length} müşteri başarıyla içe aktarıldı!`);
+          loadCustomers();
+        } catch (error) {
+          alert('❌ İçe aktarma sırasında bir hata oluştu.');
+          console.error('Import error:', error);
+        }
+      } else {
+        alert('⚠️ İçe aktarılacak geçerli müşteri bulunamadı.');
+      }
+    };
+    
+    reader.readAsText(file, 'UTF-8');
+    
+    // Input'u temizle (aynı dosya tekrar seçilebilsin)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -123,6 +218,22 @@ const Customers: React.FC = () => {
     );
   };
 
+  // Download sample CSV template
+  const downloadTemplate = () => {
+    const template = [
+      'Kod,İsim,Adres,Telefon,Email,Öncelik,Zaman Penceresi,Etiketler,Notlar',
+      'MUS001,Örnek Market,Kadıköy Moda Cad. No:1,0532 111 2233,ornek@email.com,Normal,09:00-17:00,"market,vip",Özel notlar'
+    ].join('\n');
+    
+    const blob = new Blob(['\ufeff' + template], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'musteri_sablonu.csv';
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -133,6 +244,15 @@ const Customers: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Hidden file input for import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv"
+        onChange={handleImport}
+        style={{ display: 'none' }}
+      />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -140,11 +260,31 @@ const Customers: React.FC = () => {
           <p className="text-gray-600 mt-1">Tüm müşterilerinizi yönetin</p>
         </div>
         <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-          <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center">
-            <Upload className="w-4 h-4 mr-2" />
-            Import
-          </button>
-          <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center">
+          <div className="relative group">
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center"
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              Import
+            </button>
+            <div className="absolute right-0 mt-1 w-48 bg-gray-800 text-white text-xs rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              CSV dosyası seçin. 
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  downloadTemplate();
+                }}
+                className="text-blue-300 underline pointer-events-auto"
+              >
+                Örnek şablon indir
+              </button>
+            </div>
+          </div>
+          <button 
+            onClick={handleExport}
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center"
+          >
             <Download className="w-4 h-4 mr-2" />
             Export
           </button>

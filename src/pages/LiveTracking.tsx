@@ -18,7 +18,10 @@ import {
   ChevronRight,
   X,
   Truck,
-  Zap
+  Zap,
+  Info,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Journey, Route, Driver, Vehicle } from '@/types';
 import { journeyService, routeService, driverService, vehicleService } from '@/services/mockData';
@@ -29,6 +32,7 @@ import JourneyDetails from '@/components/tracking/JourneyDetails';
 const LiveTracking: React.FC = () => {
   const [journeys, setJourneys] = useState<Journey[]>([]);
   const [selectedJourney, setSelectedJourney] = useState<Journey | null>(null);
+  const [showJourneyDetails, setShowJourneyDetails] = useState(false);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,18 +43,20 @@ const LiveTracking: React.FC = () => {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   const intervalRef = useRef<NodeJS.Timeout>();
   const simulationIntervalRef = useRef<NodeJS.Timeout>();
+  const selectedJourneyRef = useRef<Journey | null>(null);
+  const lastUpdateRef = useRef<number>(Date.now());
 
   // Load initial data
   useEffect(() => {
     loadData();
   }, []);
 
-  // Auto refresh every 5 seconds
+  // Auto refresh - Optimized version
   useEffect(() => {
     if (autoRefresh) {
       intervalRef.current = setInterval(() => {
-        refreshJourneys();
-      }, 5000);
+        refreshJourneysOptimized();
+      }, 5000); // 5 saniyede bir güncelle
     }
 
     return () => {
@@ -60,12 +66,12 @@ const LiveTracking: React.FC = () => {
     };
   }, [autoRefresh]);
 
-  // Simulate vehicle movement every 3 seconds
+  // Simulate vehicle movement - Daha az sıklıkla
   useEffect(() => {
-    if (journeys.length > 0 && autoRefresh) {
+    if (autoRefresh) {
       simulationIntervalRef.current = setInterval(() => {
-        simulateMovement();
-      }, 3000);
+        simulateMovementOptimized();
+      }, 10000); // 10 saniyede bir simüle et (3 saniye yerine)
     }
 
     return () => {
@@ -73,7 +79,7 @@ const LiveTracking: React.FC = () => {
         clearInterval(simulationIntervalRef.current);
       }
     };
-  }, [journeys, autoRefresh]);
+  }, [autoRefresh]);
 
   const loadData = async () => {
     setLoading(true);
@@ -87,6 +93,12 @@ const LiveTracking: React.FC = () => {
       setJourneys(journeysData);
       setDrivers(driversData);
       setVehicles(vehiclesData);
+
+      // İlk yüklemede ilk journey'i seç
+      if (!selectedJourney && journeysData.length > 0 && loading) {
+        setSelectedJourney(journeysData[0]);
+        selectedJourneyRef.current = journeysData[0];
+      }
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -94,24 +106,58 @@ const LiveTracking: React.FC = () => {
     }
   };
 
-  const refreshJourneys = async () => {
+  // Optimize edilmiş refresh - Sadece değişiklik varsa güncelle
+  const refreshJourneysOptimized = async () => {
     try {
       const journeysData = await journeyService.getActive();
-      setJourneys(journeysData);
+      
+      // Veri değişmemişse güncelleme yapma
+      const hasChanges = JSON.stringify(journeysData) !== JSON.stringify(journeys);
+      
+      if (hasChanges) {
+        setJourneys(journeysData);
+        
+        // Seçili journey güncellemesi - obje referansını koruyarak
+        const currentSelectedId = selectedJourneyRef.current?.id;
+        if (currentSelectedId) {
+          const updated = journeysData.find(j => j.id === currentSelectedId);
+          if (updated) {
+            // Sadece veri değişmişse güncelle
+            const hasSelectedChanged = JSON.stringify(updated) !== JSON.stringify(selectedJourneyRef.current);
+            if (hasSelectedChanged) {
+              setSelectedJourney(updated);
+              selectedJourneyRef.current = updated;
+            }
+          }
+        }
+        
+        lastUpdateRef.current = Date.now();
+      }
     } catch (error) {
       console.error('Error refreshing journeys:', error);
     }
   };
 
-  const simulateMovement = async () => {
-    // Simulate movement for all active journeys
-    for (const journey of journeys) {
-      if (journey.status === 'in_progress' || journey.status === 'started') {
-        await journeyService.simulateMovement(journey.id);
-      }
+  // Optimize edilmiş simülasyon
+  const simulateMovementOptimized = async () => {
+    const currentJourney = selectedJourneyRef.current;
+    if (currentJourney && (currentJourney.status === 'in_progress' || currentJourney.status === 'started')) {
+      // Sadece aktif araçları simüle et
+      await journeyService.simulateMovement(currentJourney.id);
+      
+      // Hemen refresh etme, bir sonraki döngüde yapılacak
+      // Bu sayede gereksiz API çağrıları önlenir
     }
-    refreshJourneys();
   };
+
+  const refreshJourneys = async () => {
+    await refreshJourneysOptimized();
+  };
+
+  // selectedJourneyRef'i güncelle
+  useEffect(() => {
+    selectedJourneyRef.current = selectedJourney;
+  }, [selectedJourney]);
 
   const getFilteredJourneys = () => {
     let filtered = [...journeys];
@@ -155,21 +201,18 @@ const LiveTracking: React.FC = () => {
     }
   };
 
-  const getVehicleIcon = (type: string) => {
-    switch (type) {
-      case 'truck':
-        return Truck;
-      case 'van':
-        return Car;
-      case 'motorcycle':
-        return Zap;
-      default:
-        return Car;
+  const handleJourneySelect = useCallback((journey: Journey) => {
+    // Gereksiz re-render'ları önlemek için memoize et
+    if (journey.id !== selectedJourney?.id) {
+      setSelectedJourney(journey);
+      selectedJourneyRef.current = journey;
     }
-  };
+  }, [selectedJourney]);
 
-  const handleJourneySelect = (journey: Journey) => {
-    setSelectedJourney(journey);
+  const handleViewDetails = () => {
+    if (selectedJourney) {
+      setShowJourneyDetails(true);
+    }
   };
 
   const clearFilters = () => {
@@ -178,7 +221,22 @@ const LiveTracking: React.FC = () => {
     setSelectedVehicleId('');
   };
 
+  // Manual refresh
+  const handleManualRefresh = async () => {
+    setLoading(true);
+    await loadData();
+    setLoading(false);
+  };
+
   const filteredJourneys = getFilteredJourneys();
+
+  // Son güncelleme zamanını göster
+  const getLastUpdateTime = () => {
+    const diff = Math.floor((Date.now() - lastUpdateRef.current) / 1000);
+    if (diff < 60) return `${diff} saniye önce`;
+    if (diff < 3600) return `${Math.floor(diff / 60)} dakika önce`;
+    return `${Math.floor(diff / 3600)} saat önce`;
+  };
 
   if (loading) {
     return (
@@ -199,6 +257,11 @@ const LiveTracking: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Canlı Takip</h1>
           <p className="text-gray-600 mt-1">
             {filteredJourneys.length} aktif sefer takip ediliyor
+            {autoRefresh && (
+              <span className="text-xs text-gray-500 ml-2">
+                • Son güncelleme: {getLastUpdateTime()}
+              </span>
+            )}
           </p>
         </div>
         
@@ -215,7 +278,7 @@ const LiveTracking: React.FC = () => {
             {autoRefresh ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Otomatik Yenileme</span>
+                <span>Otomatik (5sn)</span>
               </>
             ) : (
               <>
@@ -241,10 +304,11 @@ const LiveTracking: React.FC = () => {
 
           {/* Refresh Button */}
           <button
-            onClick={loadData}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            onClick={handleManualRefresh}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             <span>Yenile</span>
           </button>
         </div>
@@ -389,17 +453,56 @@ const LiveTracking: React.FC = () => {
         <div className="xl:col-span-2">
           <div className="bg-white rounded-lg shadow-sm">
             <div className="p-4 border-b">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Harita Görünümü
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Harita Görünümü
+                </h2>
+                {selectedJourney && (
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full flex items-center">
+                      <Car className="w-4 h-4 mr-1" />
+                      {selectedJourney.route.vehicle?.plateNumber} - {selectedJourney.route.driver?.name}
+                    </span>
+                    <button
+                      onClick={handleViewDetails}
+                      className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-full flex items-center transition-colors"
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      Detaylar
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="p-4">
-              <LiveMap
-                journeys={filteredJourneys}
-                selectedJourneyId={selectedJourney?.id}
-                onJourneySelect={handleJourneySelect}
-                height="600px"
-              />
+              {filteredJourneys.length === 0 ? (
+                <div className="flex items-center justify-center bg-gray-50 rounded-lg" style={{ height: '600px' }}>
+                  <div className="text-center">
+                    <Car className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-600 font-medium">Aktif sefer bulunmuyor</p>
+                    <p className="text-sm text-gray-500 mt-2">
+                      Rotalar sayfasından yeni sefer başlatabilirsiniz
+                    </p>
+                  </div>
+                </div>
+              ) : selectedJourney ? (
+                <LiveMap
+                  journeys={[selectedJourney]} // Sadece seçili journey'i göster
+                  selectedJourneyId={selectedJourney.id}
+                  onJourneySelect={handleJourneySelect}
+                  height="600px"
+                />
+              ) : (
+                <div className="flex items-center justify-center bg-gray-50 rounded-lg" style={{ height: '600px' }}>
+                  <div className="text-center">
+                    <Info className="w-16 h-16 text-blue-300 mx-auto mb-4" />
+                    <p className="text-gray-600 font-medium">Lütfen takip edilecek aracı seçin</p>
+                    <p className="text-sm text-gray-500 mt-2">
+                      Sağdaki listeden bir araç seçebilirsiniz
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -422,9 +525,9 @@ const LiveTracking: React.FC = () => {
                   </p>
                 </div>
               ) : (
-                filteredJourneys.map(journey => (
+                filteredJourneys.map((journey, index) => (
                   <VehicleCard
-                    key={journey.id}
+                    key={`vehicle-${journey.id || index}`}
                     journey={journey}
                     selected={selectedJourney?.id === journey.id}
                     onClick={() => handleJourneySelect(journey)}
@@ -437,10 +540,10 @@ const LiveTracking: React.FC = () => {
       </div>
 
       {/* Journey Details Modal */}
-      {selectedJourney && (
+      {showJourneyDetails && selectedJourney && (
         <JourneyDetails
           journey={selectedJourney}
-          onClose={() => setSelectedJourney(null)}
+          onClose={() => setShowJourneyDetails(false)}
         />
       )}
     </div>

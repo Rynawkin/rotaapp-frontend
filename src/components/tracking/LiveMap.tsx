@@ -5,7 +5,7 @@ import {
   useJsApiLoader,
   Marker,
   InfoWindow,
-  Polyline
+  DirectionsRenderer
 } from '@react-google-maps/api';
 import { 
   Navigation, 
@@ -16,11 +16,14 @@ import {
   Package,
   TrendingUp,
   AlertCircle,
-  Home
+  Home,
+  Truck,
+  Car
 } from 'lucide-react';
 import { Journey } from '@/types';
 
-const libraries: ("places" | "drawing" | "geometry")[] = ['places'];
+// TÜM UYGULAMADA AYNI libraries KULLAN
+const libraries: ("places" | "drawing" | "geometry")[] = ['places', 'geometry'];
 
 interface LiveMapProps {
   journeys: Journey[];
@@ -37,15 +40,23 @@ const LiveMap: React.FC<LiveMapProps> = ({
 }) => {
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [selectedMarker, setSelectedMarker] = useState<Journey | null>(null);
-  const boundsRef = useRef<google.maps.LatLngBounds | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
+  const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
+  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null);
+  
+  // Kontrol state'leri
+  const [userInteracted, setUserInteracted] = useState(false);
+  const [mapInitialized, setMapInitialized] = useState(false);
+  const userInteractionTimerRef = useRef<NodeJS.Timeout>();
+  const lastDirectionsJourneyId = useRef<string | null>(null);
+  const isFirstLoad = useRef(true);
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
+  // TÜM UYGULAMADA AYNI ID KULLAN
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: apiKey,
     libraries: libraries,
-    id: 'google-map-script' // Aynı ID'yi kullan
+    id: 'google-map-script' // TÜM MAP COMPONENTLERINDE AYNI ID
   });
 
   const containerStyle = {
@@ -84,20 +95,61 @@ const LiveMap: React.FC<LiveMapProps> = ({
 
   const onLoad = useCallback((map: google.maps.Map) => {
     setMap(map);
-    fitBounds(map);
-  }, []);
+    directionsServiceRef.current = new google.maps.DirectionsService();
+    
+    // Kullanıcı haritayı hareket ettirdiğinde
+    map.addListener('dragstart', () => {
+      setUserInteracted(true);
+      // 30 saniye sonra otomatik takibe geri dön
+      if (userInteractionTimerRef.current) {
+        clearTimeout(userInteractionTimerRef.current);
+      }
+      userInteractionTimerRef.current = setTimeout(() => {
+        setUserInteracted(false);
+      }, 30000);
+    });
+
+    map.addListener('zoom_changed', () => {
+      // Programatik zoom değişikliklerini kullanıcı etkileşimi olarak sayma
+      if (mapInitialized) {
+        setUserInteracted(true);
+        if (userInteractionTimerRef.current) {
+          clearTimeout(userInteractionTimerRef.current);
+        }
+        userInteractionTimerRef.current = setTimeout(() => {
+          setUserInteracted(false);
+        }, 30000);
+      }
+    });
+
+    // İlk yüklemede haritayı ortala - SADECE BİR KERE
+    if (isFirstLoad.current && journeys.length > 0) {
+      setTimeout(() => {
+        fitBoundsInitial(map);
+        setMapInitialized(true);
+        isFirstLoad.current = false;
+      }, 100);
+    } else {
+      setMapInitialized(true);
+    }
+  }, [journeys.length]);
 
   const onUnmount = useCallback(() => {
     setMap(null);
+    directionsServiceRef.current = null;
+    if (userInteractionTimerRef.current) {
+      clearTimeout(userInteractionTimerRef.current);
+    }
   }, []);
 
-  const fitBounds = (mapInstance?: google.maps.Map) => {
-    const currentMap = mapInstance || map;
-    if (!currentMap || journeys.length === 0) return;
+  // İlk yükleme için bounds ayarla - SADECE BİR KERE
+  const fitBoundsInitial = (mapInstance: google.maps.Map) => {
+    if (journeys.length === 0) return;
 
     const bounds = new window.google.maps.LatLngBounds();
+    let hasValidBounds = false;
     
-    // Add vehicle positions
+    // Sadece araç pozisyonlarını ekle
     journeys.forEach(journey => {
       if (journey.liveLocation) {
         bounds.extend(
@@ -106,56 +158,132 @@ const LiveMap: React.FC<LiveMapProps> = ({
             journey.liveLocation.longitude
           )
         );
+        hasValidBounds = true;
       }
-      
-      // Add depot position
-      const depot = journey.route.stops[0]?.customer;
-      if (depot) {
-        bounds.extend(
-          new window.google.maps.LatLng(depot.latitude, depot.longitude)
-        );
-      }
-      
-      // Add destination positions
-      journey.route.stops.forEach(stop => {
-        if (stop.customer) {
-          bounds.extend(
-            new window.google.maps.LatLng(
-              stop.customer.latitude,
-              stop.customer.longitude
-            )
-          );
-        }
-      });
     });
 
-    currentMap.fitBounds(bounds);
-    
-    // Don't zoom in too much
-    setTimeout(() => {
-      const zoom = currentMap.getZoom();
-      if (zoom && zoom > 14) {
-        currentMap.setZoom(14);
-      }
-    }, 100);
+    if (hasValidBounds) {
+      mapInstance.fitBounds(bounds);
+      
+      // Çok fazla zoom yapma
+      setTimeout(() => {
+        const zoom = mapInstance.getZoom();
+        if (zoom && zoom > 14) {
+          mapInstance.setZoom(14);
+        }
+      }, 100);
+    }
   };
 
-  // Update bounds when journeys change
+  // Directions'ı SADECE yeni araç seçildiğinde al
   useEffect(() => {
-    if (map && journeys.length > 0) {
-      fitBounds();
+    if (!directionsServiceRef.current || !map || !selectedJourneyId) {
+      return;
     }
-  }, [journeys, map]);
+
+    // Eğer bu journey için zaten directions aldıysak, tekrar alma
+    if (lastDirectionsJourneyId.current === selectedJourneyId) {
+      return;
+    }
+
+    const selectedJourney = journeys.find(j => j.id === selectedJourneyId);
+    if (!selectedJourney || !selectedJourney.liveLocation) {
+      return;
+    }
+
+    // Tüm durakları al
+    const allStops = selectedJourney.route.stops.filter(stop => stop.customer);
+    
+    if (allStops.length < 2) {
+      setDirections(null);
+      return;
+    }
+
+    // İlk ve son durak hariç ara durakları waypoint olarak ekle
+    const waypoints = allStops.slice(1, -1).map(stop => ({
+      location: new google.maps.LatLng(
+        stop.customer!.latitude,
+        stop.customer!.longitude
+      ),
+      stopover: true
+    }));
+
+    const request: google.maps.DirectionsRequest = {
+      origin: new google.maps.LatLng(
+        allStops[0].customer!.latitude,
+        allStops[0].customer!.longitude
+      ),
+      destination: new google.maps.LatLng(
+        allStops[allStops.length - 1].customer!.latitude,
+        allStops[allStops.length - 1].customer!.longitude
+      ),
+      waypoints: waypoints,
+      travelMode: google.maps.TravelMode.DRIVING,
+      optimizeWaypoints: false,
+      unitSystem: google.maps.UnitSystem.METRIC,
+      region: 'TR'
+    };
+
+    directionsServiceRef.current.route(request, (result, status) => {
+      if (status === 'OK' && result) {
+        setDirections(result);
+        lastDirectionsJourneyId.current = selectedJourneyId;
+        
+        // Yeni rota yüklendiğinde haritayı SADECE kullanıcı etkileşimi yoksa ortala
+        if (!userInteracted && map) {
+          const bounds = new window.google.maps.LatLngBounds();
+          
+          // Rotanın bounds'larını al
+          result.routes[0].overview_path.forEach(point => {
+            bounds.extend(point);
+          });
+          
+          // Aracın mevcut konumunu da ekle
+          if (selectedJourney.liveLocation) {
+            bounds.extend(new window.google.maps.LatLng(
+              selectedJourney.liveLocation.latitude,
+              selectedJourney.liveLocation.longitude
+            ));
+          }
+          
+          map.fitBounds(bounds);
+          
+          // Çok fazla zoom yapma
+          setTimeout(() => {
+            const zoom = map.getZoom();
+            if (zoom && zoom > 14) {
+              map.setZoom(14);
+            }
+          }, 100);
+        }
+      } else {
+        console.error('Directions request failed:', status);
+        setDirections(null);
+      }
+    });
+  }, [selectedJourneyId, map, userInteracted]); // journeys'i dependency'den çıkardık
+
+  // Araç değiştiğinde directions'ı sıfırla
+  useEffect(() => {
+    if (!selectedJourneyId || selectedJourneyId !== lastDirectionsJourneyId.current) {
+      // Farklı bir araç seçildi, eski directions'ı temizle
+      if (selectedJourneyId !== lastDirectionsJourneyId.current) {
+        setDirections(null);
+      }
+    }
+  }, [selectedJourneyId]);
 
   const getVehicleIcon = (journey: Journey) => {
     const isSelected = selectedJourneyId === journey.id;
-    const color = isSelected ? '#EF4444' : '#10B981';
     
     if (!window.google || !window.google.maps) return undefined;
     
+    // Araç ikonu için SVG path
+    const vehiclePath = 'M12 2L4 7v6c0 1.1.9 2 2 2h1c0 1.66 1.34 3 3 3s3-1.34 3-3h2c0 1.66 1.34 3 3 3s3-1.34 3-3h1c1.1 0 2-.9 2-2V7l-8-5zM7 14c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm10 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zM5 10V7.5L12 4l7 3.5V10H5z';
+    
     return {
-      path: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z',
-      fillColor: color,
+      path: vehiclePath,
+      fillColor: isSelected ? '#EF4444' : '#10B981',
       fillOpacity: 1,
       strokeColor: 'white',
       strokeWeight: 2,
@@ -165,7 +293,7 @@ const LiveMap: React.FC<LiveMapProps> = ({
     };
   };
 
-  const getStopIcon = (status: string, order: number) => {
+  const getStopIcon = (status: string, isNext: boolean = false) => {
     if (!window.google || !window.google.maps) return undefined;
     
     const colors = {
@@ -177,26 +305,12 @@ const LiveMap: React.FC<LiveMapProps> = ({
     
     return {
       path: window.google.maps.SymbolPath.CIRCLE,
-      scale: 8,
+      scale: isNext ? 10 : 8,
       fillColor: colors[status as keyof typeof colors] || '#9CA3AF',
       fillOpacity: 1,
       strokeColor: 'white',
       strokeWeight: 2,
       labelOrigin: new window.google.maps.Point(0, 0)
-    };
-  };
-
-  const getDepotIcon = () => {
-    if (!window.google || !window.google.maps) return undefined;
-    
-    return {
-      path: 'M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z',
-      fillColor: '#3B82F6',
-      fillOpacity: 1,
-      strokeColor: 'white',
-      strokeWeight: 2,
-      scale: 1.5,
-      anchor: new window.google.maps.Point(12, 12)
     };
   };
 
@@ -216,11 +330,19 @@ const LiveMap: React.FC<LiveMapProps> = ({
     return Math.round((completed / journey.route.stops.length) * 100);
   };
 
-  const getRouteColor = (journey: Journey) => {
-    if (selectedJourneyId === journey.id) return '#EF4444';
-    if (journey.status === 'completed') return '#10B981';
-    if (journey.status === 'in_progress') return '#3B82F6';
-    return '#9CA3AF';
+  // Manuel olarak haritayı seçili araca ortala
+  const centerOnSelectedVehicle = () => {
+    if (!map || !selectedJourneyId) return;
+    
+    const selectedJourney = journeys.find(j => j.id === selectedJourneyId);
+    if (selectedJourney && selectedJourney.liveLocation) {
+      map.panTo({
+        lat: selectedJourney.liveLocation.latitude,
+        lng: selectedJourney.liveLocation.longitude
+      });
+      map.setZoom(14);
+      setUserInteracted(false); // Manuel kontrolü sıfırla
+    }
   };
 
   if (loadError) {
@@ -255,9 +377,25 @@ const LiveMap: React.FC<LiveMapProps> = ({
         onUnmount={onUnmount}
         options={mapOptions}
       >
+        {/* Direction Renderer - Sadece bir kere yüklenir, güncellenmez */}
+        {directions && selectedJourneyId && (
+          <DirectionsRenderer
+            directions={directions}
+            options={{
+              suppressMarkers: true, // Kendi marker'larımızı kullan
+              suppressInfoWindows: true,
+              polylineOptions: {
+                strokeColor: '#3B82F6',
+                strokeOpacity: 0.8,
+                strokeWeight: 4
+              }
+            }}
+          />
+        )}
+
+        {/* Vehicle Markers - Sürekli güncellenir */}
         {journeys.map(journey => (
           <React.Fragment key={journey.id}>
-            {/* Vehicle Marker */}
             {journey.liveLocation && (
               <Marker
                 position={{
@@ -271,39 +409,10 @@ const LiveMap: React.FC<LiveMapProps> = ({
               />
             )}
 
-            {/* Route Path */}
-            {journey.route.stops.length > 1 && (
-              <Polyline
-                path={[
-                  // Start from current location
-                  journey.liveLocation ? {
-                    lat: journey.liveLocation.latitude,
-                    lng: journey.liveLocation.longitude
-                  } : {
-                    lat: journey.route.stops[0].customer?.latitude || 0,
-                    lng: journey.route.stops[0].customer?.longitude || 0
-                  },
-                  // Add remaining stops
-                  ...journey.route.stops
-                    .slice(journey.currentStopIndex)
-                    .filter(stop => stop.customer)
-                    .map(stop => ({
-                      lat: stop.customer!.latitude,
-                      lng: stop.customer!.longitude
-                    }))
-                ]}
-                options={{
-                  strokeColor: getRouteColor(journey),
-                  strokeOpacity: selectedJourneyId === journey.id ? 1 : 0.6,
-                  strokeWeight: selectedJourneyId === journey.id ? 4 : 3,
-                  geodesic: true
-                }}
-              />
-            )}
-
-            {/* Stop Markers */}
-            {journey.route.stops.map((stop, index) => {
+            {/* Stop Markers for selected journey */}
+            {selectedJourneyId === journey.id && journey.route.stops.map((stop, index) => {
               if (!stop.customer) return null;
+              const isNext = index === journey.currentStopIndex;
               
               return (
                 <Marker
@@ -312,15 +421,16 @@ const LiveMap: React.FC<LiveMapProps> = ({
                     lat: stop.customer.latitude,
                     lng: stop.customer.longitude
                   }}
-                  icon={getStopIcon(stop.status, stop.order)}
+                  icon={getStopIcon(stop.status, isNext)}
                   label={{
                     text: String(stop.order),
                     color: 'white',
                     fontSize: '12px',
                     fontWeight: 'bold'
                   }}
-                  title={stop.customer.name}
-                  zIndex={50}
+                  title={`${stop.customer.name} - ${stop.status === 'completed' ? 'Tamamlandı' : 
+                          stop.status === 'arrived' ? 'Varıldı' : 'Bekliyor'}`}
+                  zIndex={isNext ? 90 : 50}
                 />
               );
             })}
@@ -401,6 +511,30 @@ const LiveMap: React.FC<LiveMapProps> = ({
         )}
       </GoogleMap>
 
+      {/* Kontrol Butonları */}
+      <div className="absolute top-4 right-4 flex flex-col gap-2">
+        {/* Kullanıcı Etkileşim Göstergesi */}
+        {userInteracted && (
+          <div className="bg-yellow-100 text-yellow-800 rounded-lg shadow-lg px-3 py-2 text-sm">
+            <div className="flex items-center">
+              <AlertCircle className="w-4 h-4 mr-2" />
+              <span>Manuel kontrol (30sn)</span>
+            </div>
+          </div>
+        )}
+        
+        {/* Merkeze Dön Butonu */}
+        {selectedJourneyId && (
+          <button
+            onClick={centerOnSelectedVehicle}
+            className="bg-white hover:bg-gray-100 rounded-lg shadow-lg p-2 transition-colors"
+            title="Aracı Merkeze Al"
+          >
+            <Navigation className="w-5 h-5 text-gray-700" />
+          </button>
+        )}
+      </div>
+
       {/* Map Legend */}
       <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-lg p-3">
         <h4 className="text-xs font-semibold text-gray-700 mb-2">Gösterim</h4>
@@ -415,7 +549,7 @@ const LiveMap: React.FC<LiveMapProps> = ({
           </div>
           <div className="flex items-center">
             <div className="w-4 h-4 bg-blue-500 rounded-full mr-2"></div>
-            <span className="text-xs text-gray-600">Depo</span>
+            <span className="text-xs text-gray-600">Sonraki Durak</span>
           </div>
           <div className="flex items-center">
             <div className="w-4 h-4 bg-gray-400 rounded-full mr-2"></div>
@@ -429,7 +563,7 @@ const LiveMap: React.FC<LiveMapProps> = ({
         <div className="flex items-center">
           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mr-2"></div>
           <span className="text-sm font-semibold text-gray-700">
-            {journeys.length} Aktif Araç
+            {journeys.filter(j => j.status === 'in_progress' || j.status === 'started').length} Aktif Araç
           </span>
         </div>
       </div>

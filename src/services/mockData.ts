@@ -1,5 +1,53 @@
 import { Route, Customer, Driver, Vehicle, Depot, Journey } from '@/types';
 
+// Workspace tipleri - eğer types/index.ts'de yoksa buraya ekleyin
+interface Workspace {
+  id: string;
+  name: string;
+  email: string;
+  phoneNumber: string;
+  distanceUnit: 'km' | 'mi';
+  currency: string;
+  timeZone: string;
+  language: string;
+  defaultServiceTime: number;
+  maximumDriverCount: number;
+  active: boolean;
+  createdAt: Date;
+  subscription?: {
+    plan: 'trial' | 'basic' | 'premium' | 'enterprise';
+    startDate: Date;
+    endDate: Date;
+    status: 'active' | 'expired' | 'cancelled';
+    maxDrivers: number;
+    maxRoutes: number;
+    maxCustomers: number;
+  };
+}
+
+interface WorkspaceStats {
+  totalWorkspaces: number;
+  activeWorkspaces: number;
+  trialWorkspaces: number;
+  totalRevenue: number;
+  totalUsers: number;
+  totalRoutes: number;
+}
+
+interface WorkspaceUsage {
+  workspaceId: string;
+  workspaceName: string;
+  plan: string;
+  status: 'active' | 'inactive';
+  userCount: number;
+  driverCount: number;
+  routeCount: number;
+  customerCount: number;
+  lastActivity: Date;
+  monthlyRevenue: number;
+}
+
+// Mevcut mock data devam ediyor...
 export const mockCustomers: Customer[] = [
   {
     id: '1',
@@ -1473,5 +1521,205 @@ export const reportService = {
       activeVehicles,
       totalCustomers: customers.length
     };
+  }
+};
+
+// Mock Workspaces
+export const mockWorkspaces: Workspace[] = [
+  {
+    id: '1',
+    name: 'ABC Lojistik',
+    email: 'info@abclojistik.com',
+    phoneNumber: '0532 111 2233',
+    distanceUnit: 'km',
+    currency: 'TRY',
+    timeZone: 'Europe/Istanbul',
+    language: 'TR',
+    defaultServiceTime: 15,
+    maximumDriverCount: 15,
+    active: true,
+    createdAt: new Date('2024-01-01'),
+    subscription: {
+      plan: 'premium',
+      startDate: new Date('2024-01-01'),
+      endDate: new Date('2025-01-01'),
+      status: 'active',
+      maxDrivers: 15,
+      maxRoutes: 100,
+      maxCustomers: 500
+    }
+  },
+  {
+    id: '2',
+    name: 'XYZ Kargo',
+    email: 'info@xyzkargo.com',
+    phoneNumber: '0533 222 3344',
+    distanceUnit: 'km',
+    currency: 'TRY',
+    timeZone: 'Europe/Istanbul',
+    language: 'TR',
+    defaultServiceTime: 20,
+    maximumDriverCount: 10,
+    active: true,
+    createdAt: new Date('2024-01-15'),
+    subscription: {
+      plan: 'basic',
+      startDate: new Date('2024-01-15'),
+      endDate: new Date('2025-01-15'),
+      status: 'active',
+      maxDrivers: 10,
+      maxRoutes: 50,
+      maxCustomers: 200
+    }
+  },
+  {
+    id: '3',
+    name: 'Hızlı Teslimat',
+    email: 'info@hizliteslimat.com',
+    phoneNumber: '0534 333 4455',
+    distanceUnit: 'km',
+    currency: 'TRY',
+    timeZone: 'Europe/Istanbul',
+    language: 'TR',
+    defaultServiceTime: 10,
+    maximumDriverCount: 5,
+    active: true,
+    createdAt: new Date('2024-02-01'),
+    subscription: {
+      plan: 'trial',
+      startDate: new Date('2024-02-01'),
+      endDate: new Date('2024-02-15'),
+      status: 'active',
+      maxDrivers: 5,
+      maxRoutes: 10,
+      maxCustomers: 50
+    }
+  },
+  {
+    id: '4',
+    name: 'Metropol Dağıtım',
+    email: 'info@metropol.com',
+    phoneNumber: '0535 444 5566',
+    distanceUnit: 'km',
+    currency: 'TRY',
+    timeZone: 'Europe/Istanbul',
+    language: 'TR',
+    defaultServiceTime: 25,
+    maximumDriverCount: 20,
+    active: false,
+    createdAt: new Date('2023-12-01'),
+    subscription: {
+      plan: 'premium',
+      startDate: new Date('2023-12-01'),
+      endDate: new Date('2024-12-01'),
+      status: 'expired',
+      maxDrivers: 20,
+      maxRoutes: 150,
+      maxCustomers: 1000
+    }
+  }
+];
+
+// Workspace Service
+export const workspaceService = {
+  async getAll(): Promise<Workspace[]> {
+    await delay(400);
+    const saved = localStorage.getItem('workspaces');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+    localStorage.setItem('workspaces', JSON.stringify(mockWorkspaces));
+    return mockWorkspaces;
+  },
+
+  async getById(id: string): Promise<Workspace | null> {
+    await delay(300);
+    const workspaces = await this.getAll();
+    return workspaces.find(w => w.id === id) || null;
+  },
+
+  async getStats(): Promise<WorkspaceStats> {
+    await delay(400);
+    const workspaces = await this.getAll();
+    const routes = await routeService.getAll();
+    const drivers = await driverService.getAll();
+    const customers = await customerService.getAll();
+    
+    const activeWorkspaces = workspaces.filter(w => w.active).length;
+    const trialWorkspaces = workspaces.filter(w => w.subscription?.plan === 'trial').length;
+    
+    // Gelir hesaplama
+    const monthlyRevenue = workspaces.reduce((total, w) => {
+      if (!w.active || w.subscription?.plan === 'trial') return total;
+      if (w.subscription?.plan === 'basic') return total + 999;
+      if (w.subscription?.plan === 'premium') return total + 2999;
+      if (w.subscription?.plan === 'enterprise') return total + 9999;
+      return total;
+    }, 0);
+    
+    return {
+      totalWorkspaces: workspaces.length,
+      activeWorkspaces,
+      trialWorkspaces,
+      totalRevenue: monthlyRevenue,
+      totalUsers: drivers.length + 10, // Drivers + estimated other users
+      totalRoutes: routes.length
+    };
+  },
+
+  async getUsageStats(): Promise<WorkspaceUsage[]> {
+    await delay(500);
+    const workspaces = await this.getAll();
+    const routes = await routeService.getAll();
+    const drivers = await driverService.getAll();
+    const customers = await customerService.getAll();
+    
+    return workspaces.map(w => {
+      // Her workspace için random veri üret (gerçekte workspace'e göre filtrelenir)
+      const workspaceDrivers = Math.floor(Math.random() * 10) + 2;
+      const workspaceRoutes = Math.floor(Math.random() * 50) + 10;
+      const workspaceCustomers = Math.floor(Math.random() * 100) + 20;
+      
+      let monthlyRevenue = 0;
+      if (w.subscription?.plan === 'basic') monthlyRevenue = 999;
+      if (w.subscription?.plan === 'premium') monthlyRevenue = 2999;
+      if (w.subscription?.plan === 'enterprise') monthlyRevenue = 9999;
+      
+      return {
+        workspaceId: w.id,
+        workspaceName: w.name,
+        plan: w.subscription?.plan || 'trial',
+        status: w.active ? 'active' as const : 'inactive' as const,
+        userCount: workspaceDrivers + 3, // drivers + admins
+        driverCount: workspaceDrivers,
+        routeCount: workspaceRoutes,
+        customerCount: workspaceCustomers,
+        lastActivity: new Date(Date.now() - Math.random() * 86400000 * 7), // Son 7 gün içinde random
+        monthlyRevenue
+      };
+    });
+  },
+
+  async updateStatus(id: string, active: boolean): Promise<Workspace | null> {
+    await delay(400);
+    const workspaces = await this.getAll();
+    const index = workspaces.findIndex(w => w.id === id);
+    
+    if (index === -1) return null;
+    
+    workspaces[index].active = active;
+    localStorage.setItem('workspaces', JSON.stringify(workspaces));
+    return workspaces[index];
+  },
+
+  async delete(id: string): Promise<boolean> {
+    await delay(300);
+    const workspaces = await this.getAll();
+    const filtered = workspaces.filter(w => w.id !== id);
+    
+    if (filtered.length === workspaces.length) return false;
+    
+    localStorage.setItem('workspaces', JSON.stringify(filtered));
+    return true;
   }
 };

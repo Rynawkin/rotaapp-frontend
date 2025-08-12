@@ -19,7 +19,8 @@ import {
   AlertCircle,
   Loader2,
   FileText,
-  User
+  User,
+  Plus  // ← BU SATIR EKLENDİ
 } from 'lucide-react';
 import { Customer } from '@/types';
 import { customerService, routeService } from '@/services/mockData';

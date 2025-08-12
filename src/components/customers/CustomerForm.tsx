@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   MapPin,
   Phone,
@@ -12,9 +12,13 @@ import {
   User,
   FileText,
   Navigation,
-  Timer
+  Timer,
+  Search
 } from 'lucide-react';
 import { Customer } from '@/types';
+import { useJsApiLoader, Autocomplete } from '@react-google-maps/api';
+
+const libraries: ("places" | "drawing" | "geometry")[] = ['places'];
 
 interface CustomerFormProps {
   initialData?: Customer;
@@ -29,6 +33,14 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
   loading = false,
   isEdit = false
 }) => {
+  // Google Maps API
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: libraries,
+  });
+
+  const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
+
   // Form State
   const [formData, setFormData] = useState<Partial<Customer>>({
     code: initialData?.code || '',
@@ -53,12 +65,88 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
   // Tags state
   const [tagInput, setTagInput] = useState('');
   const [showCoordinateInput, setShowCoordinateInput] = useState(false);
+  const [useGoogleSearch, setUseGoogleSearch] = useState(true);
 
   // Validation state
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Common tags
   const commonTags = ['vip', 'market', 'bakkal', 'şarküteri', 'büfe', 'restoran', 'kafe', 'eczane'];
+
+  // Google Places Autocomplete handlers
+  const onLoad = (autocompleteInstance: google.maps.places.Autocomplete) => {
+    setAutocomplete(autocompleteInstance);
+    // İstanbul ve Türkiye'ye odakla
+    autocompleteInstance.setComponentRestrictions({ country: 'tr' });
+    autocompleteInstance.setOptions({
+      bounds: new google.maps.LatLngBounds(
+        new google.maps.LatLng(40.8, 28.6), // İstanbul güneybatı
+        new google.maps.LatLng(41.3, 29.5)  // İstanbul kuzeydoğu
+      ),
+      strictBounds: false
+    });
+  };
+
+  const onPlaceChanged = () => {
+    if (autocomplete !== null) {
+      const place = autocomplete.getPlace();
+      
+      if (place.geometry && place.geometry.location) {
+        // Müşteri adını güncelle
+        if (!formData.name && place.name) {
+          setFormData(prev => ({ ...prev, name: place.name }));
+        }
+
+        // Adresi güncelle
+        setFormData(prev => ({
+          ...prev,
+          address: place.formatted_address || '',
+          latitude: place.geometry!.location!.lat(),
+          longitude: place.geometry!.location!.lng()
+        }));
+
+        // Telefon numarasını güncelle (varsa)
+        if (place.formatted_phone_number) {
+          setFormData(prev => ({ ...prev, phone: place.formatted_phone_number || '' }));
+        }
+
+        // Website'den email çıkarmaya çalış (varsa)
+        if (place.website && !formData.email) {
+          // Website'i not olarak ekle
+          setFormData(prev => ({ 
+            ...prev, 
+            notes: prev.notes ? `${prev.notes}\nWebsite: ${place.website}` : `Website: ${place.website}`
+          }));
+        }
+
+        // İşletme türüne göre otomatik tag ekle
+        if (place.types) {
+          const typeMapping: Record<string, string> = {
+            'restaurant': 'restoran',
+            'cafe': 'kafe',
+            'pharmacy': 'eczane',
+            'grocery_or_supermarket': 'market',
+            'supermarket': 'market',
+            'store': 'mağaza',
+            'bakery': 'fırın',
+            'hospital': 'hastane',
+            'school': 'okul'
+          };
+
+          const newTags = place.types
+            .map(type => typeMapping[type])
+            .filter(tag => tag && !formData.tags?.includes(tag));
+
+          if (newTags.length > 0) {
+            setFormData(prev => ({
+              ...prev,
+              tags: [...(prev.tags || []), ...newTags]
+            }));
+          }
+        }
+      }
+    }
+  };
 
   // Validate form
   const validateForm = () => {
@@ -152,6 +240,56 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
           <User className="w-5 h-5 mr-2" />
           Temel Bilgiler
         </h2>
+
+        {/* Google Search Toggle */}
+        {isLoaded && (
+          <div className="mb-4">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={useGoogleSearch}
+                onChange={(e) => setUseGoogleSearch(e.target.checked)}
+                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Google İşletme Araması Kullan
+              </span>
+              <Search className="w-4 h-4 text-gray-400" />
+            </label>
+            {useGoogleSearch && (
+              <p className="text-xs text-gray-500 mt-1 ml-6">
+                İşletme adı yazarak Google'dan otomatik bilgi alabilirsiniz
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Google Places Search Box */}
+        {isLoaded && useGoogleSearch && (
+          <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Search className="w-4 h-4 inline mr-1" />
+              İşletme Ara (Google)
+            </label>
+            <Autocomplete
+              onLoad={onLoad}
+              onPlaceChanged={onPlaceChanged}
+              options={{
+                types: ['establishment'],
+                componentRestrictions: { country: 'tr' }
+              }}
+            >
+              <input
+                type="text"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="İşletme adı yazın (örn: Migros, Starbucks, vb.)"
+              />
+            </Autocomplete>
+            <p className="text-xs text-blue-600 mt-2">
+              💡 İşletme seçtiğinizde adres, telefon ve konum bilgileri otomatik doldurulacak
+            </p>
+          </div>
+        )}
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Customer Code */}

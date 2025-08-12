@@ -4,7 +4,6 @@ import {
   Plus,
   Search,
   Filter,
-  Download,
   Calendar,
   MapPin,
   Truck,
@@ -87,7 +86,7 @@ const Routes: React.FC = () => {
     loadRoutes();
   };
 
-  // Start journey from route - DÜZELTME
+  // Start journey from route
   const handleStartJourney = async (route: Route) => {
     try {
       if (!route.driverId || !route.vehicleId) {
@@ -105,7 +104,6 @@ const Routes: React.FC = () => {
       
       if (journey) {
         alert('✅ Sefer başarıyla başlatıldı!');
-        // Journey ID'si ile yönlendir, route ID değil!
         navigate(`/journeys/${journey.id}`);
       }
     } catch (error: any) {
@@ -189,14 +187,10 @@ const Routes: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Rotalar</h1>
           <p className="text-gray-600 mt-1">Tüm rotalarınızı yönetin ve optimize edin</p>
         </div>
-        <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-          <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center">
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </button>
+        <div className="mt-4 sm:mt-0">
           <Link 
             to="/routes/new"
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center inline-flex"
           >
             <Plus className="w-4 h-4 mr-2" />
             Yeni Rota
@@ -357,182 +351,191 @@ const Routes: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredRoutes.map((route) => (
-                  <tr key={route.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center">
-                        <div className="p-2 bg-blue-100 rounded-lg mr-3">
-                          <MapPin className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{route.name}</p>
-                          <p className="text-xs text-gray-500">
-                            {route.stops.length} durak
-                            {route.optimized && (
-                              <span className="ml-2 text-green-600">• Optimize</span>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{formatDate(route.date)}</div>
-                      {route.startedAt && (
-                        <div className="text-xs text-gray-500">{formatTime(route.startedAt)}</div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      {route.driver ? (
+                filteredRoutes.map((route, index) => {
+                  // ID kontrolü ve unique key oluşturma
+                  const uniqueKey = route.id || `route-temp-${index}-${Date.now()}`;
+                  
+                  if (!route.id) {
+                    console.warn('Route without ID found at index:', index, route);
+                  }
+                  
+                  return (
+                    <tr key={uniqueKey} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
                         <div className="flex items-center">
-                          <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center mr-2">
-                            <span className="text-xs font-medium text-gray-600">
-                              {route.driver.name.split(' ').map(n => n[0]).join('')}
-                            </span>
+                          <div className="p-2 bg-blue-100 rounded-lg mr-3">
+                            <MapPin className="w-5 h-5 text-blue-600" />
                           </div>
-                          <span className="text-sm text-gray-900">{route.driver.name}</span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-400">Atanmadı</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      {route.vehicle ? (
-                        <div className="flex items-center">
-                          <Truck className="w-4 h-4 text-gray-400 mr-2" />
-                          <span className="text-sm text-gray-900">{route.vehicle.plateNumber}</span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-400">Atanmadı</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      {getStatusBadge(route.status)}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center">
-                        <div className="flex-1 mr-3">
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className={`h-2 rounded-full transition-all ${
-                                route.status === 'completed' ? 'bg-green-500' : 
-                                route.status === 'in_progress' ? 'bg-blue-500' : 
-                                'bg-gray-300'
-                              }`}
-                              style={{ 
-                                width: `${(route.completedDeliveries / route.totalDeliveries) * 100}%` 
-                              }}
-                            />
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{route.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {route.stops.length} durak
+                              {route.optimized && (
+                                <span className="ml-2 text-green-600">• Optimize</span>
+                              )}
+                            </p>
                           </div>
                         </div>
-                        <span className="text-sm text-gray-600">
-                          {route.completedDeliveries}/{route.totalDeliveries}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center text-sm text-gray-600">
-                        <MapPin className="w-4 h-4 mr-1" />
-                        {route.totalDistance ? `${route.totalDistance} km` : '-'}
-                      </div>
-                      {route.totalDuration && (
-                        <div className="flex items-center text-xs text-gray-500 mt-1">
-                          <Clock className="w-3 h-3 mr-1" />
-                          {route.totalDuration} dk
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-900">{formatDate(route.date)}</div>
+                        {route.startedAt && (
+                          <div className="text-xs text-gray-500">{formatTime(route.startedAt)}</div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {route.driver ? (
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center mr-2">
+                              <span className="text-xs font-medium text-gray-600">
+                                {route.driver.name.split(' ').map(n => n[0]).join('')}
+                              </span>
+                            </div>
+                            <span className="text-sm text-gray-900">{route.driver.name}</span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">Atanmadı</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {route.vehicle ? (
+                          <div className="flex items-center">
+                            <Truck className="w-4 h-4 text-gray-400 mr-2" />
+                            <span className="text-sm text-gray-900">{route.vehicle.plateNumber}</span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">Atanmadı</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {getStatusBadge(route.status)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center">
+                          <div className="flex-1 mr-3">
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className={`h-2 rounded-full transition-all ${
+                                  route.status === 'completed' ? 'bg-green-500' : 
+                                  route.status === 'in_progress' ? 'bg-blue-500' : 
+                                  'bg-gray-300'
+                                }`}
+                                style={{ 
+                                  width: `${(route.completedDeliveries / route.totalDeliveries) * 100}%` 
+                                }}
+                              />
+                            </div>
+                          </div>
+                          <span className="text-sm text-gray-600">
+                            {route.completedDeliveries}/{route.totalDeliveries}
+                          </span>
                         </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="relative">
-                        <button
-                          onClick={() => setDropdownOpen(dropdownOpen === route.id ? null : route.id)}
-                          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                        >
-                          <MoreVertical className="w-5 h-5 text-gray-600" />
-                        </button>
-                        
-                        {dropdownOpen === route.id && (
-                          <>
-                            <div 
-                              className="fixed inset-0 z-10" 
-                              onClick={() => setDropdownOpen(null)}
-                            />
-                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-1 z-20">
-                              <Link
-                                to={`/routes/${route.id}`}
-                                className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center text-sm text-gray-600">
+                          <MapPin className="w-4 h-4 mr-1" />
+                          {route.totalDistance ? `${route.totalDistance} km` : '-'}
+                        </div>
+                        {route.totalDuration && (
+                          <div className="flex items-center text-xs text-gray-500 mt-1">
+                            <Clock className="w-3 h-3 mr-1" />
+                            {route.totalDuration} dk
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="relative">
+                          <button
+                            onClick={() => setDropdownOpen(dropdownOpen === route.id ? null : route.id)}
+                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                          >
+                            <MoreVertical className="w-5 h-5 text-gray-600" />
+                          </button>
+                          
+                          {dropdownOpen === route.id && (
+                            <>
+                              <div 
+                                className="fixed inset-0 z-10" 
                                 onClick={() => setDropdownOpen(null)}
-                              >
-                                <Eye className="w-4 h-4 mr-2" />
-                                Görüntüle
-                              </Link>
-                              <Link
-                                to={`/routes/${route.id}/edit`}
-                                className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
-                                onClick={() => setDropdownOpen(null)}
-                              >
-                                <Edit className="w-4 h-4 mr-2" />
-                                Düzenle
-                              </Link>
-                              
-                              {/* Sefer Başlat Butonu - DÜZELTME */}
-                              {(route.status === 'planned' || route.status === 'draft') && route.stops && route.stops.length > 0 && (
+                              />
+                              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-1 z-20">
+                                <Link
+                                  to={`/routes/${route.id}`}
+                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
+                                  onClick={() => setDropdownOpen(null)}
+                                >
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  Görüntüle
+                                </Link>
+                                <Link
+                                  to={`/routes/${route.id}/edit`}
+                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
+                                  onClick={() => setDropdownOpen(null)}
+                                >
+                                  <Edit className="w-4 h-4 mr-2" />
+                                  Düzenle
+                                </Link>
+                                
+                                {/* Sefer Başlat Butonu */}
+                                {(route.status === 'planned' || route.status === 'draft') && route.stops && route.stops.length > 0 && (
+                                  <button
+                                    onClick={() => {
+                                      handleStartJourney(route);
+                                      setDropdownOpen(null);
+                                    }}
+                                    className="flex items-center px-4 py-2 hover:bg-gray-50 text-green-700 w-full text-left"
+                                  >
+                                    <Play className="w-4 h-4 mr-2" />
+                                    Sefer Başlat
+                                  </button>
+                                )}
+                                
+                                {/* Sefere Git - in_progress durumunda */}
+                                {route.status === 'in_progress' && (
+                                  <button
+                                    onClick={async () => {
+                                      const journey = await journeyService.getByRouteId(route.id);
+                                      if (journey) {
+                                        navigate(`/journeys/${journey.id}`);
+                                      }
+                                      setDropdownOpen(null);
+                                    }}
+                                    className="flex items-center px-4 py-2 hover:bg-gray-50 text-blue-700 w-full text-left"
+                                  >
+                                    <Navigation className="w-4 h-4 mr-2" />
+                                    Sefere Git
+                                  </button>
+                                )}
+                                
                                 <button
                                   onClick={() => {
-                                    handleStartJourney(route);
+                                    handleDuplicate(route);
                                     setDropdownOpen(null);
                                   }}
-                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-green-700 w-full text-left"
+                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700 w-full text-left"
                                 >
-                                  <Play className="w-4 h-4 mr-2" />
-                                  Sefer Başlat
+                                  <Copy className="w-4 h-4 mr-2" />
+                                  Kopyala
                                 </button>
-                              )}
-                              
-                              {/* Sefere Git - in_progress durumunda */}
-                              {route.status === 'in_progress' && (
+                                <hr className="my-1" />
                                 <button
-                                  onClick={async () => {
-                                    const journey = await journeyService.getByRouteId(route.id);
-                                    if (journey) {
-                                      navigate(`/journeys/${journey.id}`);
-                                    }
+                                  onClick={() => {
+                                    handleDelete(route.id);
                                     setDropdownOpen(null);
                                   }}
-                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-blue-700 w-full text-left"
+                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-red-600 w-full text-left"
                                 >
-                                  <Navigation className="w-4 h-4 mr-2" />
-                                  Sefere Git
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Sil
                                 </button>
-                              )}
-                              
-                              <button
-                                onClick={() => {
-                                  handleDuplicate(route);
-                                  setDropdownOpen(null);
-                                }}
-                                className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700 w-full text-left"
-                              >
-                                <Copy className="w-4 h-4 mr-2" />
-                                Kopyala
-                              </button>
-                              <hr className="my-1" />
-                              <button
-                                onClick={() => {
-                                  handleDelete(route.id);
-                                  setDropdownOpen(null);
-                                }}
-                                className="flex items-center px-4 py-2 hover:bg-gray-50 text-red-600 w-full text-left"
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Sil
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

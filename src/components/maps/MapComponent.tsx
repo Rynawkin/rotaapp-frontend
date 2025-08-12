@@ -10,7 +10,8 @@ import { MapPin, Navigation, Home, Loader2, Package, Clock, Phone, Star } from '
 import { LatLng, MarkerData } from '@/types/maps';
 import { Customer } from '@/types';
 
-const libraries: ("places" | "drawing" | "geometry")[] = ['places'];
+// TÜM UYGULAMADA AYNI libraries KULLAN
+const libraries: ("places" | "drawing" | "geometry")[] = ['places', 'geometry'];
 
 interface MapComponentProps {
   center?: LatLng;
@@ -152,11 +153,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
-  // useJsApiLoader hook'u ile Google Maps'i yükle
+  // useJsApiLoader hook'u ile Google Maps'i yükle - TÜM UYGULAMADA AYNI ID KULLAN
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: apiKey,
     libraries: libraries,
-    id: 'google-map-script'
+    id: 'google-map-script' // TÜM MAP COMPONENTLERINDE AYNI ID
   });
 
   const containerStyle = {
@@ -199,6 +200,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
     console.log('Map loaded successfully');
     setMap(map);
     
+    // Props'tan zoom değeri verilmişse kullan
+    if (zoom) {
+      map.setZoom(zoom);
+    }
+    
     // Map'in gerçekten hazır olduğundan emin olmak için kısa bir gecikme
     setTimeout(() => {
       setMapReady(true);
@@ -208,13 +214,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (onMapLoad) {
       onMapLoad(map);
     }
-  }, [onMapLoad]);
+  }, [onMapLoad, zoom]);
 
   const onUnmount = useCallback(() => {
     console.log('Map unmounting');
     setMap(null);
     setMapReady(false);
-    initialBoundsSet.current = false;
+    // Unmount olduğunda bounds'u reset etme, çünkü aynı component tekrar kullanılabilir
   }, []);
 
   const handleMapClick = useCallback((e: google.maps.MapMouseEvent) => {
@@ -251,37 +257,57 @@ const MapComponent: React.FC<MapComponentProps> = ({
     };
   };
 
-  // Bounds ayarla
+  // Component mount/unmount'ta bounds kontrolünü reset et
   useEffect(() => {
-    if (map && mapReady && !initialBoundsSet.current && (markers.length > 0 || depot)) {
-      console.log('Setting bounds with markers:', markers.length);
-      const bounds = new window.google.maps.LatLngBounds();
+    return () => {
+      initialBoundsSet.current = false;
+    };
+  }, []);
+
+  // Bounds ayarla - markers veya depot değiştiğinde
+  useEffect(() => {
+    if (map && mapReady) {
+      const hasContent = (markers && markers.length > 0) || depot;
       
-      if (depot) {
-        bounds.extend(new window.google.maps.LatLng(depot.lat, depot.lng));
-      }
-      
-      markers.forEach(marker => {
-        if (marker.position && marker.position.lat && marker.position.lng) {
-          bounds.extend(new window.google.maps.LatLng(marker.position.lat, marker.position.lng));
-        }
-      });
-      
-      if (markers.length > 0 || depot) {
-        map.fitBounds(bounds);
-        const padding = { top: 60, right: 60, bottom: 100, left: 60 };
-        map.fitBounds(bounds, padding);
-        initialBoundsSet.current = true;
+      if (hasContent && !initialBoundsSet.current) {
+        console.log('Setting bounds with markers:', markers?.length, 'depot:', depot);
+        const bounds = new window.google.maps.LatLngBounds();
         
-        setTimeout(() => {
-          const currentZoom = map.getZoom();
-          if (currentZoom && currentZoom > 16) {
-            map.setZoom(16);
-          }
-        }, 100);
+        if (depot) {
+          bounds.extend(new window.google.maps.LatLng(depot.lat, depot.lng));
+        }
+        
+        if (markers && markers.length > 0) {
+          markers.forEach(marker => {
+            if (marker.position && marker.position.lat && marker.position.lng) {
+              bounds.extend(new window.google.maps.LatLng(marker.position.lat, marker.position.lng));
+            }
+          });
+        }
+        
+        map.fitBounds(bounds);
+        
+        // Eğer sadece tek bir nokta varsa, zoom level'ı ayarla
+        if ((markers?.length === 1 && !depot) || (!markers?.length && depot)) {
+          setTimeout(() => {
+            map.setZoom(15);
+          }, 100);
+        } else {
+          const padding = { top: 60, right: 60, bottom: 100, left: 60 };
+          map.fitBounds(bounds, padding);
+          
+          setTimeout(() => {
+            const currentZoom = map.getZoom();
+            if (currentZoom && currentZoom > 16) {
+              map.setZoom(16);
+            }
+          }, 100);
+        }
+        
+        initialBoundsSet.current = true;
       }
     }
-  }, [map, mapReady, markers, depot]);
+  }, [map, mapReady, markers?.length, depot?.lat, depot?.lng]);
 
   // Debug log
   useEffect(() => {
@@ -375,17 +401,18 @@ const MapComponent: React.FC<MapComponentProps> = ({
         const orderNumber = marker.label || String(marker.order || index + 1);
         const isSelected = selectedCustomerId === marker.customerId;
         
-        console.log(`Adding marker ${orderNumber} at:`, marker.position);
+        // Eğer tek marker varsa ve depot yoksa (DepotDetail sayfası için)
+        const isSingleMarker = markers.length === 1 && !depot;
         
         markerElements.push(
           <Marker
             key={`marker-${marker.customerId || index}-${orderNumber}`}
             position={marker.position}
-            icon={createSimpleIcon(isSelected ? '#EF4444' : '#10B981')}
+            icon={createSimpleIcon(isSelected ? '#EF4444' : isSingleMarker ? '#3B82F6' : '#10B981')}
             title={marker.title || `Durak ${orderNumber}`}
             zIndex={isSelected ? 2000 : 500 + parseInt(orderNumber)}
             label={{
-              text: orderNumber,
+              text: isSingleMarker ? 'D' : orderNumber,
               color: 'white',
               fontSize: '14px',
               fontWeight: 'bold'
