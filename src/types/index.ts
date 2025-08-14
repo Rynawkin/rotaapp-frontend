@@ -62,7 +62,7 @@ export interface WorkspaceUsage {
 
 // Customer Types
 export interface Customer {
-  id: string;
+  id: number;  // string'den number'a değişti
   code: string;
   name: string;
   address: string;
@@ -84,12 +84,12 @@ export interface Customer {
 
 // Driver Types
 export interface Driver {
-  id: string;
+  id: number; // DÜZELTİLDİ: string -> number
   name: string;
   phone: string;
   email?: string;
   licenseNumber: string;
-  vehicleId?: string;
+  vehicleId?: number; // DÜZELTİLDİ: string -> number
   status: 'available' | 'busy' | 'offline';
   currentLocation?: {
     latitude: number;
@@ -103,7 +103,7 @@ export interface Driver {
 
 // Vehicle Types
 export interface Vehicle {
-  id: string;
+  id: number; // DÜZELTİLDİ: string -> number
   plateNumber: string;
   type: 'car' | 'van' | 'truck' | 'motorcycle';
   brand: string;
@@ -112,6 +112,8 @@ export interface Vehicle {
   capacity: number; // kg
   status: 'active' | 'maintenance' | 'inactive';
   fuelType: 'gasoline' | 'diesel' | 'electric' | 'hybrid';
+  createdAt?: Date; // Optional fields added
+  updatedAt?: Date;
 }
 
 // Route Types

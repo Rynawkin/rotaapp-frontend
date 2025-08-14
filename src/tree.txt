@@ -81,9 +81,15 @@ C:.
 +---services
 |       api.ts
 |       auth.service.ts
+|       customer.service.ts
+|       depot.service.ts
+|       driver.service.ts
 |       googleMapsService.ts
+|       journey.service.ts
 |       mockData.ts
+|       route.service.ts
 |       simpleOptimizationService.ts
+|       vehicle.service.ts
 |       
 +---types
 |       api.types.ts

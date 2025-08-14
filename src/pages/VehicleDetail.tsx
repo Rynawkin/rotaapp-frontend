@@ -23,14 +23,22 @@ import {
   Settings,
   Plus
 } from 'lucide-react';
-import { Vehicle, Route as RouteType } from '@/types';
-import { vehicleService, routeService } from '@/services/mockData';
+import { Vehicle } from '@/types';
+import { vehicleService } from '@/services/vehicle.service';
+
+// Mock route service - Routes modülü entegre edilince gerçek servis kullanılacak
+const mockRouteService = {
+  getByVehicleId: async (vehicleId: string) => {
+    // Şimdilik boş array döndür
+    return [];
+  }
+};
 
 const VehicleDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
-  const [routes, setRoutes] = useState<RouteType[]>([]);
+  const [routes, setRoutes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
   const [maintenanceNote, setMaintenanceNote] = useState('');
@@ -45,17 +53,22 @@ const VehicleDetail: React.FC = () => {
     setLoading(true);
     try {
       // Load vehicle
-      const vehicleData = await vehicleService.getById(id);
+      const vehicleId = parseInt(id);
+      const vehicleData = await vehicleService.getById(vehicleId);
       if (vehicleData) {
         setVehicle(vehicleData);
         
-        // Load vehicle's routes
-        const allRoutes = await routeService.getAll();
-        const vehicleRoutes = allRoutes.filter(r => r.vehicleId === id);
+        // Load vehicle's routes - şimdilik mock
+        const vehicleRoutes = await mockRouteService.getByVehicleId(id);
         setRoutes(vehicleRoutes);
+      } else {
+        alert('Araç bulunamadı');
+        navigate('/vehicles');
       }
     } catch (error) {
       console.error('Error loading vehicle data:', error);
+      alert('Veri yüklenirken bir hata oluştu');
+      navigate('/vehicles');
     } finally {
       setLoading(false);
     }
@@ -65,8 +78,13 @@ const VehicleDetail: React.FC = () => {
     if (!vehicle) return;
     
     if (window.confirm('Bu aracı silmek istediğinizden emin misiniz?')) {
-      await vehicleService.delete(vehicle.id);
-      navigate('/vehicles');
+      try {
+        await vehicleService.delete(vehicle.id);
+        navigate('/vehicles');
+      } catch (error) {
+        console.error('Error deleting vehicle:', error);
+        alert('Araç silinirken bir hata oluştu');
+      }
     }
   };
 
@@ -77,11 +95,16 @@ const VehicleDetail: React.FC = () => {
   const handleSetMaintenance = async () => {
     if (!vehicle) return;
     
-    await vehicleService.updateStatus(vehicle.id, 'maintenance');
-    setShowMaintenanceModal(false);
-    setMaintenanceNote('');
-    alert('Araç bakıma alındı!');
-    loadVehicleData();
+    try {
+      await vehicleService.updateStatus(vehicle.id, 'maintenance');
+      setShowMaintenanceModal(false);
+      setMaintenanceNote('');
+      alert('Araç bakıma alındı!');
+      await loadVehicleData();
+    } catch (error) {
+      console.error('Error updating vehicle status:', error);
+      alert('Durum güncellenirken bir hata oluştu');
+    }
   };
 
   const handleEditSettings = () => {
@@ -165,19 +188,6 @@ const VehicleDetail: React.FC = () => {
         return 'Hibrit';
       default:
         return fuelType;
-    }
-  };
-
-  const getRouteStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'text-green-600 bg-green-50';
-      case 'in_progress':
-        return 'text-blue-600 bg-blue-50';
-      case 'planned':
-        return 'text-purple-600 bg-purple-50';
-      default:
-        return 'text-gray-600 bg-gray-50';
     }
   };
 
@@ -303,7 +313,7 @@ const VehicleDetail: React.FC = () => {
               </div>
               <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <TrendingUp className="w-8 h-8 text-orange-500 mx-auto mb-2" />
-                <p className="text-2xl font-bold text-gray-900">87%</p>
+                <p className="text-2xl font-bold text-gray-900">-</p>
                 <p className="text-xs text-gray-600">Kullanım Oranı</p>
               </div>
             </div>
@@ -327,11 +337,6 @@ const VehicleDetail: React.FC = () => {
                         <div className="flex items-center space-x-3">
                           <Route className="w-5 h-5 text-gray-400" />
                           <h3 className="font-medium text-gray-900">{route.name}</h3>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getRouteStatusColor(route.status)}`}>
-                            {route.status === 'completed' ? 'Tamamlandı' : 
-                             route.status === 'in_progress' ? 'Devam Ediyor' :
-                             route.status === 'planned' ? 'Planlandı' : route.status}
-                          </span>
                         </div>
                         <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
                           <span className="flex items-center">
@@ -340,11 +345,7 @@ const VehicleDetail: React.FC = () => {
                           </span>
                           <span className="flex items-center">
                             <MapPin className="w-4 h-4 mr-1" />
-                            {route.stops.length} durak
-                          </span>
-                          <span className="flex items-center">
-                            <Clock className="w-4 h-4 mr-1" />
-                            {route.totalDuration} dk
+                            {route.stops?.length || 0} durak
                           </span>
                         </div>
                       </div>
@@ -407,7 +408,7 @@ const VehicleDetail: React.FC = () => {
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">Son Bakım</p>
                   <p className="text-xs text-gray-600">
-                    {vehicle.maintenanceSchedule?.lastMaintenance || '15 Ocak 2024 - 125,000 km'}
+                    Bilgi yok
                   </p>
                 </div>
               </div>
@@ -418,21 +419,7 @@ const VehicleDetail: React.FC = () => {
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">Sonraki Bakım</p>
                   <p className="text-xs text-gray-600">
-                    {vehicle.maintenanceSchedule?.nextMaintenance || '15 Nisan 2024 - 150,000 km'}
-                  </p>
-                  <p className="text-xs text-orange-600 mt-1">
-                    {vehicle.maintenanceSchedule?.remainingKm || '2,500 km kaldı'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start">
-                <div className="p-2 bg-blue-100 rounded-lg mr-3">
-                  <Settings className="w-4 h-4 text-blue-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">Yağ Değişimi</p>
-                  <p className="text-xs text-gray-600">
-                    {vehicle.maintenanceSchedule?.oilChange || '1 Mart 2024 - 135,000 km'}
+                    Planlanmamış
                   </p>
                 </div>
               </div>
@@ -452,29 +439,24 @@ const VehicleDetail: React.FC = () => {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Bu Ay</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {vehicle.monthlyKm || '2,450 km'}
-                </span>
+                <span className="text-sm font-medium text-gray-900">-</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Ortalama Günlük</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {vehicle.dailyAvgKm || '82 km'}
-                </span>
+                <span className="text-sm font-medium text-gray-900">-</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Toplam Mesafe</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {vehicle.totalKm || '147,500 km'}
-                </span>
+                <span className="text-sm font-medium text-gray-900">-</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Yakıt Tüketimi</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {vehicle.fuelConsumption || '7.8 L/100km'}
-                </span>
+                <span className="text-sm font-medium text-gray-900">-</span>
               </div>
             </div>
+            <p className="text-xs text-gray-500 mt-3">
+              İstatistikler rotalar entegre edildiğinde aktif olacak
+            </p>
           </div>
         </div>
       </div>

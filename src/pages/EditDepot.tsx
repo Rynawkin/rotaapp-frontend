@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Building2 } from 'lucide-react';
 import DepotForm from '@/components/depots/DepotForm';
-import { depotService } from '@/services/mockData';
+import { depotService } from '@/services/depot.service';
 import { Depot } from '@/types';
 
 const EditDepot: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
   const [depot, setDepot] = useState<Depot | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -16,23 +16,15 @@ const EditDepot: React.FC = () => {
   }, [id]);
 
   const loadDepot = async () => {
-    if (!id) {
-      navigate('/depots');
-      return;
-    }
+    if (!id) return;
 
     try {
       setLoading(true);
       const data = await depotService.getById(id);
-      if (!data) {
-        alert('Depo bulunamadı');
-        navigate('/depots');
-        return;
-      }
       setDepot(data);
     } catch (error) {
       console.error('Depo yüklenirken hata:', error);
-      alert('Depo yüklenirken bir hata oluştu');
+      alert('Depo bulunamadı');
       navigate('/depots');
     } finally {
       setLoading(false);

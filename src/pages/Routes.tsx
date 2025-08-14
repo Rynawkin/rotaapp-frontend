@@ -21,7 +21,8 @@ import {
   Play
 } from 'lucide-react';
 import { Route } from '@/types';
-import { routeService, journeyService } from '@/services/mockData';
+import { routeService } from '@/services/route.service';
+import { journeyService } from '@/services/journey.service';
 
 const Routes: React.FC = () => {
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -66,24 +67,23 @@ const Routes: React.FC = () => {
   // Delete route
   const handleDelete = async (id: string) => {
     if (window.confirm('Bu rotayı silmek istediğinizden emin misiniz?')) {
-      await routeService.delete(id);
-      loadRoutes();
+      try {
+        await routeService.delete(id);
+        await loadRoutes();
+      } catch (error: any) {
+        alert(error.response?.data?.message || 'Rota silinemedi');
+      }
     }
   };
 
   // Duplicate route
   const handleDuplicate = async (route: Route) => {
-    const newRoute = {
-      ...route,
-      id: undefined,
-      name: `${route.name} (Kopya)`,
-      status: 'draft' as const,
-      createdAt: new Date(),
-      startedAt: undefined,
-      completedAt: undefined
-    };
-    await routeService.create(newRoute);
-    loadRoutes();
+    try {
+      await routeService.duplicate(route);
+      await loadRoutes();
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Rota kopyalanamadı');
+    }
   };
 
   // Start journey from route
@@ -351,13 +351,8 @@ const Routes: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredRoutes.map((route, index) => {
-                  // ID kontrolü ve unique key oluşturma
-                  const uniqueKey = route.id || `route-temp-${index}-${Date.now()}`;
-                  
-                  if (!route.id) {
-                    console.warn('Route without ID found at index:', index, route);
-                  }
+                filteredRoutes.map((route) => {
+                  const uniqueKey = route.id || `route-${Date.now()}-${Math.random()}`;
                   
                   return (
                     <tr key={uniqueKey} className="hover:bg-gray-50">
@@ -369,7 +364,7 @@ const Routes: React.FC = () => {
                           <div>
                             <p className="text-sm font-medium text-gray-900">{route.name}</p>
                             <p className="text-xs text-gray-500">
-                              {route.stops.length} durak
+                              {route.stops?.length || 0} durak
                               {route.optimized && (
                                 <span className="ml-2 text-green-600">• Optimize</span>
                               )}

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import DriverForm from '@/components/drivers/DriverForm';
-import { driverService } from '@/services/mockData';
+import { driverService } from '@/services/driver.service';
 import { Driver } from '@/types';
 
 const EditDriver: React.FC = () => {

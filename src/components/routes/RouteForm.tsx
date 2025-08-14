@@ -20,12 +20,10 @@ import StopsList from './StopsList';
 import MapComponent from '@/components/maps/MapComponent';
 import { Route, Customer, Driver, Vehicle, Depot, RouteStop } from '@/types';
 import { LatLng, MarkerData, OptimizationWaypoint } from '@/types/maps';
-import { 
-  customerService, 
-  driverService, 
-  vehicleService, 
-  depotService 
-} from '@/services/mockData';
+import { customerService } from '@/services/customer.service';
+import { driverService } from '@/services/driver.service';
+import { vehicleService } from '@/services/vehicle.service';
+import { depotService } from '@/services/depot.service';
 import { googleMapsService } from '@/services/googleMapsService';
 import { simpleOptimizationService } from '@/services/simpleOptimizationService';
 
@@ -66,13 +64,13 @@ const RouteForm: React.FC<RouteFormProps> = ({
   loading = false,
   isEdit = false
 }) => {
-  // Form State
+  // Form State - ID'leri string olarak sakla
   const [formData, setFormData] = useState<Partial<Route>>({
     name: initialData?.name || '',
     date: initialData?.date || new Date(),
     driverId: initialData?.driverId || '',
     vehicleId: initialData?.vehicleId || '',
-    depotId: initialData?.depotId || '1',
+    depotId: initialData?.depotId || '',
     notes: initialData?.notes || '',
     stops: initialData?.stops || [],
     totalDuration: initialData?.totalDuration || 0,
@@ -104,7 +102,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
     loadLists();
   }, []);
 
-  // DÜZELTİLMİŞ: Initialize stops from initial data - sadece bir kez çalışır
+  // Initialize stops from initial data - sadece bir kez çalışır
   useEffect(() => {
     // Eğer daha önce yüklendiyse veya initialData yoksa çıkış yap
     if (initialStopsLoadedRef.current || !initialData?.stops || initialData.stops.length === 0) {
@@ -124,7 +122,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
         
         // Eğer stop'ta customer yoksa, customers listesinden bul
         if (!customer) {
-          customer = customers.find(c => c.id === stop.customerId);
+          // customerId'yi string'e çevir karşılaştırma için
+          customer = customers.find(c => c.id.toString() === stop.customerId.toString());
         }
         
         if (!customer) {
@@ -171,7 +170,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
         depotService.getAll()
       ]);
 
-      setCustomers(customersData);
+      // Google Places müşterilerini filtrele
+      const validCustomers = customersData.filter(c => 
+        typeof c.id === 'number' || (typeof c.id === 'string' && !c.id.startsWith('google-'))
+      );
+
+      setCustomers(validCustomers);
       setDrivers(driversData);
       setVehicles(vehiclesData);
       setDepots(depotsData);
@@ -180,6 +184,11 @@ const RouteForm: React.FC<RouteFormProps> = ({
       const defaultDepot = depotsData.find(d => d.isDefault);
       if (defaultDepot) {
         setMapCenter({ lat: defaultDepot.latitude, lng: defaultDepot.longitude });
+        
+        // Set default depot if not set - string olarak ayarla
+        if (!formData.depotId) {
+          setFormData(prev => ({ ...prev, depotId: defaultDepot.id.toString() }));
+        }
       }
     } catch (error) {
       console.error('Error loading lists:', error);
@@ -189,6 +198,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
   };
 
   const handleAddCustomer = (customer: Customer) => {
+    // Google Places müşterisi kontrolü
+    if (typeof customer.id === 'string' && customer.id.startsWith('google-')) {
+      alert('⚠️ Bu müşteri henüz veritabanına kaydedilmemiş. Lütfen önce Müşteriler sayfasından ekleyin.');
+      return;
+    }
+    
     if (!stopsData.find(s => s.customer.id === customer.id)) {
       setStopsData([...stopsData, { 
         customer,
@@ -197,8 +212,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
     }
   };
 
-  const handleRemoveCustomer = (customerId: string) => {
-    setStopsData(stopsData.filter(s => s.customer.id !== customerId));
+  const handleRemoveCustomer = (customerId: string | number) => {
+    setStopsData(stopsData.filter(s => s.customer.id.toString() !== customerId.toString()));
     setOptimizedOrder([]);
     if (stopsData.length <= 2) {
       setMapDirections(null);
@@ -221,7 +236,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
   const updateMapRoute = async () => {
     if (stopsData.length === 0) return;
 
-    const selectedDepot = depots.find(d => d.id === formData.depotId);
+    // String karşılaştırması yap
+    const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
     if (!selectedDepot) return;
 
     if (window.google && window.google.maps) {
@@ -265,7 +281,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
       return;
     }
 
-    const selectedDepot = depots.find(d => d.id === formData.depotId);
+    // String karşılaştırması yap
+    const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
     if (!selectedDepot) {
       alert('Lütfen bir depo seçin!');
       return;
@@ -389,20 +406,57 @@ const RouteForm: React.FC<RouteFormProps> = ({
       return;
     }
     
-    const stops: RouteStop[] = stopsData.map((stopData, index) => ({
-      id: isEdit && initialData?.stops?.[index]?.id ? initialData.stops[index].id : `${Date.now()}-${index}`,
-      routeId: initialData?.id || '',
-      customerId: stopData.customer.id,
-      customer: stopData.customer,
-      order: index + 1,
-      status: 'pending',
-      overrideTimeWindow: stopData.overrideTimeWindow,
-      overridePriority: stopData.overridePriority,
-      serviceTime: stopData.serviceTime,
-      stopNotes: stopData.stopNotes,
-      estimatedArrival: new Date(),
-      distance: 0
-    }));
+    // Seçili depoyu bul
+    const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
+    if (!selectedDepot) {
+      alert('⚠️ Lütfen bir depo seçin!');
+      return;
+    }
+    
+    // ✅ DÜZELTME: Customer ID kontrolü güçlendirildi
+    const stops: RouteStop[] = stopsData.map((stopData, index) => {
+      // Customer nesnesini kontrol et
+      if (!stopData.customer) {
+        console.error('Customer missing for stop:', index, stopData);
+        throw new Error(`Durak ${index + 1} için müşteri bilgisi eksik`);
+      }
+      
+      const customer = stopData.customer;
+      let customerId: string;
+      
+      // Google Places kontrolü
+      if (typeof customer.id === 'string' && customer.id.startsWith('google-')) {
+        console.error('Google Places customer detected:', customer);
+        throw new Error(`Durak ${index + 1} için müşteri henüz veritabanına kaydedilmemiş. Lütfen önce Müşteriler sayfasından ekleyin.`);
+      }
+      
+      // ID'yi string'e çevir
+      if (typeof customer.id === 'number') {
+        customerId = customer.id.toString();
+      } else if (typeof customer.id === 'string') {
+        customerId = customer.id;
+      } else {
+        console.error('Invalid customer ID type:', typeof customer.id, customer);
+        throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
+      }
+      
+      console.log(`Stop ${index}: Customer ID = ${customerId}, Name = ${customer.name}`);
+      
+      return {
+        id: isEdit && initialData?.stops?.[index]?.id ? initialData.stops[index].id : `${Date.now()}-${index}`,
+        routeId: initialData?.id || '',
+        customerId: customerId,
+        customer: customer,
+        order: index + 1,
+        status: 'pending',
+        overrideTimeWindow: stopData.overrideTimeWindow,
+        overridePriority: stopData.overridePriority,
+        serviceTime: stopData.serviceTime,
+        stopNotes: stopData.stopNotes,
+        estimatedArrival: new Date(),
+        distance: 0
+      };
+    });
 
     const routeData: Partial<Route> = {
       ...formData,
@@ -413,27 +467,62 @@ const RouteForm: React.FC<RouteFormProps> = ({
       status: 'planned',
       optimized: optimizedOrder.length > 0,
       // Driver ve Vehicle bilgilerini ekle
-      driver: drivers.find(d => d.id === formData.driverId),
-      vehicle: vehicles.find(v => v.id === formData.vehicleId)
+      driver: drivers.find(d => d.id.toString() === formData.driverId?.toString()),
+      vehicle: vehicles.find(v => v.id.toString() === formData.vehicleId?.toString()),
+      // Depot objesini ekle - ÖNEMLİ: Backend'de startDetails için gerekli
+      depot: selectedDepot
     };
 
+    console.log('Submitting route with depot:', selectedDepot);
     onSubmit(routeData);
   };
 
   const handleSaveDraft = () => {
-    const stops: RouteStop[] = stopsData.map((stopData, index) => ({
-      id: isEdit && initialData?.stops?.[index]?.id ? initialData.stops[index].id : `${Date.now()}-${index}`,
-      routeId: initialData?.id || '',
-      customerId: stopData.customer.id,
-      customer: stopData.customer,
-      order: index + 1,
-      status: 'pending',
-      overrideTimeWindow: stopData.overrideTimeWindow,
-      overridePriority: stopData.overridePriority,
-      serviceTime: stopData.serviceTime,
-      stopNotes: stopData.stopNotes,
-      estimatedArrival: new Date()
-    }));
+    // Seçili depoyu bul
+    const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
+    
+    // ✅ DÜZELTME: Customer ID kontrolü güçlendirildi
+    const stops: RouteStop[] = stopsData.map((stopData, index) => {
+      // Customer nesnesini kontrol et
+      if (!stopData.customer) {
+        console.error('Customer missing for stop:', index, stopData);
+        throw new Error(`Durak ${index + 1} için müşteri bilgisi eksik`);
+      }
+      
+      const customer = stopData.customer;
+      let customerId: string;
+      
+      // Google Places kontrolü
+      if (typeof customer.id === 'string' && customer.id.startsWith('google-')) {
+        console.error('Google Places customer detected:', customer);
+        throw new Error(`Durak ${index + 1} için müşteri henüz veritabanına kaydedilmemiş. Lütfen önce Müşteriler sayfasından ekleyin.`);
+      }
+      
+      // ID'yi string'e çevir
+      if (typeof customer.id === 'number') {
+        customerId = customer.id.toString();
+      } else if (typeof customer.id === 'string') {
+        customerId = customer.id;
+      } else {
+        console.error('Invalid customer ID type:', typeof customer.id, customer);
+        throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
+      }
+      
+      return {
+        id: isEdit && initialData?.stops?.[index]?.id ? initialData.stops[index].id : `${Date.now()}-${index}`,
+        routeId: initialData?.id || '',
+        customerId: customerId,
+        customer: customer,
+        order: index + 1,
+        status: 'pending',
+        overrideTimeWindow: stopData.overrideTimeWindow,
+        overridePriority: stopData.overridePriority,
+        serviceTime: stopData.serviceTime,
+        stopNotes: stopData.stopNotes,
+        estimatedArrival: new Date(),
+        distance: 0
+      };
+    });
 
     const routeData: Partial<Route> = {
       ...formData,
@@ -443,8 +532,10 @@ const RouteForm: React.FC<RouteFormProps> = ({
       totalDistance: formData.totalDistance || 0,
       status: 'draft',
       // Driver ve Vehicle bilgilerini ekle
-      driver: drivers.find(d => d.id === formData.driverId),
-      vehicle: vehicles.find(v => v.id === formData.vehicleId)
+      driver: drivers.find(d => d.id.toString() === formData.driverId?.toString()),
+      vehicle: vehicles.find(v => v.id.toString() === formData.vehicleId?.toString()),
+      // Depot objesini ekle
+      depot: selectedDepot
     };
 
     if (onSaveAsDraft) {
@@ -453,14 +544,17 @@ const RouteForm: React.FC<RouteFormProps> = ({
   };
 
   const getDepotLocation = (): LatLng | undefined => {
-    const selectedDepot = depots.find(d => d.id === formData.depotId);
+    // String karşılaştırması yap ve depot varsa dön
+    const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
     if (selectedDepot) {
+      console.log('Selected depot for map:', selectedDepot);
       return {
         lat: selectedDepot.latitude,
         lng: selectedDepot.longitude
       };
     }
-    return { lat: 40.9913, lng: 29.0236 };
+    console.log('No depot selected, depotId:', formData.depotId);
+    return undefined;
   };
 
   const handleMapLoad = (map: google.maps.Map) => {
@@ -476,7 +570,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
       title: stop.customer.name,
       label: String(index + 1),
       type: 'customer' as const,
-      customerId: stop.customer.id
+      customerId: stop.customer.id.toString()
     }));
   };
 
@@ -586,6 +680,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
                 required
               >
+                <option value="">Depo Seçin</option>
                 {depots.map(depot => (
                   <option key={depot.id} value={depot.id}>
                     {depot.name} {depot.isDefault && '(Varsayılan)'}
@@ -626,9 +721,9 @@ const RouteForm: React.FC<RouteFormProps> = ({
                     {formatDuration(formData.totalDuration || calculateTotalDuration())}
                   </span>
                 </div>
-                {formData.totalDistance > 0 && (
+                {(formData.totalDistance ?? 0) > 0 && (
                   <div className="text-sm text-gray-600">
-                    Mesafe: <span className="font-semibold">{formData.totalDistance.toFixed(1)} km</span>
+                    Mesafe: <span className="font-semibold">{(formData.totalDistance ?? 0).toFixed(1)} km</span>
                   </div>
                 )}
               </>
@@ -683,9 +778,9 @@ const RouteForm: React.FC<RouteFormProps> = ({
             <h2 className="text-lg font-semibold text-gray-900">Rota Haritası</h2>
             {stopsData.length === 0 ? (
               <span className="text-sm text-gray-500">Müşteri ekleyin</span>
-            ) : formData.totalDistance > 0 ? (
+            ) : (formData.totalDistance ?? 0) > 0 ? (
               <span className="text-sm text-gray-600">
-                {formData.totalDistance.toFixed(1)} km • {formatDuration(formData.totalDuration || 0)}
+                {(formData.totalDistance ?? 0).toFixed(1)} km • {formatDuration(formData.totalDuration || 0)}
               </span>
             ) : (
               <span className="text-sm text-gray-600">

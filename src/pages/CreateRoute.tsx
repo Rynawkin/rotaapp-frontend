@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
 import RouteForm from '@/components/routes/RouteForm';
 import { Route } from '@/types';
-import { routeService } from '@/services/mockData';
+import { routeService } from '@/services/route.service';
 
 const CreateRoute: React.FC = () => {
   const navigate = useNavigate();
@@ -17,8 +17,8 @@ const CreateRoute: React.FC = () => {
     try {
       const newRoute = await routeService.create(formData);
       navigate(`/routes/${newRoute.id}`);
-    } catch (err) {
-      setError('Rota oluşturulurken bir hata oluştu.');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Rota oluşturulurken bir hata oluştu.');
       console.error('Error creating route:', err);
     } finally {
       setLoading(false);
@@ -35,8 +35,8 @@ const CreateRoute: React.FC = () => {
         status: 'draft'
       });
       navigate('/routes');
-    } catch (err) {
-      setError('Taslak kaydedilirken bir hata oluştu.');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Taslak kaydedilirken bir hata oluştu.');
       console.error('Error saving draft:', err);
     } finally {
       setLoading(false);

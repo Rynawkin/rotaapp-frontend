@@ -14,7 +14,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Depot } from '@/types';
-import { depotService } from '@/services/mockData';
+import { depotService } from '@/services/depot.service';
 
 const Depots: React.FC = () => {
   const navigate = useNavigate();

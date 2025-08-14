@@ -25,7 +25,7 @@ import {
   Activity
 } from 'lucide-react';
 import { Vehicle } from '@/types';
-import { vehicleService } from '@/services/mockData';
+import { vehicleService } from '@/services/vehicle.service';
 
 const Vehicles: React.FC = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -48,6 +48,7 @@ const Vehicles: React.FC = () => {
       setVehicles(data);
     } catch (error) {
       console.error('Error loading vehicles:', error);
+      alert('Araçlar yüklenirken bir hata oluştu');
     } finally {
       setLoading(false);
     }
@@ -67,36 +68,33 @@ const Vehicles: React.FC = () => {
   });
 
   // Delete vehicle
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Bu aracı silmek istediğinizden emin misiniz?')) {
-      await vehicleService.delete(id);
-      loadVehicles();
+      try {
+        await vehicleService.delete(id);
+        await loadVehicles();
+        alert('Araç başarıyla silindi');
+      } catch (error) {
+        console.error('Error deleting vehicle:', error);
+        alert('Araç silinirken bir hata oluştu');
+      }
     }
   };
 
   // Update vehicle status
-  const handleStatusChange = async (id: string, status: 'active' | 'maintenance' | 'inactive') => {
-    await vehicleService.updateStatus(id, status);
-    loadVehicles();
+  const handleStatusChange = async (id: number, status: 'active' | 'maintenance' | 'inactive') => {
+    try {
+      await vehicleService.updateStatus(id, status);
+      await loadVehicles();
+    } catch (error) {
+      console.error('Error updating vehicle status:', error);
+      alert('Durum güncellenirken bir hata oluştu');
+    }
   };
 
   // Export vehicles to CSV
   const handleExport = () => {
-    const csvContent = [
-      ['ID', 'Plaka', 'Tip', 'Marka', 'Model', 'Yıl', 'Kapasite (kg)', 'Durum', 'Yakıt Tipi'],
-      ...filteredVehicles.map(vehicle => [
-        vehicle.id,
-        vehicle.plateNumber,
-        vehicle.type,
-        vehicle.brand,
-        vehicle.model,
-        vehicle.year,
-        vehicle.capacity,
-        vehicle.status,
-        vehicle.fuelType
-      ])
-    ].map(row => row.join(',')).join('\n');
-
+    const csvContent = vehicleService.exportToCSV(filteredVehicles);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -121,27 +119,24 @@ const Vehicles: React.FC = () => {
       const reader = new FileReader();
       reader.onload = async (event) => {
         const csv = event.target?.result as string;
-        const lines = csv.split('\n');
+        const vehiclesToImport = vehicleService.parseCSV(csv);
         
-        // Skip header row and process data
-        for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(',');
-          if (values.length > 1) {
-            await vehicleService.create({
-              plateNumber: values[1]?.trim(),
-              type: values[2]?.trim() as Vehicle['type'] || 'car',
-              brand: values[3]?.trim(),
-              model: values[4]?.trim(),
-              year: parseInt(values[5]) || new Date().getFullYear(),
-              capacity: parseInt(values[6]) || 1000,
-              status: 'active',
-              fuelType: values[8]?.trim() as Vehicle['fuelType'] || 'diesel'
-            });
-          }
+        if (vehiclesToImport.length === 0) {
+          alert('CSV dosyasında geçerli araç bulunamadı');
+          return;
         }
-        
-        loadVehicles();
-        alert('Araçlar başarıyla içe aktarıldı!');
+
+        try {
+          setLoading(true);
+          await vehicleService.bulkImport(vehiclesToImport);
+          await loadVehicles();
+          alert(`${vehiclesToImport.length} araç başarıyla içe aktarıldı!`);
+        } catch (error) {
+          console.error('Error importing vehicles:', error);
+          alert('Araçlar içe aktarılırken bir hata oluştu');
+        } finally {
+          setLoading(false);
+        }
       };
       
       reader.readAsText(file);

@@ -12,15 +12,17 @@ import {
   CheckCircle,
   Clock,
   Edit2,
-  X
+  X,
+  AlertCircle
 } from 'lucide-react';
 import VehicleForm from '@/components/vehicles/VehicleForm';
-import { vehicleService } from '@/services/mockData';
+import { vehicleService, UpdateVehicleDto } from '@/services/vehicle.service';
 import { Vehicle } from '@/types';
 
-// Bakım tipi
+// Bakım tipi - Frontend'de localStorage'da tutulacak
 interface MaintenanceRecord {
   id: string;
+  vehicleId: string;
   type: 'scheduled' | 'unscheduled' | 'oil_change' | 'tire_change' | 'inspection' | 'repair';
   date: Date;
   mileage: number;
@@ -32,6 +34,29 @@ interface MaintenanceRecord {
   notes?: string;
 }
 
+// Bakım kayıtlarını localStorage'da saklama
+const MAINTENANCE_STORAGE_KEY = 'vehicle_maintenance_records';
+
+const getMaintenanceRecords = (vehicleId: string): MaintenanceRecord[] => {
+  const stored = localStorage.getItem(MAINTENANCE_STORAGE_KEY);
+  if (!stored) return [];
+  const allRecords = JSON.parse(stored);
+  return allRecords.filter((r: MaintenanceRecord) => r.vehicleId === vehicleId)
+    .map((r: MaintenanceRecord) => ({
+      ...r,
+      date: new Date(r.date),
+      nextMaintenanceDate: r.nextMaintenanceDate ? new Date(r.nextMaintenanceDate) : undefined
+    }));
+};
+
+const saveMaintenanceRecords = (vehicleId: string, records: MaintenanceRecord[]) => {
+  const stored = localStorage.getItem(MAINTENANCE_STORAGE_KEY);
+  const allRecords = stored ? JSON.parse(stored) : [];
+  const otherRecords = allRecords.filter((r: MaintenanceRecord) => r.vehicleId !== vehicleId);
+  const updatedRecords = [...otherRecords, ...records];
+  localStorage.setItem(MAINTENANCE_STORAGE_KEY, JSON.stringify(updatedRecords));
+};
+
 const EditVehicle: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -39,6 +64,7 @@ const EditVehicle: React.FC = () => {
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'general' | 'maintenance'>('general');
   
   // Bakım state'leri
@@ -69,53 +95,24 @@ const EditVehicle: React.FC = () => {
     if (!id) return;
     
     setLoading(true);
+    setError(null);
+    
     try {
-      const data = await vehicleService.getById(id);
+      const vehicleId = parseInt(id);
+      const data = await vehicleService.getById(vehicleId);
       if (data) {
         setVehicle(data);
-        // Mock bakım kayıtları - normalde API'den gelecek
-        setMaintenanceRecords([
-          {
-            id: '1',
-            type: 'scheduled',
-            date: new Date('2024-01-15'),
-            mileage: 125000,
-            description: 'Periyodik Bakım',
-            cost: 2500,
-            nextMaintenanceKm: 150000,
-            nextMaintenanceDate: new Date('2024-04-15'),
-            status: 'completed',
-            notes: 'Yağ değişimi, filtre değişimi, genel kontrol yapıldı'
-          },
-          {
-            id: '2',
-            type: 'oil_change',
-            date: new Date('2024-03-01'),
-            mileage: 135000,
-            description: 'Yağ Değişimi',
-            cost: 800,
-            status: 'completed'
-          },
-          {
-            id: '3',
-            type: 'scheduled',
-            date: new Date('2024-04-15'),
-            mileage: 150000,
-            description: 'Planlı Periyodik Bakım',
-            nextMaintenanceKm: 175000,
-            nextMaintenanceDate: new Date('2024-07-15'),
-            status: 'scheduled',
-            notes: 'Yaklaşan bakım'
-          }
-        ]);
+        // localStorage'dan bakım kayıtlarını yükle
+        const records = getMaintenanceRecords(id);
+        setMaintenanceRecords(records);
       } else {
-        alert('Araç bulunamadı');
-        navigate('/vehicles');
+        setError('Araç bulunamadı');
+        setTimeout(() => navigate('/vehicles'), 2000);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading vehicle:', error);
-      alert('Araç yüklenirken bir hata oluştu');
-      navigate('/vehicles');
+      setError('Araç yüklenirken bir hata oluştu');
+      setTimeout(() => navigate('/vehicles'), 2000);
     } finally {
       setLoading(false);
     }
@@ -125,12 +122,35 @@ const EditVehicle: React.FC = () => {
     if (!id) return;
     
     setSaving(true);
+    setError(null);
+    
     try {
-      await vehicleService.update(id, data);
+      // Form data'yı UpdateVehicleDto formatına dönüştür
+      const updateDto: UpdateVehicleDto = {
+        plateNumber: data.plateNumber,
+        type: data.type,
+        brand: data.brand,
+        model: data.model,
+        year: data.year,
+        capacity: data.capacity,
+        status: data.status,
+        fuelType: data.fuelType
+      };
+
+      await vehicleService.update(parseInt(id), updateDto);
       navigate('/vehicles');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating vehicle:', error);
-      alert('Araç güncellenirken bir hata oluştu');
+      
+      if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else if (error.response?.status === 409) {
+        setError('Bu plaka numarası başka bir araçta kullanılıyor');
+      } else if (error.response?.status === 404) {
+        setError('Araç bulunamadı');
+      } else {
+        setError('Araç güncellenirken bir hata oluştu');
+      }
     } finally {
       setSaving(false);
     }
@@ -169,8 +189,11 @@ const EditVehicle: React.FC = () => {
   };
 
   const handleSaveMaintenance = () => {
+    if (!id) return;
+
     const newRecord: MaintenanceRecord = {
       id: editingMaintenance?.id || Date.now().toString(),
+      vehicleId: id,
       type: maintenanceForm.type,
       date: new Date(maintenanceForm.date),
       mileage: parseInt(maintenanceForm.mileage),
@@ -182,19 +205,26 @@ const EditVehicle: React.FC = () => {
       notes: maintenanceForm.notes
     };
 
+    let updatedRecords: MaintenanceRecord[];
     if (editingMaintenance) {
-      setMaintenanceRecords(prev => prev.map(r => r.id === editingMaintenance.id ? newRecord : r));
+      updatedRecords = maintenanceRecords.map(r => r.id === editingMaintenance.id ? newRecord : r);
     } else {
-      setMaintenanceRecords(prev => [...prev, newRecord]);
+      updatedRecords = [...maintenanceRecords, newRecord];
     }
 
+    setMaintenanceRecords(updatedRecords);
+    saveMaintenanceRecords(id, updatedRecords);
     setShowMaintenanceModal(false);
     alert('Bakım kaydı başarıyla kaydedildi!');
   };
 
-  const handleDeleteMaintenance = (id: string) => {
+  const handleDeleteMaintenance = (recordId: string) => {
+    if (!id) return;
+    
     if (window.confirm('Bu bakım kaydını silmek istediğinizden emin misiniz?')) {
-      setMaintenanceRecords(prev => prev.filter(r => r.id !== id));
+      const updatedRecords = maintenanceRecords.filter(r => r.id !== recordId);
+      setMaintenanceRecords(updatedRecords);
+      saveMaintenanceRecords(id, updatedRecords);
     }
   };
 
@@ -261,6 +291,17 @@ const EditVehicle: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Error Alert */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
+          <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+          <div className="flex-1">
+            <h3 className="text-sm font-medium text-red-800">Hata</h3>
+            <p className="text-sm text-red-700 mt-1">{error}</p>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
@@ -459,42 +500,6 @@ const EditVehicle: React.FC = () => {
                   )}
                 </tbody>
               </table>
-            </div>
-          </div>
-
-          {/* Yaklaşan Bakımlar */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Yaklaşan Bakımlar</h3>
-            <div className="space-y-3">
-              {maintenanceRecords
-                .filter(r => r.status === 'scheduled')
-                .sort((a, b) => a.date.getTime() - b.date.getTime())
-                .slice(0, 3)
-                .map((record) => (
-                  <div key={record.id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
-                    <div className="flex items-center">
-                      <AlertTriangle className="w-5 h-5 text-orange-600 mr-3" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{record.description}</p>
-                        <p className="text-xs text-gray-600">
-                          {record.date.toLocaleDateString('tr-TR')} - {record.mileage.toLocaleString('tr-TR')} km
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleEditMaintenance(record)}
-                      className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50"
-                    >
-                      Düzenle
-                    </button>
-                  </div>
-                ))}
-              
-              {maintenanceRecords.filter(r => r.status === 'scheduled').length === 0 && (
-                <p className="text-sm text-gray-500 text-center py-4">
-                  Yaklaşan bakım bulunmuyor
-                </p>
-              )}
             </div>
           </div>
         </div>

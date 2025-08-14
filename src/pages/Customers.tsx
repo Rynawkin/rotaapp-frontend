@@ -22,7 +22,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { Customer } from '@/types';
-import { customerService } from '@/services/mockData';
+import { customerService } from '@/services/customer.service';
 
 const Customers: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -31,7 +31,7 @@ const Customers: React.FC = () => {
   const [selectedPriority, setSelectedPriority] = useState('all');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
-  const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load customers
@@ -71,7 +71,7 @@ const Customers: React.FC = () => {
   });
 
   // Delete customer
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Bu müşteriyi silmek istediğinizden emin misiniz?')) {
       await customerService.delete(id);
       loadCustomers();
@@ -232,6 +232,13 @@ const Customers: React.FC = () => {
     link.download = 'musteri_sablonu.csv';
     link.click();
     window.URL.revokeObjectURL(url);
+  };
+
+  // ✅ YENİ: Dropdown pozisyonunu hesapla
+  const getDropdownPosition = (index: number, totalItems: number) => {
+    // Son 2 satırda veya tek kayıt varsa yukarı aç
+    const shouldOpenUpward = totalItems <= 2 || index >= totalItems - 2;
+    return shouldOpenUpward ? 'bottom-full mb-2' : 'top-full mt-2';
   };
 
   if (loading) {
@@ -439,155 +446,159 @@ const Customers: React.FC = () => {
       {/* Table View */}
       {viewMode === 'table' ? (
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Müşteri
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    İletişim
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Adres
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Öncelik
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Zaman Penceresi
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Etiketler
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    İşlemler
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredCustomers.length === 0 ? (
+          {/* ✅ DÜZELTME: min-height eklendi ve overflow-x kaldırıldı geçici olarak */}
+          <div className="relative" style={{ minHeight: '200px' }}>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                      <MapPin className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                      <p>Müşteri bulunamadı</p>
-                      <p className="text-sm mt-1">Filtrelerinizi değiştirmeyi deneyin</p>
-                    </td>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Müşteri
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      İletişim
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Adres
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Öncelik
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Zaman Penceresi
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Etiketler
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      İşlemler
+                    </th>
                   </tr>
-                ) : (
-                  filteredCustomers.map((customer) => (
-                    <tr key={customer.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center">
-                          <div className="p-2 bg-blue-100 rounded-lg mr-3">
-                            <MapPin className="w-5 h-5 text-blue-600" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{customer.name}</p>
-                            <p className="text-xs text-gray-500">{customer.code}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Phone className="w-4 h-4 mr-1" />
-                            {customer.phone}
-                          </div>
-                          {customer.email && (
-                            <div className="flex items-center text-sm text-gray-600">
-                              <Mail className="w-4 h-4 mr-1" />
-                              {customer.email}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm text-gray-900">{customer.address}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(customer.priority)}`}>
-                          {customer.priority === 'high' && <Star className="w-3 h-3 mr-1" />}
-                          {getPriorityLabel(customer.priority)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        {customer.timeWindow ? (
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Clock className="w-4 h-4 mr-1" />
-                            {customer.timeWindow.start} - {customer.timeWindow.end}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        {customer.tags && customer.tags.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {customer.tags.map(tag => (
-                              <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="relative">
-                          <button
-                            onClick={() => setDropdownOpen(dropdownOpen === customer.id ? null : customer.id)}
-                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                          >
-                            <MoreVertical className="w-5 h-5 text-gray-600" />
-                          </button>
-                          
-                          {dropdownOpen === customer.id && (
-                            <>
-                              <div 
-                                className="fixed inset-0 z-10" 
-                                onClick={() => setDropdownOpen(null)}
-                              />
-                              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-1 z-20">
-                                <Link
-                                  to={`/customers/${customer.id}`}
-                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
-                                  onClick={() => setDropdownOpen(null)}
-                                >
-                                  <Eye className="w-4 h-4 mr-2" />
-                                  Görüntüle
-                                </Link>
-                                <Link
-                                  to={`/customers/${customer.id}/edit`}
-                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
-                                  onClick={() => setDropdownOpen(null)}
-                                >
-                                  <Edit className="w-4 h-4 mr-2" />
-                                  Düzenle
-                                </Link>
-                                <hr className="my-1" />
-                                <button
-                                  onClick={() => {
-                                    handleDelete(customer.id);
-                                    setDropdownOpen(null);
-                                  }}
-                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-red-600 w-full text-left"
-                                >
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                  Sil
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredCustomers.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                        <MapPin className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                        <p>Müşteri bulunamadı</p>
+                        <p className="text-sm mt-1">Filtrelerinizi değiştirmeyi deneyin</p>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    filteredCustomers.map((customer, index) => (
+                      <tr key={customer.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center">
+                            <div className="p-2 bg-blue-100 rounded-lg mr-3">
+                              <MapPin className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{customer.name}</p>
+                              <p className="text-xs text-gray-500">{customer.code}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center text-sm text-gray-600">
+                              <Phone className="w-4 h-4 mr-1" />
+                              {customer.phone}
+                            </div>
+                            {customer.email && (
+                              <div className="flex items-center text-sm text-gray-600">
+                                <Mail className="w-4 h-4 mr-1" />
+                                {customer.email}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm text-gray-900">{customer.address}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(customer.priority)}`}>
+                            {customer.priority === 'high' && <Star className="w-3 h-3 mr-1" />}
+                            {getPriorityLabel(customer.priority)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {customer.timeWindow ? (
+                            <div className="flex items-center text-sm text-gray-600">
+                              <Clock className="w-4 h-4 mr-1" />
+                              {customer.timeWindow.start} - {customer.timeWindow.end}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          {customer.tags && customer.tags.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {customer.tags.map(tag => (
+                                <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="relative">
+                            <button
+                              onClick={() => setDropdownOpen(dropdownOpen === customer.id ? null : customer.id)}
+                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                              <MoreVertical className="w-5 h-5 text-gray-600" />
+                            </button>
+                            
+                            {dropdownOpen === customer.id && (
+                              <>
+                                <div 
+                                  className="fixed inset-0 z-10" 
+                                  onClick={() => setDropdownOpen(null)}
+                                />
+                                {/* ✅ DÜZELTME: Dinamik pozisyon */}
+                                <div className={`absolute right-0 w-48 bg-white rounded-lg shadow-lg border py-1 z-20 ${getDropdownPosition(index, filteredCustomers.length)}`}>
+                                  <Link
+                                    to={`/customers/${customer.id}`}
+                                    className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
+                                    onClick={() => setDropdownOpen(null)}
+                                  >
+                                    <Eye className="w-4 h-4 mr-2" />
+                                    Görüntüle
+                                  </Link>
+                                  <Link
+                                    to={`/customers/${customer.id}/edit`}
+                                    className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
+                                    onClick={() => setDropdownOpen(null)}
+                                  >
+                                    <Edit className="w-4 h-4 mr-2" />
+                                    Düzenle
+                                  </Link>
+                                  <hr className="my-1" />
+                                  <button
+                                    onClick={() => {
+                                      handleDelete(customer.id);
+                                      setDropdownOpen(null);
+                                    }}
+                                    className="flex items-center px-4 py-2 hover:bg-gray-50 text-red-600 w-full text-left"
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Sil
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       ) : (

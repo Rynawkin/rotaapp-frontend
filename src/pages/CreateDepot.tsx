@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Building2 } from 'lucide-react';
 import DepotForm from '@/components/depots/DepotForm';
-import { depotService } from '@/services/mockData';
+import { depotService } from '@/services/depot.service';
 import { Depot } from '@/types';
 
 const CreateDepot: React.FC = () => {

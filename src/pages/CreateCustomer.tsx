@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
 import CustomerForm from '@/components/customers/CustomerForm';
 import { Customer } from '@/types';
-import { customerService } from '@/services/mockData';
+import { customerService } from '@/services/customer.service';
 
 const CreateCustomer: React.FC = () => {
   const navigate = useNavigate();

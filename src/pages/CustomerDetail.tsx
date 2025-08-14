@@ -20,15 +20,18 @@ import {
   Loader2,
   FileText,
   User,
-  Plus  // ← BU SATIR EKLENDİ
+  Plus
 } from 'lucide-react';
 import { Customer } from '@/types';
-import { customerService, routeService } from '@/services/mockData';
+import { customerService } from '@/services/customer.service';
+import { journeyService } from '@/services/journey.service';
+import { routeService } from '@/services/route.service';
 
 const CustomerDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [customerJourneys, setCustomerJourneys] = useState<any[]>([]);
   const [customerRoutes, setCustomerRoutes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
@@ -43,18 +46,44 @@ const CustomerDetail: React.FC = () => {
     
     setLoading(true);
     try {
-      const [customerData, routesData] = await Promise.all([
-        customerService.getById(id),
-        routeService.getAll()
-      ]);
+      const customerId = parseInt(id);
+      
+      // Customer verilerini yükle
+      const customerData = await customerService.getById(customerId);
       
       if (customerData) {
         setCustomer(customerData);
-        // Find routes that include this customer
-        const relatedRoutes = routesData.filter(route => 
-          route.stops.some(stop => stop.customerId === id)
-        );
-        setCustomerRoutes(relatedRoutes);
+        
+        // Journeys ve Routes'u ayrı ayrı yükle
+        try {
+          // Journeys yükle
+          const journeysData = await journeyService.getAll();
+          // Bu müşteriyi içeren journey'leri filtrele
+          const relatedJourneys = journeysData.filter((journey: any) => 
+            journey.stops && journey.stops.some((stop: any) => 
+              stop.customerId === customerId || stop.customerId === id
+            )
+          );
+          setCustomerJourneys(relatedJourneys);
+        } catch (error) {
+          console.error('Error loading journeys:', error);
+          setCustomerJourneys([]);
+        }
+
+        try {
+          // Routes yükle
+          const routesData = await routeService.getAll();
+          // Bu müşteriyi içeren route'ları filtrele
+          const relatedRoutes = routesData.filter((route: any) => 
+            route.stops && route.stops.some((stop: any) => 
+              stop.customerId === customerId || stop.customerId === id
+            )
+          );
+          setCustomerRoutes(relatedRoutes);
+        } catch (error) {
+          console.error('Error loading routes:', error);
+          setCustomerRoutes([]);
+        }
       }
     } catch (error) {
       console.error('Error loading customer:', error);
@@ -64,12 +93,12 @@ const CustomerDetail: React.FC = () => {
   };
 
   const handleDelete = async () => {
-    if (!id) return;
+    if (!id || !customer) return;
     if (!window.confirm('Bu müşteriyi silmek istediğinizden emin misiniz?')) return;
 
     setDeleting(true);
     try {
-      await customerService.delete(id);
+      await customerService.delete(customer.id);
       navigate('/customers');
     } catch (error) {
       console.error('Error deleting customer:', error);
@@ -116,7 +145,7 @@ const CustomerDetail: React.FC = () => {
     }
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string) => {
     return new Date(date).toLocaleDateString('tr-TR', {
       day: 'numeric',
       month: 'long',
@@ -149,6 +178,9 @@ const CustomerDetail: React.FC = () => {
     );
   }
 
+  // Tüm route ve journey'leri birleştir
+  const allRouteData = [...customerJourneys, ...customerRoutes];
+  
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
@@ -213,8 +245,10 @@ const CustomerDetail: React.FC = () => {
                 <div>
                   <p className="text-sm text-gray-600">Toplam Teslimat</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {customerRoutes.reduce((sum, route) => 
-                      sum + route.stops.filter((s: any) => s.customerId === id && s.status === 'completed').length, 0
+                    {allRouteData.reduce((sum, route) => 
+                      sum + (route.stops?.filter((s: any) => 
+                        (s.customerId === customer.id || s.customerId === id) && s.status === 'completed'
+                      ).length || 0), 0
                     )}
                   </p>
                 </div>
@@ -226,7 +260,7 @@ const CustomerDetail: React.FC = () => {
                 <div>
                   <p className="text-sm text-gray-600">Aktif Rota</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {customerRoutes.filter(r => r.status === 'in_progress').length}
+                    {customerJourneys.filter(j => j.status === 'in_progress').length}
                   </p>
                 </div>
                 <Navigation className="w-8 h-8 text-green-600 opacity-20" />
@@ -237,7 +271,7 @@ const CustomerDetail: React.FC = () => {
                 <div>
                   <p className="text-sm text-gray-600">Planlı Rota</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {customerRoutes.filter(r => r.status === 'planned').length}
+                    {customerRoutes.filter(r => r.status === 'planned' || !r.status).length}
                   </p>
                 </div>
                 <Calendar className="w-8 h-8 text-purple-600 opacity-20" />
@@ -336,28 +370,36 @@ const CustomerDetail: React.FC = () => {
             <div className="p-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900 flex items-center">
                 <Navigation className="w-5 h-5 mr-2" />
-                Son Rotalar
+                Son Rotalar ve Seferler
               </h2>
             </div>
             <div className="divide-y divide-gray-200">
-              {customerRoutes.length === 0 ? (
+              {allRouteData.length === 0 ? (
                 <div className="p-6 text-center text-gray-500">
                   <Navigation className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                  <p>Henüz rota bulunmuyor</p>
+                  <p>Henüz rota veya sefer bulunmuyor</p>
                 </div>
               ) : (
-                customerRoutes.slice(0, 5).map(route => (
+                allRouteData.slice(0, 5).map((route, index) => (
                   <Link
-                    key={route.id}
-                    to={`/routes/${route.id}`}
+                    key={`route-${route.id}-${index}`}
+                    to={customerJourneys.includes(route) ? `/journeys/${route.id}` : `/routes/${route.id}`}
                     className="block p-4 hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-medium text-gray-900">{route.name}</p>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {formatDate(route.date)} • {route.totalDeliveries} durak
+                        <p className="font-medium text-gray-900">
+                          {route.name || route.routeName || `Rota #${route.id}`}
                         </p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {route.date ? formatDate(route.date) : 'Tarih belirtilmemiş'} • {route.stops?.length || 0} durak
+                        </p>
+                        {customerJourneys.includes(route) && (
+                          <span className="text-xs text-purple-600 mt-1">Sefer</span>
+                        )}
+                        {customerRoutes.includes(route) && (
+                          <span className="text-xs text-blue-600 mt-1">Rota</span>
+                        )}
                       </div>
                       <div className="flex items-center">
                         {route.status === 'completed' && (
@@ -366,7 +408,7 @@ const CustomerDetail: React.FC = () => {
                         {route.status === 'in_progress' && (
                           <span className="text-blue-600 text-sm">Devam Ediyor</span>
                         )}
-                        {route.status === 'planned' && (
+                        {(route.status === 'planned' || !route.status) && (
                           <span className="text-gray-600 text-sm">Planlandı</span>
                         )}
                         <ArrowLeft className="w-4 h-4 ml-2 text-gray-400 rotate-180" />
@@ -389,9 +431,9 @@ const CustomerDetail: React.FC = () => {
                 Etiketler
               </h3>
               <div className="flex flex-wrap gap-2">
-                {customer.tags.map(tag => (
+                {customer.tags.map((tag, tagIndex) => (
                   <span
-                    key={tag}
+                    key={`tag-${tag}-${tagIndex}`}
                     className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-700"
                   >
                     <Tag className="w-3 h-3 mr-1" />

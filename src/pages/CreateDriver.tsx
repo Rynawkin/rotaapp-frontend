@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, User } from 'lucide-react';
 import DriverForm from '@/components/drivers/DriverForm';
-import { driverService } from '@/services/mockData';
+import { driverService } from '@/services/driver.service';
 import { Driver } from '@/types';
 
 const CreateDriver: React.FC = () => {

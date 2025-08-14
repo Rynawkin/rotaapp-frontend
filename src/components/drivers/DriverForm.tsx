@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User,
   Phone,
@@ -14,7 +14,8 @@ import {
   UserX,
   Shield
 } from 'lucide-react';
-import { Driver } from '@/types';
+import { Driver, Vehicle } from '@/types';
+import { vehicleService } from '@/services/vehicle.service';
 
 interface DriverFormProps {
   initialData?: Driver;
@@ -41,8 +42,31 @@ const DriverForm: React.FC<DriverFormProps> = ({
     totalDeliveries: initialData?.totalDeliveries || 0
   });
 
+  // ✅ YENİ: Araçlar state'i
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehiclesLoading, setVehiclesLoading] = useState(false);
+
   // Validation state
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // ✅ YENİ: Araçları yükle
+  useEffect(() => {
+    loadVehicles();
+  }, []);
+
+  const loadVehicles = async () => {
+    try {
+      setVehiclesLoading(true);
+      const data = await vehicleService.getAll();
+      setVehicles(data);
+    } catch (error) {
+      console.error('Error loading vehicles:', error);
+      // Hata durumunda boş liste kullan
+      setVehicles([]);
+    } finally {
+      setVehiclesLoading(false);
+    }
+  };
 
   // Validate form
   const validateForm = () => {
@@ -82,7 +106,14 @@ const DriverForm: React.FC<DriverFormProps> = ({
       return;
     }
 
-    onSubmit(formData);
+    // Boş string'leri null/undefined'a çevir
+    const submitData = {
+      ...formData,
+      email: formData.email?.trim() || undefined,
+      vehicleId: formData.vehicleId?.trim() || undefined
+    };
+
+    onSubmit(submitData);
   };
 
   // Get status color
@@ -267,7 +298,7 @@ const DriverForm: React.FC<DriverFormProps> = ({
             </p>
           </div>
 
-          {/* Vehicle Assignment */}
+          {/* Vehicle Assignment - ✅ GÜNCELLEME */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Atanmış Araç
@@ -276,14 +307,21 @@ const DriverForm: React.FC<DriverFormProps> = ({
               value={formData.vehicleId || ''}
               onChange={(e) => setFormData({ ...formData, vehicleId: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={vehiclesLoading}
             >
-              <option value="">Araç seçin (Opsiyonel)</option>
-              <option value="1">34 ABC 123 - Ford Transit</option>
-              <option value="2">34 DEF 456 - Fiat Doblo</option>
-              <option value="3">34 GHI 789 - Mercedes Sprinter</option>
+              <option value="">
+                {vehiclesLoading ? 'Araçlar yükleniyor...' : 'Araç seçin (Opsiyonel)'}
+              </option>
+              {vehicles.map((vehicle) => (
+                <option key={vehicle.id} value={vehicle.id}>
+                  {vehicle.plate} - {vehicle.brand} {vehicle.model}
+                </option>
+              ))}
             </select>
             <p className="text-xs text-gray-500 mt-1">
-              Bu sürücüye varsayılan olarak atanacak araç
+              {vehicles.length === 0 && !vehiclesLoading 
+                ? 'Henüz araç eklenmemiş. Önce araç ekleyin.'
+                : 'Bu sürücüye varsayılan olarak atanacak araç'}
             </p>
           </div>
         </div>

@@ -20,7 +20,8 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { Driver, Route as RouteType, Vehicle } from '@/types';
-import { driverService, routeService, vehicleService } from '@/services/mockData';
+import { driverService } from '@/services/driver.service';
+import { routeService, vehicleService } from '@/services/mockData'; // Bunlar daha sonra değişecek
 
 const DriverDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();

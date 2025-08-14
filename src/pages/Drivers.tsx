@@ -25,7 +25,7 @@ import {
   CreditCard
 } from 'lucide-react';
 import { Driver } from '@/types';
-import { driverService } from '@/services/mockData';
+import { driverService } from '@/services/driver.service';
 
 const Drivers: React.FC = () => {
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -68,34 +68,31 @@ const Drivers: React.FC = () => {
   // Delete driver
   const handleDelete = async (id: string) => {
     if (window.confirm('Bu sürücüyü silmek istediğinizden emin misiniz?')) {
-      await driverService.delete(id);
-      loadDrivers();
+      try {
+        await driverService.delete(id);
+        loadDrivers();
+      } catch (error) {
+        console.error('Delete failed:', error);
+        alert('Sürücü silinirken bir hata oluştu!');
+      }
     }
   };
 
   // Update driver status
   const handleStatusChange = async (id: string, status: 'available' | 'busy' | 'offline') => {
-    await driverService.updateStatus(id, status);
-    loadDrivers();
+    try {
+      await driverService.updateStatus(id, status);
+      loadDrivers();
+    } catch (error) {
+      console.error('Status update failed:', error);
+      alert('Durum güncellenirken bir hata oluştu!');
+    }
   };
 
   // Export drivers to CSV
   const handleExport = () => {
-    const csvContent = [
-      ['ID', 'Ad Soyad', 'Telefon', 'Email', 'Ehliyet No', 'Durum', 'Puan', 'Toplam Teslimat', 'Kayıt Tarihi'],
-      ...filteredDrivers.map(driver => [
-        driver.id,
-        driver.name,
-        driver.phone,
-        driver.email || '',
-        driver.licenseNumber,
-        driver.status,
-        driver.rating || 0,
-        driver.totalDeliveries || 0,
-        new Date(driver.createdAt).toLocaleDateString('tr-TR')
-      ])
-    ].map(row => row.join(',')).join('\n');
-
+    const csvContent = driverService.exportToCsv(filteredDrivers);
+    
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -120,33 +117,45 @@ const Drivers: React.FC = () => {
       const reader = new FileReader();
       reader.onload = async (event) => {
         const csv = event.target?.result as string;
-        const lines = csv.split('\n');
-        const headers = lines[0].split(',');
+        const driversToImport = driverService.parseCsvForImport(csv);
         
-        // Skip header row and process data
-        for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(',');
-          if (values.length > 1) {
-            await driverService.create({
-              name: values[1]?.trim(),
-              phone: values[2]?.trim(),
-              email: values[3]?.trim() || undefined,
-              licenseNumber: values[4]?.trim(),
-              status: 'available',
-              rating: parseFloat(values[6]) || 0,
-              totalDeliveries: parseInt(values[7]) || 0
-            });
+        if (driversToImport.length > 0) {
+          try {
+            const result = await driverService.bulkImport(driversToImport);
+            
+            if (result.successCount > 0) {
+              loadDrivers(); // Refresh the list
+              alert(`${result.successCount} sürücü başarıyla eklendi.${result.failureCount > 0 ? ` ${result.failureCount} başarısız.` : ''}`);
+            }
+            
+            if (result.errors.length > 0) {
+              console.error('Import errors:', result.errors);
+              // Optionally show errors to user
+              if (result.failureCount > 0) {
+                const errorMessage = result.errors.slice(0, 5).join('\n');
+                alert(`Bazı kayıtlar eklenemedi:\n${errorMessage}`);
+              }
+            }
+          } catch (error) {
+            console.error('Import failed:', error);
+            alert('İçe aktarma sırasında bir hata oluştu!');
           }
+        } else {
+          alert('CSV dosyasında geçerli sürücü verisi bulunamadı!');
         }
-        
-        loadDrivers();
-        alert('Sürücüler başarıyla içe aktarıldı!');
       };
       
       reader.readAsText(file);
     };
     
     input.click();
+  };
+
+  // ✅ YENİ: Dropdown pozisyonunu hesapla
+  const getDropdownPosition = (index: number, totalItems: number) => {
+    // Son 2 satırda veya tek kayıt varsa yukarı aç
+    const shouldOpenUpward = totalItems <= 2 || index >= totalItems - 2;
+    return shouldOpenUpward ? 'bottom-full mb-2' : 'top-full mt-2';
   };
 
   // Get status color
@@ -360,163 +369,167 @@ const Drivers: React.FC = () => {
       {/* Table View */}
       {viewMode === 'table' ? (
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Sürücü
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    İletişim
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ehliyet No
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Durum
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Performans
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Kayıt Tarihi
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    İşlemler
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredDrivers.length === 0 ? (
+          {/* ✅ DÜZELTME: min-height eklendi */}
+          <div className="relative" style={{ minHeight: '200px' }}>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                      <User className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                      <p>Sürücü bulunamadı</p>
-                      <p className="text-sm mt-1">Filtrelerinizi değiştirmeyi deneyin</p>
-                    </td>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Sürücü
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      İletişim
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Ehliyet No
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Durum
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Performans
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Kayıt Tarihi
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      İşlemler
+                    </th>
                   </tr>
-                ) : (
-                  filteredDrivers.map((driver) => (
-                    <tr key={driver.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center">
-                          <div className="p-2 bg-blue-100 rounded-lg mr-3">
-                            <User className="w-5 h-5 text-blue-600" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{driver.name}</p>
-                            <p className="text-xs text-gray-500">ID: #{driver.id}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Phone className="w-4 h-4 mr-1" />
-                            {driver.phone}
-                          </div>
-                          {driver.email && (
-                            <div className="flex items-center text-sm text-gray-600">
-                              <Mail className="w-4 h-4 mr-1" />
-                              {driver.email}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center text-sm text-gray-600">
-                          <CreditCard className="w-4 h-4 mr-1" />
-                          {driver.licenseNumber}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(driver.status)}`}>
-                            {getStatusIcon(driver.status)}
-                            {getStatusLabel(driver.status)}
-                          </span>
-                          <select
-                            value={driver.status}
-                            onChange={(e) => handleStatusChange(driver.id, e.target.value as any)}
-                            className="text-xs border border-gray-200 rounded px-2 py-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <option value="available">Müsait</option>
-                            <option value="busy">Meşgul</option>
-                            <option value="offline">Çevrimdışı</option>
-                          </select>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center text-sm">
-                            <Star className="w-4 h-4 text-yellow-500 mr-1" />
-                            <span className="font-medium">{driver.rating || 0}</span>
-                            <span className="text-gray-500 ml-1">/ 5.0</span>
-                          </div>
-                          <div className="flex items-center text-xs text-gray-500">
-                            <Package className="w-3 h-3 mr-1" />
-                            {driver.totalDeliveries || 0} teslimat
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm text-gray-600">{formatDate(driver.createdAt)}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="relative">
-                          <button
-                            onClick={() => setDropdownOpen(dropdownOpen === driver.id ? null : driver.id)}
-                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                          >
-                            <MoreVertical className="w-5 h-5 text-gray-600" />
-                          </button>
-                          
-                          {dropdownOpen === driver.id && (
-                            <>
-                              <div 
-                                className="fixed inset-0 z-10" 
-                                onClick={() => setDropdownOpen(null)}
-                              />
-                              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-1 z-20">
-                                <Link
-                                  to={`/drivers/${driver.id}`}
-                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
-                                  onClick={() => setDropdownOpen(null)}
-                                >
-                                  <Eye className="w-4 h-4 mr-2" />
-                                  Görüntüle
-                                </Link>
-                                <Link
-                                  to={`/drivers/${driver.id}/edit`}
-                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
-                                  onClick={() => setDropdownOpen(null)}
-                                >
-                                  <Edit className="w-4 h-4 mr-2" />
-                                  Düzenle
-                                </Link>
-                                <hr className="my-1" />
-                                <button
-                                  onClick={() => {
-                                    handleDelete(driver.id);
-                                    setDropdownOpen(null);
-                                  }}
-                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-red-600 w-full text-left"
-                                >
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                  Sil
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredDrivers.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                        <User className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                        <p>Sürücü bulunamadı</p>
+                        <p className="text-sm mt-1">Filtrelerinizi değiştirmeyi deneyin</p>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    filteredDrivers.map((driver, index) => (
+                      <tr key={driver.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center">
+                            <div className="p-2 bg-blue-100 rounded-lg mr-3">
+                              <User className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{driver.name}</p>
+                              <p className="text-xs text-gray-500">ID: #{driver.id}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center text-sm text-gray-600">
+                              <Phone className="w-4 h-4 mr-1" />
+                              {driver.phone}
+                            </div>
+                            {driver.email && (
+                              <div className="flex items-center text-sm text-gray-600">
+                                <Mail className="w-4 h-4 mr-1" />
+                                {driver.email}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center text-sm text-gray-600">
+                            <CreditCard className="w-4 h-4 mr-1" />
+                            {driver.licenseNumber}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-2">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(driver.status)}`}>
+                              {getStatusIcon(driver.status)}
+                              {getStatusLabel(driver.status)}
+                            </span>
+                            <select
+                              value={driver.status}
+                              onChange={(e) => handleStatusChange(driver.id, e.target.value as any)}
+                              className="text-xs border border-gray-200 rounded px-2 py-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <option value="available">Müsait</option>
+                              <option value="busy">Meşgul</option>
+                              <option value="offline">Çevrimdışı</option>
+                            </select>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center text-sm">
+                              <Star className="w-4 h-4 text-yellow-500 mr-1" />
+                              <span className="font-medium">{driver.rating || 0}</span>
+                              <span className="text-gray-500 ml-1">/ 5.0</span>
+                            </div>
+                            <div className="flex items-center text-xs text-gray-500">
+                              <Package className="w-3 h-3 mr-1" />
+                              {driver.totalDeliveries || 0} teslimat
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm text-gray-600">{formatDate(driver.createdAt)}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="relative">
+                            <button
+                              onClick={() => setDropdownOpen(dropdownOpen === driver.id ? null : driver.id)}
+                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                              <MoreVertical className="w-5 h-5 text-gray-600" />
+                            </button>
+                            
+                            {dropdownOpen === driver.id && (
+                              <>
+                                <div 
+                                  className="fixed inset-0 z-10" 
+                                  onClick={() => setDropdownOpen(null)}
+                                />
+                                {/* ✅ DÜZELTME: Dinamik pozisyon */}
+                                <div className={`absolute right-0 w-48 bg-white rounded-lg shadow-lg border py-1 z-20 ${getDropdownPosition(index, filteredDrivers.length)}`}>
+                                  <Link
+                                    to={`/drivers/${driver.id}`}
+                                    className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
+                                    onClick={() => setDropdownOpen(null)}
+                                  >
+                                    <Eye className="w-4 h-4 mr-2" />
+                                    Görüntüle
+                                  </Link>
+                                  <Link
+                                    to={`/drivers/${driver.id}/edit`}
+                                    className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
+                                    onClick={() => setDropdownOpen(null)}
+                                  >
+                                    <Edit className="w-4 h-4 mr-2" />
+                                    Düzenle
+                                  </Link>
+                                  <hr className="my-1" />
+                                  <button
+                                    onClick={() => {
+                                      handleDelete(driver.id);
+                                      setDropdownOpen(null);
+                                    }}
+                                    className="flex items-center px-4 py-2 hover:bg-gray-50 text-red-600 w-full text-left"
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Sil
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       ) : (

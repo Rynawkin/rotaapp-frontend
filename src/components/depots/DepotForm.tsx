@@ -15,7 +15,8 @@ import { Depot } from '@/types';
 import MapComponent from '@/components/maps/MapComponent';
 import { useJsApiLoader, Autocomplete } from '@react-google-maps/api';
 
-const libraries: ("places" | "drawing" | "geometry")[] = ['places'];
+// TÜM UYGULAMADA AYNI libraries KULLAN
+const libraries: ("places" | "drawing" | "geometry")[] = ['places', 'geometry'];
 
 interface DepotFormProps {
   depot?: Depot;
@@ -50,10 +51,11 @@ const DepotForm: React.FC<DepotFormProps> = ({ depot, onSubmit, onCancel }) => {
   const [useGoogleSearch, setUseGoogleSearch] = useState(true);
   const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
   
-  // Google Maps API
+  // Google Maps API - TÜM UYGULAMADA AYNI ID VE LIBRARIES KULLAN
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: libraries,
+    id: 'google-map-script' // MapComponent ile aynı ID
   });
 
   const [formData, setFormData] = useState<Partial<Depot>>({

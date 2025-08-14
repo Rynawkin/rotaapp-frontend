@@ -34,11 +34,14 @@ import MapComponent from '@/components/maps/MapComponent';
 import LeafletMapComponent from '@/components/maps/LeafletMapComponent';
 import { Route, RouteStop, Customer } from '@/types';
 import { LatLng, MarkerData } from '@/types/maps';
-import { routeService, customerService, journeyService } from '@/services/mockData';
+// ✅ DÜZELTME: mockData yerine gerçek service'leri import et
+import { routeService } from '@/services/route.service';
+import { customerService } from '@/services/customer.service';
+import { journeyService } from '@/services/journey.service';
 import { googleMapsService } from '@/services/googleMapsService';
 
-// Google Maps libraries
-const libraries: ("places" | "drawing" | "geometry")[] = ['places'];
+// Google Maps libraries - TÜM COMPONENT'LERDE AYNI OLMALI
+const libraries: ("places" | "drawing" | "geometry")[] = ['places', 'geometry'];
 
 // Dakikayı saat ve dakika formatına çevir
 const formatDuration = (totalMinutes: number): string => {
@@ -66,11 +69,11 @@ const RouteDetail: React.FC = () => {
   const [mapMarkers, setMapMarkers] = useState<MarkerData[]>([]);
   const [copySuccess, setCopySuccess] = useState(false);
 
-  // Google Maps Loader Hook
+  // Google Maps Loader Hook - TÜM COMPONENT'LERDE AYNI ID KULLANILMALI
   const { isLoaded: isGoogleMapsLoaded, loadError: googleMapsLoadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
     libraries: libraries,
-    id: 'google-map-script'
+    id: 'google-map-script' // TÜM COMPONENT'LERDE AYNI ID
   });
 
   useEffect(() => {

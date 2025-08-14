@@ -7,30 +7,16 @@ import {
   Clock,
   Star,
   Check,
-  Building,
-  Store
+  UserPlus,
+  Package
 } from 'lucide-react';
 import { Customer } from '@/types';
-import { googleMapsService } from '@/services/googleMapsService';
+import { Link } from 'react-router-dom';
 
 interface CustomerSelectorProps {
   customers: Customer[];
   selectedCustomers: Customer[];
   onSelect: (customer: Customer) => void;
-}
-
-interface GooglePlace {
-  place_id: string;
-  name: string;
-  formatted_address: string;
-  geometry: {
-    location: {
-      lat: () => number;
-      lng: () => number;
-    };
-  };
-  formatted_phone_number?: string;
-  types?: string[];
 }
 
 const CustomerSelector: React.FC<CustomerSelectorProps> = ({
@@ -40,33 +26,17 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
-  const [googlePlaces, setGooglePlaces] = useState<GooglePlace[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.AutocompleteService | null>(null);
-  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
 
-  // Initialize Google Places Autocomplete Service
-  useEffect(() => {
-    if (window.google && window.google.maps && window.google.maps.places) {
-      autocompleteRef.current = new google.maps.places.AutocompleteService();
-      
-      // Create a dummy div for PlacesService
-      const dummyDiv = document.createElement('div');
-      placesServiceRef.current = new google.maps.places.PlacesService(dummyDiv);
-    }
-  }, []);
-
-  // Search both Google Places and local customers
+  // Search local customers only
   useEffect(() => {
     const searchTimer = setTimeout(() => {
       if (searchQuery.trim()) {
         performSearch(searchQuery);
       } else {
         setFilteredCustomers([]);
-        setGooglePlaces([]);
         setIsDropdownOpen(false);
       }
     }, 300); // Debounce for 300ms
@@ -74,93 +44,30 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
     return () => clearTimeout(searchTimer);
   }, [searchQuery, customers]);
 
-  const performSearch = async (query: string) => {
-    setIsSearching(true);
-    
-    // Search local customers
+  const performSearch = (query: string) => {
+    // Search local customers only
     const lowerQuery = query.toLowerCase();
-    const filtered = customers.filter(customer => 
-      customer.name.toLowerCase().includes(lowerQuery) ||
-      customer.code.toLowerCase().includes(lowerQuery) ||
-      customer.address.toLowerCase().includes(lowerQuery) ||
-      customer.phone.includes(query)
-    );
-    setFilteredCustomers(filtered);
-    
-    // Search Google Places
-    if (autocompleteRef.current) {
-      try {
-        const request = {
-          input: query,
-          componentRestrictions: { country: 'tr' }, // Turkey only
-          types: ['establishment'], // Business places
-          bounds: new google.maps.LatLngBounds(
-            new google.maps.LatLng(40.8, 28.6), // SW Istanbul
-            new google.maps.LatLng(41.3, 29.5)  // NE Istanbul
-          )
-        };
-
-        autocompleteRef.current.getPlacePredictions(request, (predictions, status) => {
-          if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
-            // Get details for each prediction
-            const placePromises = predictions.slice(0, 5).map(prediction => {
-              return new Promise<GooglePlace | null>((resolve) => {
-                if (placesServiceRef.current) {
-                  placesServiceRef.current.getDetails(
-                    { placeId: prediction.place_id },
-                    (place, status) => {
-                      if (status === google.maps.places.PlacesServiceStatus.OK && place) {
-                        resolve({
-                          place_id: place.place_id || prediction.place_id,
-                          name: place.name || prediction.structured_formatting.main_text,
-                          formatted_address: place.formatted_address || prediction.description,
-                          geometry: place.geometry!,
-                          formatted_phone_number: place.formatted_phone_number,
-                          types: place.types
-                        });
-                      } else {
-                        // Fallback to basic prediction info
-                        resolve({
-                          place_id: prediction.place_id,
-                          name: prediction.structured_formatting.main_text,
-                          formatted_address: prediction.description,
-                          geometry: {
-                            location: {
-                              lat: () => 40.9869, // Default Istanbul coordinates
-                              lng: () => 29.0252
-                            }
-                          }
-                        });
-                      }
-                    }
-                  );
-                } else {
-                  resolve(null);
-                }
-              });
-            });
-
-            Promise.all(placePromises).then(places => {
-              setGooglePlaces(places.filter(p => p !== null) as GooglePlace[]);
-              setIsSearching(false);
-              setIsDropdownOpen(true);
-            });
-          } else {
-            setGooglePlaces([]);
-            setIsSearching(false);
-            setIsDropdownOpen(true);
-          }
-        });
-      } catch (error) {
-        console.error('Google Places search error:', error);
-        setGooglePlaces([]);
-        setIsSearching(false);
-        setIsDropdownOpen(true);
+    const filtered = customers.filter(customer => {
+      // Sadece numeric ID'li (veritabanındaki) müşterileri göster
+      if (typeof customer.id === 'string' && customer.id.startsWith('google-')) {
+        return false;
       }
-    } else {
-      setIsSearching(false);
-      setIsDropdownOpen(true);
-    }
+      
+      // Zaten seçili olanları gösterme
+      if (isSelected(customer.id.toString())) {
+        return false;
+      }
+      
+      return (
+        customer.name.toLowerCase().includes(lowerQuery) ||
+        customer.code?.toLowerCase().includes(lowerQuery) ||
+        customer.address.toLowerCase().includes(lowerQuery) ||
+        customer.phone?.includes(query)
+      );
+    });
+    
+    setFilteredCustomers(filtered);
+    setIsDropdownOpen(filtered.length > 0 || query.trim() !== '');
   };
 
   // Close dropdown when clicking outside
@@ -176,38 +83,19 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
   }, []);
 
   const handleSelectCustomer = (customer: Customer) => {
+    // ID kontrolü - sadece numeric ID'li müşterileri ekle
+    if (typeof customer.id === 'string' && customer.id.startsWith('google-')) {
+      alert('⚠️ Bu müşteri henüz veritabanına kaydedilmemiş. Lütfen önce Müşteriler sayfasından ekleyin.');
+      return;
+    }
+    
     onSelect(customer);
     setSearchQuery('');
     setIsDropdownOpen(false);
   };
 
-  const handleSelectGooglePlace = (place: GooglePlace) => {
-    // Create a new customer from Google Place
-    const newCustomer: Customer = {
-      id: `google-${place.place_id}`,
-      code: `GOOGLE-${Date.now()}`,
-      name: place.name,
-      address: place.formatted_address,
-      phone: place.formatted_phone_number || '',
-      latitude: place.geometry.location.lat(),
-      longitude: place.geometry.location.lng(),
-      priority: 'normal',
-      tags: ['google-place'],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    
-    onSelect(newCustomer);
-    setSearchQuery('');
-    setIsDropdownOpen(false);
-  };
-
   const isSelected = (customerId: string) => {
-    return selectedCustomers.some(c => c.id === customerId);
-  };
-
-  const isGooglePlaceSelected = (placeId: string) => {
-    return selectedCustomers.some(c => c.id === `google-${placeId}`);
+    return selectedCustomers.some(c => c.id.toString() === customerId);
   };
 
   const getPriorityColor = (priority: string) => {
@@ -236,116 +124,57 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
     }
   };
 
+  // Kayıtlı müşteri sayısı (Google Places hariç)
+  const validCustomersCount = customers.filter(c => 
+    typeof c.id === 'number' || (typeof c.id === 'string' && !c.id.startsWith('google-'))
+  ).length;
+
   return (
     <div className="relative" ref={dropdownRef}>
-      {/* Search Input */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-        <input
-          ref={searchInputRef}
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onFocus={() => searchQuery && setIsDropdownOpen(true)}
-          placeholder="İşletme veya müşteri ara..."
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        {isSearching && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-          </div>
-        )}
+      {/* Search Input with Add Customer Button */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => searchQuery && setIsDropdownOpen(true)}
+            placeholder="Kayıtlı müşteri ara (isim, kod, adres veya telefon)..."
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {validCustomersCount > 0 && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+              {validCustomersCount} müşteri
+            </span>
+          )}
+        </div>
+        
+        <Link
+          to="/customers/new"
+          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center whitespace-nowrap"
+        >
+          <UserPlus className="w-4 h-4 mr-2" />
+          Yeni Müşteri
+        </Link>
       </div>
 
       {/* Dropdown Results */}
-      {isDropdownOpen && (googlePlaces.length > 0 || filteredCustomers.length > 0) && (
+      {isDropdownOpen && (
         <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-[500px] overflow-y-auto">
           
-          {/* Google Places Results */}
-          {googlePlaces.length > 0 && (
-            <>
-              <div className="px-4 py-2 bg-blue-50 border-b border-blue-100">
-                <h3 className="text-sm font-semibold text-blue-900 flex items-center">
-                  <Building className="w-4 h-4 mr-2" />
-                  Google Maps Sonuçları
-                </h3>
-              </div>
-              {googlePlaces.map((place) => {
-                const selected = isGooglePlaceSelected(place.place_id);
-                
-                return (
-                  <div
-                    key={place.place_id}
-                    onClick={() => !selected && handleSelectGooglePlace(place)}
-                    className={`p-4 hover:bg-gray-50 border-b border-gray-100 transition-colors ${
-                      selected ? 'bg-gray-50 cursor-not-allowed' : 'cursor-pointer'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center mb-1">
-                          <Store className="w-4 h-4 text-blue-600 mr-2" />
-                          <h3 className="font-medium text-gray-900">
-                            {place.name}
-                          </h3>
-                          {selected && (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              <Check className="w-3 h-3 mr-1" />
-                              Eklendi
-                            </span>
-                          )}
-                        </div>
-                        
-                        <div className="flex items-start text-sm text-gray-600 mb-1">
-                          <MapPin className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" />
-                          <span>{place.formatted_address}</span>
-                        </div>
-                        
-                        {place.formatted_phone_number && (
-                          <div className="flex items-center text-sm text-gray-500">
-                            <Phone className="w-4 h-4 mr-1" />
-                            <span>{place.formatted_phone_number}</span>
-                          </div>
-                        )}
-                        
-                        <div className="mt-2">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
-                            Google Maps
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {!selected && (
-                        <button
-                          type="button"
-                          className="ml-3 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </>
-          )}
-
-          {/* Divider between Google and Local results */}
-          {googlePlaces.length > 0 && filteredCustomers.length > 0 && (
-            <div className="border-t-2 border-gray-200"></div>
-          )}
-
           {/* Local Customer Results */}
-          {filteredCustomers.length > 0 && (
+          {filteredCustomers.length > 0 ? (
             <>
               <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
                 <h3 className="text-sm font-semibold text-gray-700 flex items-center">
                   <Star className="w-4 h-4 mr-2" />
-                  Kayıtlı Müşteriler
+                  Kayıtlı Müşteriler ({filteredCustomers.length})
                 </h3>
               </div>
               {filteredCustomers.map(customer => {
-                const selected = isSelected(customer.id);
+                const selected = isSelected(customer.id.toString());
                 
                 return (
                   <div
@@ -361,9 +190,11 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
                           <h3 className="font-medium text-gray-900">
                             {customer.name}
                           </h3>
-                          <span className="ml-2 text-xs text-gray-500">
-                            ({customer.code})
-                          </span>
+                          {customer.code && (
+                            <span className="ml-2 text-xs text-gray-500">
+                              ({customer.code})
+                            </span>
+                          )}
                           {selected && (
                             <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                               <Check className="w-3 h-3 mr-1" />
@@ -378,10 +209,12 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
                         </div>
 
                         <div className="flex items-center space-x-4 text-sm">
-                          <div className="flex items-center text-gray-500">
-                            <Phone className="w-4 h-4 mr-1" />
-                            <span>{customer.phone}</span>
-                          </div>
+                          {customer.phone && (
+                            <div className="flex items-center text-gray-500">
+                              <Phone className="w-4 h-4 mr-1" />
+                              <span>{customer.phone}</span>
+                            </div>
+                          )}
                           
                           {customer.timeWindow && (
                             <div className="flex items-center text-gray-500">
@@ -389,6 +222,13 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
                               <span>
                                 {customer.timeWindow.start} - {customer.timeWindow.end}
                               </span>
+                            </div>
+                          )}
+                          
+                          {customer.estimatedServiceTime && (
+                            <div className="flex items-center text-gray-500">
+                              <Clock className="w-4 h-4 mr-1" />
+                              <span>{customer.estimatedServiceTime} dk</span>
                             </div>
                           )}
                         </div>
@@ -429,16 +269,53 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
                 );
               })}
             </>
+          ) : (
+            // No Results or Empty State
+            <div className="p-6 text-center">
+              {searchQuery ? (
+                <>
+                  <Package className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-600 mb-2">
+                    "{searchQuery}" için sonuç bulunamadı
+                  </p>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Müşteri henüz kayıtlı değilse önce eklemeniz gerekiyor
+                  </p>
+                  <Link
+                    to="/customers/new"
+                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Yeni Müşteri Ekle
+                  </Link>
+                </>
+              ) : validCustomersCount === 0 ? (
+                <>
+                  <Package className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-600 mb-2">
+                    Henüz kayıtlı müşteri yok
+                  </p>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Rota oluşturmak için önce müşteri eklemeniz gerekiyor
+                  </p>
+                  <Link
+                    to="/customers"
+                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Müşteri Ekle
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Search className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-600">
+                    Müşteri aramak için yazmaya başlayın
+                  </p>
+                </>
+              )}
+            </div>
           )}
-        </div>
-      )}
-
-      {/* No Results */}
-      {isDropdownOpen && searchQuery && !isSearching && googlePlaces.length === 0 && filteredCustomers.length === 0 && (
-        <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4">
-          <p className="text-center text-gray-500">
-            Sonuç bulunamadı
-          </p>
         </div>
       )}
     </div>

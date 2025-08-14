@@ -18,7 +18,8 @@ import {
 import { Customer } from '@/types';
 import { useJsApiLoader, Autocomplete } from '@react-google-maps/api';
 
-const libraries: ("places" | "drawing" | "geometry")[] = ['places'];
+// TÜM COMPONENT'LERDE AYNI LIBRARIES KULLANILMALI
+const libraries: ("places" | "drawing" | "geometry")[] = ['places', 'geometry'];
 
 interface CustomerFormProps {
   initialData?: Customer;
@@ -33,10 +34,11 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
   loading = false,
   isEdit = false
 }) => {
-  // Google Maps API
+  // Google Maps API - TÜM COMPONENT'LERDE AYNI ID KULLANILMALI
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: libraries,
+    id: 'google-map-script' // AYNI ID - script-loader DEĞİL!
   });
 
   const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);

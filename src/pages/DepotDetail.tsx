@@ -18,7 +18,10 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Depot } from '@/types';
-import { depotService, routeService, driverService, vehicleService } from '@/services/mockData';
+import { depotService } from '@/services/depot.service';
+import { routeService } from '@/services/mockData'; // Route service henüz entegre edilmedi
+import { driverService } from '@/services/driver.service';
+import { vehicleService } from '@/services/vehicle.service';
 import MapComponent from '@/components/maps/MapComponent';
 import { useJsApiLoader } from '@react-google-maps/api';
 
@@ -95,7 +98,7 @@ const DepotDetail: React.FC = () => {
     
     try {
       const [routes, drivers, vehicles] = await Promise.all([
-        routeService.getAll(),
+        routeService.getAll(), // Route service henüz entegre edilmedi
         driverService.getAll(),
         vehicleService.getAll()
       ]);

@@ -1,4 +1,3 @@
-// src/pages/Journeys.tsx
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
@@ -21,7 +20,8 @@ import {
   Loader2
 } from 'lucide-react';
 import { Journey, Route } from '@/types';
-import { journeyService, routeService } from '@/services/mockData';
+import { journeyService } from '@/services/journey.service';
+import { routeService } from '@/services/route.service';
 
 const Journeys: React.FC = () => {
   const [journeys, setJourneys] = useState<Journey[]>([]);
@@ -35,10 +35,10 @@ const Journeys: React.FC = () => {
 
   useEffect(() => {
     loadData();
-    // Her 5 saniyede bir aktif seferleri güncelle
+    // Her 10 saniyede bir aktif seferleri güncelle
     const interval = setInterval(() => {
       loadJourneys();
-    }, 5000);
+    }, 10000);
     
     return () => clearInterval(interval);
   }, []);
@@ -56,48 +56,71 @@ const Journeys: React.FC = () => {
   };
 
   const loadJourneys = async () => {
-    const data = await journeyService.getAll();
-    setJourneys(data);
+    try {
+      const data = await journeyService.getAll();
+      setJourneys(data);
+    } catch (error) {
+      console.error('Error loading journeys:', error);
+    }
   };
 
   const loadAvailableRoutes = async () => {
-    const routes = await routeService.getAll();
-    // Sadece planned veya draft durumundaki rotaları göster
-    const available = routes.filter(r => 
-      (r.status === 'planned' || r.status === 'draft') && 
-      r.driverId && 
-      r.vehicleId
-    );
-    setAvailableRoutes(available);
+    try {
+      const routes = await routeService.getAll();
+      // Sadece planned veya draft durumundaki rotaları göster
+      const available = routes.filter(r => 
+        (r.status === 'planned' || r.status === 'draft') && 
+        r.driverId && 
+        r.vehicleId
+      );
+      setAvailableRoutes(available);
+    } catch (error) {
+      console.error('Error loading routes:', error);
+    }
   };
 
   const handleStartJourney = async (route: Route) => {
     try {
-      await journeyService.startFromRoute(route.id);
+      const journey = await journeyService.startFromRoute(route.id);
       await loadData();
       setShowStartModal(false);
       setSelectedRoute(null);
       // Journey detay sayfasına yönlendir
-      navigate(`/journeys/${route.id}`);
+      navigate(`/journeys/${journey.id}`);
     } catch (error: any) {
       alert(error.message || 'Sefer başlatılamadı');
     }
   };
 
   const handlePauseJourney = async (journeyId: string) => {
-    await journeyService.updateStatus(journeyId, 'preparing');
-    loadJourneys();
+    try {
+      await journeyService.updateStatus(journeyId, 'preparing');
+      await loadJourneys();
+    } catch (error) {
+      console.error('Error pausing journey:', error);
+      alert('Sefer duraklatılamadı');
+    }
   };
 
   const handleResumeJourney = async (journeyId: string) => {
-    await journeyService.updateStatus(journeyId, 'in_progress');
-    loadJourneys();
+    try {
+      await journeyService.updateStatus(journeyId, 'in_progress');
+      await loadJourneys();
+    } catch (error) {
+      console.error('Error resuming journey:', error);
+      alert('Sefer devam ettirilemedi');
+    }
   };
 
   const handleCancelJourney = async (journeyId: string) => {
     if (window.confirm('Bu seferi iptal etmek istediğinizden emin misiniz?')) {
-      await journeyService.updateStatus(journeyId, 'cancelled');
-      loadData();
+      try {
+        await journeyService.cancel(journeyId);
+        await loadData();
+      } catch (error) {
+        console.error('Error cancelling journey:', error);
+        alert('Sefer iptal edilemedi');
+      }
     }
   };
 
@@ -161,7 +184,7 @@ const Journeys: React.FC = () => {
   const calculateProgress = (journey: Journey) => {
     const completed = journey.route.stops.filter(s => s.status === 'completed').length;
     const total = journey.route.stops.length;
-    return (completed / total) * 100;
+    return total > 0 ? (completed / total) * 100 : 0;
   };
 
   const filteredJourneys = journeys.filter(journey => {
@@ -487,7 +510,7 @@ const Journeys: React.FC = () => {
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="font-medium">{route.name}</h3>
                       <span className="text-xs text-gray-500">
-                        {route.stops.length} durak
+                        {route.stops?.length || 0} durak
                       </span>
                     </div>
                     <div className="text-sm text-gray-600 space-y-1">
