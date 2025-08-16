@@ -1,21 +1,50 @@
 import { api } from './api';
 import { Journey, Route, JourneyStatus } from '@/types';
 
+// Backend'deki JourneyStatusType enum'u
+export enum JourneyStatusType {
+  InTransit = 200,     // Yolda
+  Arrived = 300,       // Varış yapıldı
+  Processing = 400,    // İşlem yapılıyor
+  Completed = 500,     // İşlem tamamlandı
+  Delayed = 600,       // Gecikme var
+  Cancelled = 700,     // İptal edildi (Başarısız durak için)
+  OnHold = 800        // Bekletiliyor
+}
+
 export interface AssignRouteDto {
   routeId: number;
   driverId: number;
 }
 
+// ✅ GÜNCELLENDİ - Yeni field'lar eklendi
 export interface AddJourneyStatusDto {
-  status: string;
+  stopId: number;
+  status: JourneyStatusType;
   notes?: string;
-  latitude: number;
-  longitude: number;
+  failureReason?: string;      // ✅ YENİ
+  signatureBase64?: string;     // ✅ YENİ
+  photoBase64?: string;         // ✅ YENİ
+  latitude?: number;
+  longitude?: number;
   additionalValues?: Record<string, string>;
 }
 
+// ✅ YENİ - Complete stop için özel DTO
+export interface CompleteStopDto {
+  notes?: string;
+  signatureBase64?: string;
+  photoBase64?: string;
+}
+
+// ✅ YENİ - Fail stop için özel DTO
+export interface FailStopDto {
+  failureReason: string;
+  notes?: string;
+}
+
 class JourneyService {
-  private baseUrl = '/workspace/journeys';  // DÜZELTME: /api/ kaldırıldı
+  private baseUrl = '/workspace/journeys';
 
   async getAll(from?: Date, to?: Date): Promise<Journey[]> {
     try {
@@ -24,6 +53,7 @@ class JourneyService {
       if (to) params.to = to.toISOString();
       
       const response = await api.get(this.baseUrl, { params });
+      console.log('Journeys loaded:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error fetching journeys:', error);
@@ -34,6 +64,7 @@ class JourneyService {
   async getById(id: string | number): Promise<Journey> {
     try {
       const response = await api.get(`${this.baseUrl}/${id}`);
+      console.log('Journey loaded:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error fetching journey:', error);
@@ -43,9 +74,8 @@ class JourneyService {
 
   async getByRouteId(routeId: string | number): Promise<Journey | null> {
     try {
-      // Get all journeys and find the one with matching routeId
       const journeys = await this.getAll();
-      return journeys.find(j => j.routeId === routeId) || null;
+      return journeys.find(j => j.routeId === Number(routeId)) || null;
     } catch (error) {
       console.error('Error fetching journey by route:', error);
       return null;
@@ -62,11 +92,13 @@ class JourneyService {
     }
   }
 
-  // Start journey from route (assign route to driver and create journey)
+  // Start journey from route
   async startFromRoute(routeId: string | number, driverId?: number): Promise<Journey> {
     try {
-      // First, get the route to check if it has driver assigned
-      const route = await api.get(`/workspace/journeys/routes/${routeId}`);  // DÜZELTME
+      console.log('Starting journey from route:', routeId, 'with driver:', driverId);
+      
+      const route = await api.get(`/workspace/routes/${routeId}`);
+      console.log('Route data:', route.data);
       
       if (!route.data.driverId && !driverId) {
         throw new Error('Sefer başlatmak için sürücü atamanız gerekiyor');
@@ -81,14 +113,17 @@ class JourneyService {
         driverId: Number(driverId || route.data.driverId)
       };
 
-      const response = await api.post(`${this.baseUrl}/assignment`, assignDto);
+      console.log('Assigning route:', assignDto);
+      const assignResponse = await api.post(`${this.baseUrl}/assignment`, assignDto);
+      console.log('Journey created:', assignResponse.data);
       
-      // Start the journey immediately after assignment
-      if (response.data && response.data.id) {
-        await this.start(response.data.id);
+      if (assignResponse.data && assignResponse.data.id) {
+        console.log('Starting journey:', assignResponse.data.id);
+        const startResponse = await this.start(assignResponse.data.id);
+        return startResponse;
       }
       
-      return response.data;
+      return assignResponse.data;
     } catch (error: any) {
       console.error('Error starting journey from route:', error);
       throw new Error(error.response?.data?.message || error.message || 'Sefer başlatılamadı');
@@ -98,10 +133,15 @@ class JourneyService {
   // Start an existing journey
   async start(journeyId: string | number): Promise<Journey> {
     try {
+      console.log('Starting journey:', journeyId);
       const response = await api.post(`${this.baseUrl}/${journeyId}/start`);
+      console.log('Journey started:', response.data);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error starting journey:', error);
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      }
       throw error;
     }
   }
@@ -109,10 +149,15 @@ class JourneyService {
   // Finish journey
   async finish(journeyId: string | number): Promise<Journey> {
     try {
+      console.log('Finishing journey:', journeyId);
       const response = await api.post(`${this.baseUrl}/${journeyId}/finish`);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error finishing journey:', error);
+      // ✅ Hata mesajını kullanıcıya göster
+      if (error.response?.data?.message) {
+        throw error; // Hata mesajını koruyarak fırlat
+      }
       throw error;
     }
   }
@@ -120,6 +165,7 @@ class JourneyService {
   // Cancel journey
   async cancel(journeyId: string | number): Promise<Journey> {
     try {
+      console.log('Cancelling journey:', journeyId);
       const response = await api.post(`${this.baseUrl}/${journeyId}/cancel`);
       return response.data;
     } catch (error) {
@@ -128,41 +174,130 @@ class JourneyService {
     }
   }
 
-  // Update journey status (for driver app)
-  async updateStatus(journeyId: string | number, status: 'preparing' | 'in_progress' | 'completed' | 'cancelled'): Promise<Journey> {
+  // Check-in to a stop
+  async checkInStop(journeyId: string | number, stopId: string | number): Promise<JourneyStatus> {
     try {
-      // This would be a custom endpoint depending on your backend
-      // For now, we'll use start/finish/cancel methods
-      switch (status) {
-        case 'in_progress':
-          return await this.start(journeyId);
-        case 'completed':
-          return await this.finish(journeyId);
-        case 'cancelled':
-          return await this.cancel(journeyId);
-        default:
-          throw new Error('Invalid status');
-      }
-    } catch (error) {
-      console.error('Error updating journey status:', error);
+      console.log('Checking in stop:', journeyId, stopId);
+      const statusData: AddJourneyStatusDto = {
+        stopId: Number(stopId),
+        status: JourneyStatusType.Arrived, // 300
+        notes: 'Durağa varıldı',
+        latitude: 0,  // Gerçek koordinatlar alınabilir
+        longitude: 0
+      };
+      
+      const response = await api.post(
+        `${this.baseUrl}/${journeyId}/status`,
+        statusData
+      );
+      console.log('Check-in response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error checking in stop:', error);
+      console.error('Error response:', error.response?.data);
       throw error;
     }
   }
 
-  // Add status for a stop
+  // ✅ GÜNCELLENDİ - Complete a stop delivery with signature and photo
+  async completeStop(
+    journeyId: string | number, 
+    stopId: string | number, 
+    data?: CompleteStopDto
+  ): Promise<JourneyStatus> {
+    try {
+      console.log('Completing stop:', journeyId, stopId, data);
+      
+      // ✅ Base64 string'lerden data URL prefix'ini temizle
+      const cleanBase64 = (base64String?: string) => {
+        if (!base64String) return undefined;
+        // "data:image/png;base64," veya "data:image/jpeg;base64," kısmını kaldır
+        const base64Prefix = /^data:image\/[a-z]+;base64,/;
+        return base64String.replace(base64Prefix, '');
+      };
+      
+      const statusData: AddJourneyStatusDto = {
+        stopId: Number(stopId),
+        status: JourneyStatusType.Completed, // 500
+        notes: data?.notes || 'Teslimat tamamlandı',
+        signatureBase64: cleanBase64(data?.signatureBase64),  // ✅ Temizlenmiş imza
+        photoBase64: cleanBase64(data?.photoBase64),          // ✅ Temizlenmiş fotoğraf
+        latitude: 0,
+        longitude: 0
+      };
+      
+      const response = await api.post(
+        `${this.baseUrl}/${journeyId}/status`,
+        statusData
+      );
+      console.log('Complete stop response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error completing stop:', error);
+      console.error('Error response:', error.response?.data);
+      throw error;
+    }
+  }
+
+  // ✅ GÜNCELLENDİ - Mark stop as failed with reason and notes
+  async failStop(
+    journeyId: string | number, 
+    stopId: string | number, 
+    reason: string,
+    notes?: string
+  ): Promise<JourneyStatus> {
+    try {
+      console.log('Failing stop:', journeyId, stopId, reason, notes);
+      const statusData: AddJourneyStatusDto = {
+        stopId: Number(stopId),
+        status: JourneyStatusType.Cancelled, // 700
+        failureReason: reason,                // ✅ Başarısızlık nedeni
+        notes: notes,                         // ✅ Ek notlar
+        latitude: 0,
+        longitude: 0
+      };
+      
+      const response = await api.post(
+        `${this.baseUrl}/${journeyId}/status`,
+        statusData
+      );
+      console.log('Fail stop response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error failing stop:', error);
+      console.error('Error response:', error.response?.data);
+      throw error;
+    }
+  }
+
+  // ✅ GÜNCELLENDİ - Add status for a stop (generic)
   async addStopStatus(
     journeyId: string | number, 
     stopId: string | number, 
-    statusData: AddJourneyStatusDto
+    statusData: Partial<AddJourneyStatusDto>
   ): Promise<JourneyStatus> {
     try {
+      const fullStatusData: AddJourneyStatusDto = {
+        stopId: Number(stopId),
+        status: statusData.status || JourneyStatusType.InTransit,
+        notes: statusData.notes,
+        failureReason: statusData.failureReason,
+        signatureBase64: statusData.signatureBase64,
+        photoBase64: statusData.photoBase64,
+        latitude: statusData.latitude || 0,
+        longitude: statusData.longitude || 0,
+        additionalValues: statusData.additionalValues
+      };
+      
+      console.log('Adding stop status:', journeyId, fullStatusData);
       const response = await api.post(
-        `${this.baseUrl}/${journeyId}/status/${stopId}`,
-        statusData
+        `${this.baseUrl}/${journeyId}/status`,
+        fullStatusData
       );
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding stop status:', error);
+      console.error('Error response:', error.response?.data);
       throw error;
     }
   }
@@ -170,12 +305,20 @@ class JourneyService {
   // Optimize journey route
   async optimizeRoute(journeyId: string | number): Promise<Journey> {
     try {
+      console.log('Optimizing journey:', journeyId);
       const response = await api.post(`${this.baseUrl}/${journeyId}/optimize`);
       return response.data;
     } catch (error) {
       console.error('Error optimizing journey:', error);
       throw error;
     }
+  }
+
+  // Simulate movement for testing (only for development)
+  async simulateMovement(journeyId: string | number): Promise<void> {
+    console.warn('simulateMovement is a mock function for testing only');
+    // Backend'de bu fonksiyon yok, sadece development için
+    // SignalR entegrasyonu yapıldığında gerçek konum güncellemeleri alınacak
   }
 }
 

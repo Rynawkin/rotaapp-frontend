@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Calendar,
   Clock,
@@ -24,8 +24,8 @@ import { customerService } from '@/services/customer.service';
 import { driverService } from '@/services/driver.service';
 import { vehicleService } from '@/services/vehicle.service';
 import { depotService } from '@/services/depot.service';
+import { routeService } from '@/services/route.service';
 import { googleMapsService } from '@/services/googleMapsService';
-import { simpleOptimizationService } from '@/services/simpleOptimizationService';
 
 // Stop data interface for managing customer overrides
 interface StopData {
@@ -40,6 +40,7 @@ interface RouteFormProps {
   initialData?: Route;
   onSubmit: (data: Partial<Route>) => void;
   onSaveAsDraft?: (data: Partial<Route>) => void;
+  onFormChange?: (data: Partial<Route>) => void;
   loading?: boolean;
   isEdit?: boolean;
 }
@@ -57,24 +58,51 @@ const formatDuration = (totalMinutes: number): string => {
   return `${hours} saat ${minutes} dakika`;
 };
 
+const STORAGE_KEY = 'createRouteFormData';
+
 const RouteForm: React.FC<RouteFormProps> = ({
   initialData,
   onSubmit,
   onSaveAsDraft,
+  onFormChange,
   loading = false,
   isEdit = false
 }) => {
-  // Form State - ID'leri string olarak sakla
+  // localStorage'dan veri yükle (sadece create mode'da)
+  const loadSavedData = useCallback(() => {
+    if (!isEdit && !initialData) {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          console.log('Loading saved form data from localStorage:', parsed);
+          // Date string'ini Date objesine çevir
+          if (parsed.date) {
+            parsed.date = new Date(parsed.date);
+          }
+          return parsed;
+        }
+      } catch (error) {
+        console.error('Error loading saved form data:', error);
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+    return null;
+  }, [isEdit, initialData]);
+
+  // Form State - localStorage'dan veya initialData'dan yükle
+  const savedData = loadSavedData();
   const [formData, setFormData] = useState<Partial<Route>>({
-    name: initialData?.name || '',
-    date: initialData?.date || new Date(),
-    driverId: initialData?.driverId || '',
-    vehicleId: initialData?.vehicleId || '',
-    depotId: initialData?.depotId || '',
-    notes: initialData?.notes || '',
-    stops: initialData?.stops || [],
-    totalDuration: initialData?.totalDuration || 0,
-    totalDistance: initialData?.totalDistance || 0
+    name: savedData?.name || initialData?.name || '',
+    date: savedData?.date || initialData?.date || new Date(),
+    driverId: savedData?.driverId || initialData?.driverId || '',
+    vehicleId: savedData?.vehicleId || initialData?.vehicleId || '',
+    depotId: savedData?.depotId || initialData?.depotId || '',
+    notes: savedData?.notes || initialData?.notes || '',
+    stops: savedData?.stops || initialData?.stops || [],
+    totalDuration: savedData?.totalDuration || initialData?.totalDuration || 0,
+    totalDistance: savedData?.totalDistance || initialData?.totalDistance || 0,
+    optimized: savedData?.optimized || initialData?.optimized || false
   });
 
   // Lists State
@@ -84,8 +112,19 @@ const RouteForm: React.FC<RouteFormProps> = ({
   const [depots, setDepots] = useState<Depot[]>([]);
   const [loadingLists, setLoadingLists] = useState(true);
 
-  // Stops with override data
-  const [stopsData, setStopsData] = useState<StopData[]>([]);
+  // Stops with override data - localStorage'dan yükle
+  const [stopsData, setStopsData] = useState<StopData[]>(() => {
+    if (savedData?.stops && savedData.stops.length > 0) {
+      return savedData.stops.map((stop: any) => ({
+        customer: stop.customer,
+        overrideTimeWindow: stop.overrideTimeWindow,
+        overridePriority: stop.overridePriority,
+        serviceTime: stop.serviceTime,
+        stopNotes: stop.stopNotes
+      }));
+    }
+    return [];
+  });
   
   // Flag to track if initial stops have been loaded
   const initialStopsLoadedRef = useRef(false);
@@ -95,7 +134,43 @@ const RouteForm: React.FC<RouteFormProps> = ({
   const [mapDirections, setMapDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [optimizing, setOptimizing] = useState(false);
   const [optimizationMode, setOptimizationMode] = useState<'distance' | 'duration'>('distance');
-  const [optimizedOrder, setOptimizedOrder] = useState<number[]>([]);
+  const [optimizedOrder, setOptimizedOrder] = useState<number[]>(() => {
+    return savedData?.optimized && savedData?.stops ? 
+      savedData.stops.map((_: any, index: number) => index) : [];
+  });
+
+  // Form değişikliklerini localStorage'a kaydet (sadece create mode'da)
+  const saveToLocalStorage = useCallback((data: Partial<Route>) => {
+    if (!isEdit) {
+      try {
+        const toSave = {
+          ...data,
+          stops: stopsData.map((stop, index) => ({
+            ...stop,
+            order: index + 1,
+            customerId: stop.customer.id,
+            customer: stop.customer
+          }))
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+        console.log('Form data saved to localStorage');
+      } catch (error) {
+        console.error('Error saving to localStorage:', error);
+      }
+    }
+  }, [isEdit, stopsData]);
+
+  // Form değişikliklerinde hem state'i güncelle hem de localStorage'a kaydet
+  const updateFormData = useCallback((updates: Partial<Route>) => {
+    setFormData(prev => {
+      const newData = { ...prev, ...updates };
+      saveToLocalStorage(newData);
+      if (onFormChange) {
+        onFormChange(newData);
+      }
+      return newData;
+    });
+  }, [saveToLocalStorage, onFormChange]);
 
   // Load lists on mount
   useEffect(() => {
@@ -148,6 +223,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
       // Eğer rota optimize edilmişse, optimized order'ı da ayarla
       if (initialData.optimized) {
         setOptimizedOrder(initialStops.map((_, index) => index));
+        updateFormData({ optimized: true });
       }
     }
   }, [initialData, customers]); // customers dependency'si kalıyor ama ref kontrolü ile
@@ -159,6 +235,13 @@ const RouteForm: React.FC<RouteFormProps> = ({
       return () => clearTimeout(timer);
     }
   }, [stopsData]);
+
+  // StopsData değiştiğinde localStorage'a kaydet
+  useEffect(() => {
+    if (stopsData.length > 0 || formData.name || formData.driverId || formData.vehicleId) {
+      saveToLocalStorage(formData);
+    }
+  }, [stopsData, formData, saveToLocalStorage]);
 
   const loadLists = async () => {
     setLoadingLists(true);
@@ -187,7 +270,31 @@ const RouteForm: React.FC<RouteFormProps> = ({
         
         // Set default depot if not set - string olarak ayarla
         if (!formData.depotId) {
-          setFormData(prev => ({ ...prev, depotId: defaultDepot.id.toString() }));
+          updateFormData({ depotId: defaultDepot.id.toString() });
+        }
+      }
+
+      // localStorage'dan yüklenen stops'ları customer objeleriyle güncelle
+      if (savedData?.stops && savedData.stops.length > 0 && !initialStopsLoadedRef.current) {
+        const savedStops: StopData[] = savedData.stops
+          .map((stop: any) => {
+            const customer = validCustomers.find(c => c.id.toString() === stop.customerId?.toString());
+            if (customer) {
+              return {
+                customer,
+                overrideTimeWindow: stop.overrideTimeWindow,
+                overridePriority: stop.overridePriority,
+                serviceTime: stop.serviceTime || customer.estimatedServiceTime || 10,
+                stopNotes: stop.stopNotes
+              };
+            }
+            return null;
+          })
+          .filter(Boolean) as StopData[];
+        
+        if (savedStops.length > 0) {
+          setStopsData(savedStops);
+          console.log('Restored stops from localStorage:', savedStops.length);
         }
       }
     } catch (error) {
@@ -205,17 +312,22 @@ const RouteForm: React.FC<RouteFormProps> = ({
     }
     
     if (!stopsData.find(s => s.customer.id === customer.id)) {
-      setStopsData([...stopsData, { 
+      const newStopsData = [...stopsData, { 
         customer,
         serviceTime: customer.estimatedServiceTime || 10
-      }]);
+      }];
+      setStopsData(newStopsData);
+      // StopsData güncellendiğinde localStorage'a kaydet
+      saveToLocalStorage(formData);
     }
   };
 
   const handleRemoveCustomer = (customerId: string | number) => {
-    setStopsData(stopsData.filter(s => s.customer.id.toString() !== customerId.toString()));
+    const newStopsData = stopsData.filter(s => s.customer.id.toString() !== customerId.toString());
+    setStopsData(newStopsData);
     setOptimizedOrder([]);
-    if (stopsData.length <= 2) {
+    updateFormData({ optimized: false });
+    if (newStopsData.length <= 1) {
       setMapDirections(null);
     }
   };
@@ -224,6 +336,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
     setStopsData(reorderedStops);
     setOptimizedOrder([]);
     setMapDirections(null);
+    updateFormData({ optimized: false });
   };
 
   const handleUpdateStop = (index: number, updates: Partial<StopData>) => {
@@ -264,17 +377,16 @@ const RouteForm: React.FC<RouteFormProps> = ({
         
         // Eğer initialData'da totalDistance ve totalDuration varsa onları kullan
         if (initialData?.totalDistance && initialData?.totalDuration) {
-          setFormData(prev => ({
-            ...prev,
+          updateFormData({
             totalDistance: initialData.totalDistance,
             totalDuration: initialData.totalDuration
-          }));
+          });
         }
       }
     }
   };
 
-  // GERÇEK OPTİMİZASYON FONKSİYONU
+  // GERÇEK OPTİMİZASYON FONKSİYONU - BACKEND KULLANIMI
   const handleOptimize = async () => {
     if (stopsData.length < 2) {
       alert('Optimizasyon için en az 2 durak gerekli!');
@@ -288,96 +400,228 @@ const RouteForm: React.FC<RouteFormProps> = ({
       return;
     }
 
+    // Form validasyonu
+    if (!formData.name) {
+      alert('Lütfen rota adı girin!');
+      return;
+    }
+
     setOptimizing(true);
     
     try {
-      const depotLocation = {
-        lat: selectedDepot.latitude,
-        lng: selectedDepot.longitude
-      };
-
-      if (window.google && window.google.maps) {
-        googleMapsService.initializeServices();
-        
-        const waypoints = stopsData.map(stop => 
-          googleMapsService.customerToWaypoint(stop.customer, {
-            timeWindow: stop.overrideTimeWindow,
-            priority: stop.overridePriority,
-            serviceTime: stop.serviceTime
-          })
-        );
-
-        const result = await googleMapsService.optimizeRoute(
-          depotLocation,
-          waypoints,
-          optimizationMode
-        );
-
-        if (result) {
-          setOptimizedOrder(result.optimizedOrder);
-          
-          const optimizedStops = result.optimizedOrder.map(index => stopsData[index]);
-          setStopsData(optimizedStops);
-          
-          if (result.route) {
-            setMapDirections(result.route);
-          }
-
-          // totalDuration ve totalDistance'ı güncelle
-          setFormData(prev => ({
-            ...prev,
-            totalDuration: result.totalDuration,
-            totalDistance: result.totalDistance
-          }));
-
-          // Formatlanmış süre ile mesaj göster
-          alert(`✅ Rota optimize edildi!\n\n` +
-                `📍 Toplam Mesafe: ${result.totalDistance.toFixed(1)} km\n` +
-                `⏱️ Tahmini Süre: ${formatDuration(result.totalDuration)}\n` +
-                `🗺️ Google Maps ile optimize edildi\n` +
-                `${optimizationMode === 'distance' ? '🎯 En kısa mesafe' : '⚡ En hızlı rota'}`);
-        }
-      } else {
-        const customersToOptimize = stopsData.map(stop => ({
-          ...stop.customer,
-          priority: stop.overridePriority || stop.customer.priority,
-          timeWindow: stop.overrideTimeWindow || stop.customer.timeWindow,
-          estimatedServiceTime: stop.serviceTime || stop.customer.estimatedServiceTime || 10
+      // Önce rotayı oluştur/kaydet
+      let routeId = initialData?.id;
+      
+      // ✅ Debug log - optimize öncesi durum
+      console.log('=== OPTIMIZE START (Frontend) ===');
+      console.log('Current stopsData before optimize:');
+      stopsData.forEach((stop, index) => {
+        console.log(`  ${index + 1}. ${stop.customer.name} (ID: ${stop.customer.id})`);
+      });
+      
+      if (!routeId) {
+        // Yeni rota oluştur - route.service.ts'nin beklediği format (camelCase)
+        const stops = stopsData.map((stopData, index) => ({
+          customer: stopData.customer,
+          customerId: stopData.customer.id,
+          serviceTime: stopData.serviceTime || stopData.customer.estimatedServiceTime || 10,
+          stopNotes: stopData.stopNotes || '',
+          overrideTimeWindow: stopData.overrideTimeWindow,
+          overridePriority: stopData.overridePriority || stopData.customer.priority || 'normal'
         }));
 
-        const result = optimizationMode === 'distance' 
-          ? simpleOptimizationService.optimizeRoute(depotLocation, customersToOptimize, 'distance')
-          : simpleOptimizationService.optimizeWithTimeWindows(depotLocation, customersToOptimize);
-
-        if (result) {
-          setOptimizedOrder(result.optimizedOrder);
-          
-          const optimizedStops = result.optimizedOrder.map(index => stopsData[index]);
-          setStopsData(optimizedStops);
-          
-          // totalDuration ve totalDistance'ı güncelle
-          const totalDuration = 'estimatedDuration' in result ? result.estimatedDuration : calculateTotalDuration();
-          setFormData(prev => ({
-            ...prev,
-            totalDuration: totalDuration,
-            totalDistance: result.totalDistance
-          }));
-          
-          let message = `✅ Rota optimize edildi!\n\n` +
-                       `📍 Toplam Mesafe: ${result.totalDistance.toFixed(1)} km\n` +
-                       `⏱️ Tahmini Süre: ${formatDuration(totalDuration)}\n` +
-                       `${optimizationMode === 'distance' ? '🎯 En kısa mesafe' : '⚡ En hızlı rota'}`;
-          
-          if ('violations' in result && result.violations.length > 0) {
-            message += `\n\n⚠️ Zaman Penceresi Uyarıları:\n${result.violations.join('\n')}`;
-          }
-          
-          alert(message);
-        }
+        // Backend için route data hazırla - camelCase kullan
+        const createRouteData: Partial<Route> = {
+          name: formData.name,
+          date: formData.date,
+          depotId: formData.depotId,
+          driverId: formData.driverId,
+          vehicleId: formData.vehicleId,
+          notes: formData.notes || '',
+          stops: stops,
+          depot: selectedDepot, // Depot objesini ekle
+          optimized: false,
+          totalDistance: 0,
+          totalDuration: 0
+        };
+        
+        console.log('Creating route with data:', createRouteData);
+        
+        // Rotayı backend'e kaydet (route.service.ts halledecek)
+        const createdRoute = await routeService.create(createRouteData);
+        routeId = createdRoute.id;
+        console.log('Route created with ID:', routeId);
       }
-    } catch (error) {
+      
+      // Backend'de optimize et
+      console.log('Calling optimize for route ID:', routeId);
+      const optimizedRoute = await routeService.optimize(routeId, optimizationMode);
+      
+      if (optimizedRoute) {
+        // ✅ Debug log - optimize response
+        console.log('=== OPTIMIZE RESPONSE ===');
+        console.log('Optimized Route:', optimizedRoute);
+        console.log('Total Distance:', optimizedRoute.totalDistance);
+        console.log('Total Duration:', optimizedRoute.totalDuration);
+        console.log('Optimized:', optimizedRoute.optimized);
+        console.log('Stops count:', optimizedRoute.stops?.length);
+        
+        // Stops'ları order'a göre sıralayıp logla
+        if (optimizedRoute.stops) {
+          const sortedStops = [...optimizedRoute.stops].sort((a, b) => a.order - b.order);
+          console.log('Sorted stops by order:');
+          sortedStops.forEach((stop, index) => {
+            console.log(`  ${index + 1}. Order ${stop.order}: ${stop.customer?.name || stop.name} (CustomerId: ${stop.customerId})`);
+          });
+          
+          // ✅ YENİ: Optimize edilmiş sırayla stopsData'yı güncelle
+          const newStopsData: StopData[] = sortedStops.map(stop => {
+            // Önce optimize edilmiş stop'un customer'ını bul
+            let customer = stop.customer;
+            
+            // Eğer customer yoksa, customers listesinden bul
+            if (!customer) {
+              customer = customers.find(c => c.id.toString() === stop.customerId.toString());
+            }
+            
+            // Hala bulunamadıysa eski stopsData'dan bul
+            if (!customer) {
+              const oldStopData = stopsData.find(sd => sd.customer.id.toString() === stop.customerId.toString());
+              if (oldStopData) {
+                customer = oldStopData.customer;
+              }
+            }
+            
+            if (!customer) {
+              console.error(`Customer not found for stop with customerId: ${stop.customerId}`);
+              // Fallback - en azından temel bilgileri koru
+              customer = {
+                id: stop.customerId,
+                name: stop.name || `Müşteri ${stop.customerId}`,
+                address: stop.address || '',
+                latitude: stop.latitude || 0,
+                longitude: stop.longitude || 0,
+                phone: stop.contactPhone || '',
+                email: stop.contactEmail || '',
+                code: '',
+                priority: 'normal' as const,
+                tags: [],
+                createdAt: new Date(),
+                updatedAt: new Date()
+              };
+            }
+            
+            return {
+              customer: customer,
+              overrideTimeWindow: stop.overrideTimeWindow,
+              overridePriority: stop.overridePriority,
+              serviceTime: stop.serviceTime,
+              stopNotes: stop.stopNotes
+            };
+          });
+          
+          console.log('=== UPDATING FRONTEND STATE ===');
+          console.log('New stopsData order:');
+          newStopsData.forEach((stop, index) => {
+            console.log(`  ${index + 1}. ${stop.customer.name} (ID: ${stop.customer.id})`);
+          });
+          
+          // ✅ State'leri güncelle
+          setStopsData(newStopsData);
+          setOptimizedOrder(newStopsData.map((_, index) => index));
+          
+          // ✅ Form data'yı güncelle
+          updateFormData({
+            totalDuration: optimizedRoute.totalDuration,
+            totalDistance: optimizedRoute.totalDistance,
+            optimized: true,
+            stops: sortedStops // stops'ları da güncelle
+          });
+          
+          // ✅ Haritada rotayı güncelle
+          await updateMapRoute();
+          
+          console.log('=== OPTIMIZE COMPLETE (Frontend) ===');
+          
+          // Formatlanmış süre ile mesaj göster
+          alert(`✅ Rota optimize edildi!\n\n` +
+                `📍 Toplam Mesafe: ${optimizedRoute.totalDistance.toFixed(1)} km\n` +
+                `⏱️ Tahmini Süre: ${formatDuration(optimizedRoute.totalDuration)}\n` +
+                `🗺️ Google Maps ile optimize edildi\n` +
+                `${optimizationMode === 'distance' ? '🎯 En kısa mesafe' : '⚡ En hızlı rota'}`);
+          
+          // ✅ Eğer edit modunda değilse ve optimize başarılı olduysa
+          if (!isEdit) {
+            // localStorage'ı temizle
+            localStorage.removeItem(STORAGE_KEY);
+            
+            // Eğer initialData.id varsa (rota kaydedildiyse), detay sayfasına yönlendir
+            if (routeId) {
+              setTimeout(() => {
+                window.location.href = `/routes/${routeId}`;
+              }, 1500);
+            }
+          }
+        } else {
+          console.error('No stops in optimized route!');
+          alert('⚠️ Optimizasyon sonucu alınamadı!');
+        }
+      } else {
+        console.error('No optimized route returned!');
+        alert('⚠️ Optimizasyon başarısız!');
+      }
+    } catch (error: any) {
       console.error('Optimization error:', error);
-      alert('Optimizasyon sırasında bir hata oluştu.');
+      console.error('Error response:', error.response);
+      
+      // Google Maps API hatası için özel mesaj
+      if (error.response?.data?.message?.includes('Google Maps API')) {
+        alert('⚠️ Rota optimizasyonu başarısız!\n\n' +
+              'Google Maps rotayı optimize edemedi. Muhtemel sebepler:\n' +
+              '• Çok uzun adresler nedeniyle konum bulunamıyor\n' +
+              '• Google Maps API anahtarı eksik veya geçersiz\n' +
+              '• Seçilen konumlar arasında rota oluşturulamıyor\n\n' +
+              'Rota kaydedildi ancak optimize edilmedi.');
+        
+        // Rota oluşturuldu ama optimize edilmedi, localStorage'ı temizle
+        if (!isEdit) {
+          localStorage.removeItem(STORAGE_KEY);
+        }
+        
+        // Ana sayfaya yönlendir
+        window.location.href = '/routes';
+        return;
+      }
+      
+      // Validation hatalarını detaylı logla
+      if (error.response?.data?.errors) {
+        console.log('Validation errors:', JSON.stringify(error.response.data.errors, null, 2));
+      }
+      
+      // Genel hata mesajı
+      let errorMessage = 'Optimizasyon sırasında bir hata oluştu.';
+      
+      if (error.response?.data?.errors) {
+        const validationErrors = error.response.data.errors;
+        errorMessage += '\n\nHatalar:\n';
+        if (Array.isArray(validationErrors)) {
+          validationErrors.forEach((err: any) => {
+            if (typeof err === 'object' && err.ErrorMessage) {
+              errorMessage += `• ${err.ErrorMessage}\n`;
+            } else {
+              errorMessage += `• ${err}\n`;
+            }
+          });
+        } else {
+          errorMessage += JSON.stringify(validationErrors, null, 2);
+        }
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      alert(errorMessage);
     } finally {
       setOptimizing(false);
     }
@@ -465,7 +709,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
       totalDuration: formData.totalDuration || calculateTotalDuration(),
       totalDistance: formData.totalDistance || 0,
       status: 'planned',
-      optimized: optimizedOrder.length > 0,
+      optimized: formData.optimized || false,
       // Driver ve Vehicle bilgilerini ekle
       driver: drivers.find(d => d.id.toString() === formData.driverId?.toString()),
       vehicle: vehicles.find(v => v.id.toString() === formData.vehicleId?.toString()),
@@ -474,6 +718,15 @@ const RouteForm: React.FC<RouteFormProps> = ({
     };
 
     console.log('Submitting route with depot:', selectedDepot);
+    console.log('Route optimized status:', routeData.optimized);
+    console.log('Route totalDistance:', routeData.totalDistance);
+    console.log('Route totalDuration:', routeData.totalDuration);
+    
+    // Başarılı submit'ten sonra localStorage'ı temizle
+    if (!isEdit) {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+    
     onSubmit(routeData);
   };
 
@@ -531,12 +784,18 @@ const RouteForm: React.FC<RouteFormProps> = ({
       totalDuration: formData.totalDuration || calculateTotalDuration(),
       totalDistance: formData.totalDistance || 0,
       status: 'draft',
+      optimized: formData.optimized || false,
       // Driver ve Vehicle bilgilerini ekle
       driver: drivers.find(d => d.id.toString() === formData.driverId?.toString()),
       vehicle: vehicles.find(v => v.id.toString() === formData.vehicleId?.toString()),
       // Depot objesini ekle
       depot: selectedDepot
     };
+
+    // Başarılı submit'ten sonra localStorage'ı temizle
+    if (!isEdit) {
+      localStorage.removeItem(STORAGE_KEY);
+    }
 
     if (onSaveAsDraft) {
       onSaveAsDraft(routeData);
@@ -597,7 +856,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
             <input
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) => updateFormData({ name: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Örn: Kadıköy Sabah Turu"
               required
@@ -614,7 +873,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
               <input
                 type="date"
                 value={formData.date ? new Date(formData.date).toISOString().split('T')[0] : ''}
-                onChange={(e) => setFormData({ ...formData, date: new Date(e.target.value) })}
+                onChange={(e) => updateFormData({ date: new Date(e.target.value) })}
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
@@ -630,7 +889,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <select
                 value={formData.driverId}
-                onChange={(e) => setFormData({ ...formData, driverId: e.target.value })}
+                onChange={(e) => updateFormData({ driverId: e.target.value })}
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
                 required
               >
@@ -653,7 +912,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
               <Truck className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <select
                 value={formData.vehicleId}
-                onChange={(e) => setFormData({ ...formData, vehicleId: e.target.value })}
+                onChange={(e) => updateFormData({ vehicleId: e.target.value })}
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
                 required
               >
@@ -676,7 +935,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <select
                 value={formData.depotId}
-                onChange={(e) => setFormData({ ...formData, depotId: e.target.value })}
+                onChange={(e) => updateFormData({ depotId: e.target.value })}
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
                 required
               >
@@ -697,7 +956,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
             </label>
             <textarea
               value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              onChange={(e) => updateFormData({ notes: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               rows={3}
               placeholder="Rota ile ilgili notlarınız..."
@@ -807,7 +1066,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
                 <Navigation className="w-4 h-4 mr-2" />
                 <strong>Rota Bilgisi:</strong> 
                 <span className="ml-1">
-                  {optimizedOrder.length > 0 ? '✅ Rota optimize edildi' : 'Optimize Et butonuna basarak rotanızı optimize edebilirsiniz'}
+                  {formData.optimized ? '✅ Rota optimize edildi' : 'Optimize Et butonuna basarak rotanızı optimize edebilirsiniz'}
                 </span>
               </p>
             </div>

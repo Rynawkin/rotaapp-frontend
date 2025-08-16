@@ -73,7 +73,7 @@ const CreateRoute: React.FC = () => {
         </div>
       )}
 
-      {/* Route Form */}
+      {/* Route Form - localStorage desteği RouteForm içinde */}
       <RouteForm
         onSubmit={handleSubmit}
         onSaveAsDraft={handleSaveAsDraft}

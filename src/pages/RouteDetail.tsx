@@ -34,13 +34,13 @@ import MapComponent from '@/components/maps/MapComponent';
 import LeafletMapComponent from '@/components/maps/LeafletMapComponent';
 import { Route, RouteStop, Customer } from '@/types';
 import { LatLng, MarkerData } from '@/types/maps';
-// ✅ DÜZELTME: mockData yerine gerçek service'leri import et
 import { routeService } from '@/services/route.service';
 import { customerService } from '@/services/customer.service';
 import { journeyService } from '@/services/journey.service';
 import { googleMapsService } from '@/services/googleMapsService';
+import { depotService } from '@/services/depot.service';
 
-// Google Maps libraries - TÜM COMPONENT'LERDE AYNI OLMALI
+// Google Maps libraries
 const libraries: ("places" | "drawing" | "geometry")[] = ['places', 'geometry'];
 
 // Dakikayı saat ve dakika formatına çevir
@@ -62,18 +62,19 @@ const RouteDetail: React.FC = () => {
   const navigate = useNavigate();
   const [route, setRoute] = useState<Route | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [depot, setDepot] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [mapDirections, setMapDirections] = useState<google.maps.DirectionsResult | null>(null);
-  const [optimizing, setOptimizing] = useState(false);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [mapMarkers, setMapMarkers] = useState<MarkerData[]>([]);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [startingJourney, setStartingJourney] = useState(false);
 
-  // Google Maps Loader Hook - TÜM COMPONENT'LERDE AYNI ID KULLANILMALI
+  // Google Maps Loader Hook
   const { isLoaded: isGoogleMapsLoaded, loadError: googleMapsLoadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
     libraries: libraries,
-    id: 'google-map-script' // TÜM COMPONENT'LERDE AYNI ID
+    id: 'google-map-script'
   });
 
   useEffect(() => {
@@ -87,35 +88,51 @@ const RouteDetail: React.FC = () => {
       setMapMarkers(markers);
       
       // Google Maps yüklendiyse ve rota optimize edildiyse directions'ı yükle
-      if (isGoogleMapsLoaded && route.optimized) {
+      if (isGoogleMapsLoaded && route.optimized && depot) {
         loadRouteOnMap(route);
       }
     }
-  }, [route, customers, isGoogleMapsLoaded]);
+  }, [route, customers, depot, isGoogleMapsLoaded]);
 
   const loadData = async () => {
     if (!id) return;
     
     setLoading(true);
     try {
-      const [routeData, customersData] = await Promise.all([
-        routeService.getById(id),
-        customerService.getAll()
-      ]);
+      // Backend'den customer bilgileriyle birlikte route'u al
+      const routeData = await routeService.getById(id);
       
-      // Route stops'larına customer bilgilerini ekle
+      // Customer listesini de al (backup için)
+      const customersData = await customerService.getAll();
+      
+      // Depot bilgisini al
+      let depotData = null;
+      if (routeData.depotId) {
+        try {
+          depotData = await depotService.getById(routeData.depotId);
+        } catch (error) {
+          console.warn('Depot yüklenemedi, varsayılan kullanılacak:', error);
+        }
+      }
+      
+      // Eğer backend'den customer gelmemişse, customerId ile eşleştir
       if (routeData && routeData.stops) {
         routeData.stops = routeData.stops.map(stop => {
-          const customer = customersData.find(c => c.id === stop.customerId);
-          return {
-            ...stop,
-            customer: customer || stop.customer
-          };
+          // Eğer stop'ta customer yoksa ve customerId varsa, customersData'dan bul
+          if (!stop.customer && stop.customerId) {
+            const customer = customersData.find(c => c.id === stop.customerId);
+            return {
+              ...stop,
+              customer: customer
+            };
+          }
+          return stop;
         });
       }
       
       setRoute(routeData);
       setCustomers(customersData);
+      setDepot(depotData || routeData.depot);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -132,11 +149,13 @@ const RouteDetail: React.FC = () => {
       const customer = stop.customer || customers.find(c => c.id === stop.customerId);
       
       if (!customer) {
+        console.warn(`Customer not found for stop ${stop.order}, customerId: ${stop.customerId}`);
         return null;
       }
       
       // Koordinatları kontrol et
       if (!customer.latitude || !customer.longitude) {
+        console.warn(`No coordinates for customer ${customer.name}`);
         return null;
       }
       
@@ -162,8 +181,12 @@ const RouteDetail: React.FC = () => {
     if (!routeData.stops || routeData.stops.length === 0) return;
     if (!routeData.optimized) return;
     if (!isGoogleMapsLoaded) return;
+    if (!depot) return;
 
-    const depot = { lat: 40.9913, lng: 29.0236 };
+    const depotLocation = { 
+      lat: depot.latitude || 40.9913, 
+      lng: depot.longitude || 29.0236 
+    };
     
     const waypoints = routeData.stops.map(stop => {
       const customer = stop.customer || customers.find(c => c.id === stop.customerId);
@@ -177,9 +200,9 @@ const RouteDetail: React.FC = () => {
       googleMapsService.initializeServices();
       
       const directions = await googleMapsService.getDirections(
-        depot,
+        depotLocation,
         waypoints,
-        depot
+        depotLocation
       );
       
       if (directions) {
@@ -201,7 +224,6 @@ const RouteDetail: React.FC = () => {
     }
   };
 
-  // DÜZELTİLMİŞ KOPYALAMA FONKSİYONU
   const handleDuplicate = async () => {
     if (!route) return;
     
@@ -209,8 +231,8 @@ const RouteDetail: React.FC = () => {
       // Stop'ları temizle ve sıfırla
       const cleanStops = route.stops.map((stop, index) => ({
         ...stop,
-        id: `temp-${Date.now()}-${index}`, // Geçici ID
-        routeId: '', // Route ID boş bırak
+        id: `temp-${Date.now()}-${index}`,
+        routeId: '',
         status: 'pending' as const,
         actualArrival: undefined,
         completedAt: undefined,
@@ -222,7 +244,7 @@ const RouteDetail: React.FC = () => {
       // Yeni rota oluştur
       const newRoute: Partial<Route> = {
         name: `${route.name} (Kopya)`,
-        date: new Date(), // Bugünün tarihi
+        date: new Date(),
         driverId: route.driverId,
         vehicleId: route.vehicleId,
         depotId: route.depotId,
@@ -235,7 +257,8 @@ const RouteDetail: React.FC = () => {
         optimized: route.optimized,
         notes: route.notes ? `${route.notes} (Kopya)` : '',
         driver: route.driver,
-        vehicle: route.vehicle
+        vehicle: route.vehicle,
+        depot: depot
       };
       
       console.log('Creating duplicate route:', newRoute);
@@ -246,10 +269,7 @@ const RouteDetail: React.FC = () => {
       console.log('Created route:', created);
       
       if (created && created.id) {
-        // Kopyalama başarılı mesajı
         alert(`✅ Rota başarıyla kopyalandı!\n\nYeni rota: ${created.name}`);
-        
-        // Rotalar sayfasına git (daha güvenli)
         navigate('/routes');
       } else {
         throw new Error('Rota oluşturuldu ancak ID alınamadı');
@@ -260,7 +280,6 @@ const RouteDetail: React.FC = () => {
     }
   };
 
-  // KOPYALAMA FONKSİYONU - PAYLAŞMAK İÇİN
   const handleCopyRouteLink = () => {
     const url = window.location.href;
     navigator.clipboard.writeText(url);
@@ -284,6 +303,8 @@ const RouteDetail: React.FC = () => {
       return;
     }
     
+    setStartingJourney(true);
+    
     try {
       // Sefer başlat
       const journey = await journeyService.startFromRoute(route.id);
@@ -299,35 +320,8 @@ const RouteDetail: React.FC = () => {
     } catch (error: any) {
       console.error('Sefer başlatma hatası:', error);
       alert(`❌ Sefer başlatılamadı: ${error.message || 'Bilinmeyen bir hata oluştu'}`);
-    }
-  };
-
-  const handleOptimize = async () => {
-    if (!route || route.stops.length < 2) {
-      alert('Optimizasyon için en az 2 durak gerekli!');
-      return;
-    }
-
-    setOptimizing(true);
-    try {
-      const optimizedRoute = await routeService.optimize(route.id);
-      if (optimizedRoute) {
-        // Optimize edilmiş rotaya customer bilgilerini ekle
-        if (optimizedRoute.stops) {
-          optimizedRoute.stops = optimizedRoute.stops.map(stop => ({
-            ...stop,
-            customer: customers.find(c => c.id === stop.customerId) || stop.customer
-          }));
-        }
-        
-        setRoute(optimizedRoute);
-        alert('✅ Rota başarıyla optimize edildi!');
-      }
-    } catch (error) {
-      console.error('Optimization error:', error);
-      alert('Optimizasyon sırasında bir hata oluştu.');
     } finally {
-      setOptimizing(false);
+      setStartingJourney(false);
     }
   };
 
@@ -418,12 +412,26 @@ const RouteDetail: React.FC = () => {
   };
 
   const calculateProgress = () => {
-    if (!route) return 0;
+    if (!route || !route.totalDeliveries) return 0;
     return Math.round((route.completedDeliveries / route.totalDeliveries) * 100);
   };
 
-  const getDepotLocation = (): LatLng => {
-    return { lat: 40.9913, lng: 29.0236 };
+  const getDepotLocation = (): LatLng | undefined => {
+    if (depot) {
+      return { 
+        lat: depot.latitude, 
+        lng: depot.longitude 
+      };
+    }
+    // Eğer depot yoksa ve route'da depot bilgisi varsa onu kullan
+    if (route?.depot) {
+      return {
+        lat: route.depot.latitude,
+        lng: route.depot.longitude
+      };
+    }
+    // Hiçbiri yoksa undefined dön
+    return undefined;
   };
 
   // Harita bileşenini render eden yardımcı fonksiyon
@@ -459,6 +467,7 @@ const RouteDetail: React.FC = () => {
       }
       
       console.warn('Google Maps yüklenemedi, LeafletMapComponent kullanılıyor:', googleMapsLoadError);
+      const depotLoc = getDepotLocation();
       return (
         <div>
           <div className="mb-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
@@ -470,7 +479,7 @@ const RouteDetail: React.FC = () => {
           <LeafletMapComponent
             height="650px"
             customers={customers}
-            depot={getDepotLocation()}
+            depot={depotLoc}
             stops={route?.stops.map((stop) => ({
               customer: stop.customer || customers.find(c => c.id === stop.customerId) || {
                 id: stop.customerId,
@@ -546,7 +555,7 @@ const RouteDetail: React.FC = () => {
       {/* Copy Success Toast */}
       {copySuccess && (
         <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in z-50">
-          ✓ Kopyalandı!
+          ✔ Kopyalandı!
         </div>
       )}
 
@@ -587,10 +596,24 @@ const RouteDetail: React.FC = () => {
             {(route.status === 'draft' || route.status === 'planned') && (
               <button
                 onClick={handleStartJourney}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+                disabled={startingJourney}
+                className={`px-4 py-2 ${
+                  startingJourney 
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : 'bg-green-600 hover:bg-green-700'
+                } text-white rounded-lg transition-colors flex items-center`}
               >
-                <Play className="w-4 h-4 mr-2" />
-                Seferi Başlat
+                {startingJourney ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Sefer Başlatılıyor...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 mr-2" />
+                    Seferi Başlat
+                  </>
+                )}
               </button>
             )}
             
@@ -607,21 +630,6 @@ const RouteDetail: React.FC = () => {
               >
                 <Navigation className="w-4 h-4 mr-2" />
                 Sefere Git
-              </button>
-            )}
-            
-            {!route.optimized && route.stops.length > 1 && (
-              <button
-                onClick={handleOptimize}
-                disabled={optimizing}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 transition-colors flex items-center"
-              >
-                {optimizing ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Zap className="w-4 h-4 mr-2" />
-                )}
-                Optimize Et
               </button>
             )}
             
@@ -692,7 +700,7 @@ const RouteDetail: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Toplam Durak</p>
-              <p className="text-2xl font-bold text-gray-900">{route.totalDeliveries}</p>
+              <p className="text-2xl font-bold text-gray-900">{route.totalDeliveries || route.stops.length}</p>
             </div>
             <MapPin className="w-8 h-8 text-blue-600 opacity-20" />
           </div>
@@ -702,7 +710,7 @@ const RouteDetail: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Tamamlanan</p>
-              <p className="text-2xl font-bold text-gray-900">{route.completedDeliveries}</p>
+              <p className="text-2xl font-bold text-gray-900">{route.completedDeliveries || 0}</p>
             </div>
             <CheckCircle className="w-8 h-8 text-green-600 opacity-20" />
           </div>
@@ -769,7 +777,7 @@ const RouteDetail: React.FC = () => {
             <div className="mt-4 p-3 bg-orange-50 rounded-lg border border-orange-200">
               <p className="text-sm text-orange-700 flex items-center">
                 <AlertCircle className="w-4 h-4 mr-2" />
-                <strong>Bilgi:</strong> Rota henüz optimize edilmemiş. Optimize Et butonuna basarak rotayı optimize edebilirsiniz.
+                <strong>Bilgi:</strong> Rota henüz optimize edilmemiş. Rota oluşturma sayfasından optimize edebilirsiniz.
               </p>
             </div>
           )}
@@ -807,20 +815,20 @@ const RouteDetail: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1">
                           <h4 className="font-medium text-gray-900 truncate">
-                            {stop.customer?.name || `Müşteri ${stop.customerId}`}
+                            {stop.customer?.name || stop.name || `Müşteri ${stop.customerId}`}
                           </h4>
                           {getStopStatusBadge(stop.status)}
                         </div>
                         
                         <p className="text-xs text-gray-600 truncate mb-2">
-                          {stop.customer?.address}
+                          {stop.customer?.address || stop.address}
                         </p>
                         
                         <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                          {stop.customer?.phone && (
+                          {(stop.customer?.phone || stop.contactPhone) && (
                             <span className="flex items-center">
                               <Phone className="w-3 h-3 mr-0.5" />
-                              {stop.customer.phone}
+                              {stop.customer?.phone || stop.contactPhone}
                             </span>
                           )}
                           
@@ -847,13 +855,11 @@ const RouteDetail: React.FC = () => {
                           </div>
                         )}
 
-                        {(stop.stopNotes || stop.customer?.notes) && (
+                        {(stop.stopNotes || stop.notes || stop.customer?.notes) && (
                           <div className="mt-2">
-                            {stop.stopNotes && (
-                              <div className="p-1.5 bg-yellow-50 rounded text-xs text-yellow-700">
-                                {stop.stopNotes}
-                              </div>
-                            )}
+                            <div className="p-1.5 bg-yellow-50 rounded text-xs text-yellow-700">
+                              {stop.stopNotes || stop.notes || stop.customer?.notes}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -899,7 +905,7 @@ const RouteDetail: React.FC = () => {
               <Home className="w-5 h-5 text-gray-400 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm text-gray-600">Depo</p>
-                <p className="font-medium">Ana Depo - Kadıköy</p>
+                <p className="font-medium">{depot?.name || route.depot?.name || 'Depo bilgisi yok'}</p>
               </div>
             </div>
             
@@ -908,7 +914,20 @@ const RouteDetail: React.FC = () => {
               <div className="flex-1">
                 <p className="text-sm text-gray-600">Oluşturulma</p>
                 <p className="font-medium">
-                  {new Date(route.createdAt).toLocaleString('tr-TR')}
+                  {(() => {
+                    const date = new Date(route.createdAt);
+                    // UTC offset'i al (Türkiye için +3)
+                    const offset = 3; // Türkiye UTC+3
+                    date.setHours(date.getHours() + offset);
+                    
+                    return date.toLocaleString('tr-TR', { 
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    });
+                  })()}
                 </p>
               </div>
             </div>

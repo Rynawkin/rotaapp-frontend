@@ -117,6 +117,17 @@ const StopsList: React.FC<StopsListProps> = ({
         const effectivePriority = stop.overridePriority || stop.customer.priority;
         const effectiveTimeWindow = stop.overrideTimeWindow || stop.customer.timeWindow;
         const effectiveServiceTime = stop.serviceTime || stop.customer.estimatedServiceTime || 10;
+        
+        // Değişiklik kontrolü
+        const isTimeWindowOverridden = stop.overrideTimeWindow && 
+          (stop.overrideTimeWindow.start !== stop.customer.timeWindow?.start || 
+           stop.overrideTimeWindow.end !== stop.customer.timeWindow?.end);
+        
+        const isServiceTimeOverridden = stop.serviceTime && 
+          stop.serviceTime !== (stop.customer.estimatedServiceTime || 10);
+        
+        const isPriorityOverridden = stop.overridePriority && 
+          stop.overridePriority !== stop.customer.priority;
 
         return (
           <div
@@ -170,7 +181,7 @@ const StopsList: React.FC<StopsListProps> = ({
                               <span className="flex items-center text-gray-500">
                                 <Clock className="w-4 h-4 mr-1" />
                                 {effectiveTimeWindow.start} - {effectiveTimeWindow.end}
-                                {stop.overrideTimeWindow && (
+                                {isTimeWindowOverridden && (
                                   <span className="ml-1 text-xs text-orange-600">(düzenlenmiş)</span>
                                 )}
                               </span>
@@ -179,7 +190,7 @@ const StopsList: React.FC<StopsListProps> = ({
                             <span className="flex items-center text-gray-500">
                               <Timer className="w-4 h-4 mr-1" />
                               {effectiveServiceTime} dk
-                              {stop.serviceTime && (
+                              {isServiceTimeOverridden && (
                                 <span className="ml-1 text-xs text-orange-600">(düzenlenmiş)</span>
                               )}
                             </span>
@@ -189,7 +200,7 @@ const StopsList: React.FC<StopsListProps> = ({
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(effectivePriority)}`}>
                               {effectivePriority === 'high' && <Star className="w-3 h-3 mr-1" />}
                               {effectivePriority === 'high' ? 'Yüksek' : effectivePriority === 'normal' ? 'Normal' : 'Düşük'}
-                              {stop.overridePriority && (
+                              {isPriorityOverridden && (
                                 <span className="ml-1">(düzenlenmiş)</span>
                               )}
                             </span>

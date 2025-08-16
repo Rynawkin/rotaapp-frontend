@@ -182,15 +182,26 @@ const Journeys: React.FC = () => {
   };
 
   const calculateProgress = (journey: Journey) => {
+    // Stops array'i kontrolü ekle
+    if (!journey.route?.stops || journey.route.stops.length === 0) {
+      return 0;
+    }
     const completed = journey.route.stops.filter(s => s.status === 'completed').length;
     const total = journey.route.stops.length;
     return total > 0 ? (completed / total) * 100 : 0;
   };
 
+  // DÜZELTİLDİ - Filtreleme mantığı düzeltildi
   const filteredJourneys = journeys.filter(journey => {
     if (selectedStatus === 'all') return true;
     if (selectedStatus === 'active') {
       return ['preparing', 'started', 'in_progress'].includes(journey.status);
+    }
+    if (selectedStatus === 'completed') {
+      return journey.status === 'completed'; // Sadece tamamlananlar
+    }
+    if (selectedStatus === 'cancelled') {
+      return journey.status === 'cancelled'; // Sadece iptal edilenler
     }
     return journey.status === selectedStatus;
   });
@@ -253,7 +264,7 @@ const Journeys: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">Toplam Mesafe</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                {journeys.reduce((sum, j) => sum + j.totalDistance, 0).toFixed(1)} km
+                {journeys.reduce((sum, j) => sum + (j.totalDistance || 0), 0).toFixed(1)} km
               </p>
             </div>
             <div className="p-3 bg-purple-100 rounded-lg">
@@ -268,7 +279,7 @@ const Journeys: React.FC = () => {
               <p className="text-2xl font-bold text-gray-900 mt-1">
                 {journeys.length > 0 
                   ? formatDuration(
-                      Math.round(journeys.reduce((sum, j) => sum + j.totalDuration, 0) / journeys.length)
+                      Math.round(journeys.reduce((sum, j) => sum + (j.totalDuration || 0), 0) / journeys.length)
                     )
                   : '0dk'
                 }
@@ -281,7 +292,7 @@ const Journeys: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter Tabs */}
+      {/* Filter Tabs - DÜZELTİLDİ */}
       <div className="bg-white rounded-lg shadow-sm p-1 border border-gray-100 inline-flex">
         <button
           onClick={() => setSelectedStatus('all')}
@@ -344,7 +355,7 @@ const Journeys: React.FC = () => {
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-3">
                     <h3 className="text-lg font-semibold text-gray-900">
-                      {journey.route.name}
+                      {journey.route?.name || 'İsimsiz Rota'}
                     </h3>
                     {getStatusBadge(journey.status)}
                   </div>
@@ -352,11 +363,11 @@ const Journeys: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div className="flex items-center text-sm text-gray-600">
                       <User className="w-4 h-4 mr-2 text-gray-400" />
-                      {journey.route.driver?.name || 'Sürücü atanmadı'}
+                      {journey.route?.driver?.name || 'Sürücü atanmadı'}
                     </div>
                     <div className="flex items-center text-sm text-gray-600">
                       <Truck className="w-4 h-4 mr-2 text-gray-400" />
-                      {journey.route.vehicle?.plateNumber || 'Araç atanmadı'}
+                      {journey.route?.vehicle?.plateNumber || 'Araç atanmadı'}
                     </div>
                     <div className="flex items-center text-sm text-gray-600">
                       <Calendar className="w-4 h-4 mr-2 text-gray-400" />
@@ -371,7 +382,7 @@ const Journeys: React.FC = () => {
                     <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
                       <span>İlerleme</span>
                       <span>
-                        {journey.route.stops.filter(s => s.status === 'completed').length} / {journey.route.stops.length} durak
+                        {journey.route?.stops?.filter(s => s.status === 'completed').length || 0} / {journey.route?.stops?.length || 0} durak
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
@@ -390,11 +401,11 @@ const Journeys: React.FC = () => {
                   <div className="flex items-center space-x-6 text-sm">
                     <div className="flex items-center text-gray-600">
                       <MapPin className="w-4 h-4 mr-1 text-gray-400" />
-                      {journey.totalDistance.toFixed(1)} km
+                      {(journey.totalDistance || 0).toFixed(1)} km
                     </div>
                     <div className="flex items-center text-gray-600">
                       <Clock className="w-4 h-4 mr-1 text-gray-400" />
-                      {formatDuration(journey.totalDuration)}
+                      {formatDuration(journey.totalDuration || 0)}
                     </div>
                     {journey.liveLocation && (
                       <div className="flex items-center text-green-600">

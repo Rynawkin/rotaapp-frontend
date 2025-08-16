@@ -7,32 +7,39 @@ export interface CreateRouteDto {
   depotId: number;
   driverId?: number;
   vehicleId?: number;
+  optimized?: boolean;
+  totalDistance?: number;
+  totalDuration?: number;
+  notes?: string;
   stops: Array<{
     customerId: number;
-    order: number;
-    overrideTimeWindow?: {
-      start: string;
-      end: string;
-    };
-    overridePriority?: 'high' | 'normal' | 'low';
-    serviceTime?: string | null; // TimeSpan format: "HH:mm:ss" veya null
-    stopNotes?: string;
+    name: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    notes?: string;
+    contactFullName?: string;
+    contactPhone?: string;
+    contactEmail?: string;
+    type: number; // 10 = Delivery, 20 = Pickup
+    orderType: number; // 10 = First, 20 = Auto, 30 = Last
+    proofOfDeliveryRequired: boolean;
+    arriveBetweenStart?: string | null;
+    arriveBetweenEnd?: string | null;
+    serviceTime?: string | null;
   }>;
   startDetails?: {
-    name: string;      // Depo adı
-    address: string;   // Depo adresi
-    latitude: number;  // Depo enlemi
-    longitude: number; // Depo boylamı
-    startTime: string; // TimeSpan format: "HH:mm:ss"
-    notes?: string;
+    startTime: string;
+    name: string;
+    address: string;
+    latitude: number;
+    longitude: number;
   };
   endDetails?: {
-    name: string;      // Depo adı
-    address: string;   // Depo adresi
-    latitude: number;  // Depo enlemi
-    longitude: number; // Depo boylamı
-    endTime: string;   // TimeSpan format: "HH:mm:ss"
-    notes?: string;
+    name: string;
+    address: string;
+    latitude: number;
+    longitude: number;
   };
 }
 
@@ -44,44 +51,45 @@ export interface UpdateRouteDto {
   vehicleId?: number;
   stops?: Array<{
     customerId: number;
-    order: number;
-    overrideTimeWindow?: {
-      start: string;
-      end: string;
-    };
-    overridePriority?: 'high' | 'normal' | 'low';
-    serviceTime?: string | null; // TimeSpan format: "HH:mm:ss" veya null
-    stopNotes?: string;
+    name: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    notes?: string;
+    contactFullName?: string;
+    contactPhone?: string;
+    contactEmail?: string;
+    type: number;
+    orderType: number;
+    proofOfDeliveryRequired: boolean;
+    arriveBetweenStart?: string | null;
+    arriveBetweenEnd?: string | null;
+    serviceTime?: string | null;
   }>;
   startDetails?: {
-    name: string;      // Depo adı
-    address: string;   // Depo adresi
-    latitude: number;  // Depo enlemi
-    longitude: number; // Depo boylamı
-    startTime: string; // TimeSpan format: "HH:mm:ss"
-    notes?: string;
+    startTime: string;
+    name: string;
+    address: string;
+    latitude: number;
+    longitude: number;
   };
   endDetails?: {
-    name: string;      // Depo adı
-    address: string;   // Depo adresi
-    latitude: number;  // Depo enlemi
-    longitude: number; // Depo boylamı
-    endTime: string;   // TimeSpan format: "HH:mm:ss"
-    notes?: string;
+    name: string;
+    address: string;
+    latitude: number;
+    longitude: number;
   };
 }
 
 class RouteService {
-  private baseUrl = '/workspace/journeys/routes';
+  private baseUrl = '/workspace/routes'; // ✅ DÜZELTİLDİ - Routes controller'ı kullan
 
   // Helper method: Dakikayı TimeSpan formatına çevir
   private minutesToTimeSpan(minutes: number | undefined): string | null {
-    // undefined veya 0 ise null döndür
     if (minutes === undefined || minutes === null) {
       return null;
     }
     
-    // 0 değeri için de bir TimeSpan döndür
     if (minutes === 0) {
       return "00:00:00";
     }
@@ -120,17 +128,53 @@ class RouteService {
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }
 
+  // Helper method: Adresi maksimum 100 karaktere kısalt
+  private truncateAddress(address: string): string {
+    if (!address) return '';
+    if (address.length <= 100) return address;
+    
+    // Türkiye'yi kaldır (genelde sonda)
+    let shortAddress = address.replace(', Türkiye', '');
+    
+    // Hala uzunsa, posta kodunu ve il/ilçe bilgisini sadeleştir
+    if (shortAddress.length > 100) {
+      // Posta kodunu bul ve kaldır
+      shortAddress = shortAddress.replace(/,?\s*\d{5}\s*/g, ' ');
+    }
+    
+    // Hala uzunsa, ilk 97 karakteri al ve ... ekle
+    if (shortAddress.length > 100) {
+      shortAddress = shortAddress.substring(0, 97) + '...';
+    }
+    
+    return shortAddress.trim();
+  }
+
   async getAll(): Promise<Route[]> {
     try {
       const response = await api.get(this.baseUrl);
-      // ServiceTime'ları dakikaya çevir
+      
+      // Müşteri listesini al
+      const { customerService } = await import('./customer.service');
+      const customers = await customerService.getAll();
+      
       const routes = response.data.map((route: any) => ({
         ...route,
-        stops: route.stops?.map((stop: any) => ({
-          ...stop,
-          serviceTime: this.timeSpanToMinutes(stop.serviceTime)
-        })) || []
+        stops: route.stops?.map((stop: any) => {
+          const customer = customers.find(c => c.id.toString() === stop.customerId.toString());
+          return {
+            ...stop,
+            serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+            customer: customer || undefined
+          };
+        }) || [],
+        // Backend'den gelen null değerleri için varsayılan değerler
+        totalDistance: route.totalDistance || 0,
+        totalDuration: route.totalDuration || 0,
+        completedDeliveries: route.completedDeliveries || 0,
+        totalDeliveries: route.totalDeliveries || route.stops?.length || 0
       }));
+      
       return routes;
     } catch (error) {
       console.error('Error fetching routes:', error);
@@ -141,14 +185,33 @@ class RouteService {
   async getById(id: string | number): Promise<Route> {
     try {
       const response = await api.get(`${this.baseUrl}/${id}`);
-      // ServiceTime'ları dakikaya çevir
+      
+      // Müşteri bilgilerini korumak için customerService'i kullan
+      const { customerService } = await import('./customer.service');
+      const customers = await customerService.getAll();
+      
+      // ServiceTime'ları dakikaya çevir ve customer objelerini ekle
       const route = {
         ...response.data,
-        stops: response.data.stops?.map((stop: any) => ({
-          ...stop,
-          serviceTime: this.timeSpanToMinutes(stop.serviceTime)
-        })) || []
+        stops: response.data.stops?.map((stop: any) => {
+          // Customer objesini bul
+          const customer = customers.find(c => c.id.toString() === stop.customerId.toString());
+          
+          return {
+            ...stop,
+            serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+            customer: customer || undefined
+          };
+        }) || [],
+        // Backend'den gelen null değerleri için varsayılan değerler
+        totalDistance: response.data.totalDistance || 0,
+        totalDuration: response.data.totalDuration || 0,
+        completedDeliveries: response.data.completedDeliveries || 0,
+        totalDeliveries: response.data.totalDeliveries || response.data.stops?.length || 0,
+        // Optimized durumu kesinlikle al
+        optimized: response.data.optimized === true
       };
+      
       return route;
     } catch (error) {
       console.error('Error fetching route:', error);
@@ -156,124 +219,110 @@ class RouteService {
     }
   }
 
-  async create(data: Partial<Route> | CreateRouteDto): Promise<Route> {
+  async create(data: Partial<Route>): Promise<Route> {
     try {
-      // Debug için gelen veriyi logla
-      console.log('=== CREATE ROUTE DEBUG ===');
-      console.log('1. Input data:', data);
-      console.log('2. Stops with customers:', data.stops?.map(s => ({
-        customerId: s.customerId,
-        customerName: s.customer?.name,
-        customerObject: s.customer
-      })));
-      
       // Frontend'den gelen customer objelerini sakla
       const originalCustomers = data.stops?.map(s => s.customer) || [];
       
       // Depot bilgisini al
-      let depotInfo = null;
-      if (data.depot) {
-        depotInfo = data.depot;
-      } else if (data.depotId) {
-        console.warn('Depot object not provided, only depotId available');
-      }
+      let depotInfo = data.depot;
       
-      // Transform frontend Route format to backend CreateRouteDto
-      const createDto: CreateRouteDto = {
-        name: data.name || `Rota ${new Date().toLocaleDateString('tr-TR')}`,
-        date: data.date ? new Date(data.date).toISOString() : new Date().toISOString(),
-        depotId: data.depotId ? Number(data.depotId) : 0,
-        driverId: data.driverId ? Number(data.driverId) : undefined,
-        vehicleId: data.vehicleId ? Number(data.vehicleId) : undefined,
-        stops: data.stops?.map((stop, index) => {
+      // Transform frontend Route format to backend CreateRouteDto - PascalCase kullan!
+      const createDto: any = {
+        Name: data.name || `Rota ${new Date().toLocaleDateString('tr-TR')}`,
+        Date: data.date ? new Date(data.date).toISOString() : new Date().toISOString(),
+        DepotId: data.depotId ? Number(data.depotId) : 0,
+        DriverId: data.driverId ? Number(data.driverId) : undefined,
+        VehicleId: data.vehicleId ? Number(data.vehicleId) : undefined,
+        Optimized: data.optimized || false,
+        TotalDistance: data.totalDistance || 0,
+        TotalDuration: data.totalDuration || 0,
+        Notes: data.notes || '',
+        Stops: data.stops?.map((stop, index) => {
           let customerId: number;
           
           // Customer objesinden ID al
           if (stop.customer && typeof stop.customer.id === 'number') {
             customerId = stop.customer.id;
-            console.log(`Stop ${index}: Using customer.id = ${customerId}, name = ${stop.customer.name}`);
           } else if (stop.customer && typeof stop.customer.id === 'string' && !stop.customer.id.startsWith('google-')) {
             customerId = parseInt(stop.customer.id);
-            console.log(`Stop ${index}: Parsing customer.id = ${customerId}, name = ${stop.customer.name}`);
           } else if (typeof stop.customerId === 'string' && !stop.customerId.startsWith('google-')) {
             customerId = parseInt(stop.customerId);
-            console.log(`Stop ${index}: Using customerId field = ${customerId}`);
           } else if (typeof stop.customerId === 'number') {
             customerId = stop.customerId;
-            console.log(`Stop ${index}: Using numeric customerId = ${customerId}`);
           } else {
-            console.error(`Invalid customer at stop ${index}:`, stop);
             throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
           }
           
           // NaN kontrolü
           if (isNaN(customerId) || customerId <= 0) {
-            console.error(`Invalid customerId at stop ${index}:`, customerId);
             throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
           }
           
+          const customer = stop.customer || originalCustomers[index];
           const serviceTimeSpan = this.minutesToTimeSpan(stop.serviceTime);
           
+          // PascalCase kullan ve Address'i 100 karaktere kısalt!
           return {
-            customerId: customerId,
-            order: stop.order || index + 1,
-            overrideTimeWindow: stop.overrideTimeWindow,
-            overridePriority: stop.overridePriority,
-            serviceTime: serviceTimeSpan,
-            stopNotes: stop.stopNotes
+            CustomerId: customerId,
+            Name: customer?.name || '',
+            Address: this.truncateAddress(customer?.address || ''), // ✅ 100 karakter sınırı
+            Latitude: customer?.latitude || 0,
+            Longitude: customer?.longitude || 0,
+            Notes: stop.stopNotes || '',
+            ContactFullName: customer?.name || '',
+            ContactPhone: customer?.phone || '',
+            ContactEmail: customer?.email || '',
+            Type: 10, // Delivery
+            OrderType: 20, // Auto
+            ProofOfDeliveryRequired: false,
+            ArriveBetweenStart: stop.overrideTimeWindow?.start ? `${stop.overrideTimeWindow.start}:00` : null,
+            ArriveBetweenEnd: stop.overrideTimeWindow?.end ? `${stop.overrideTimeWindow.end}:00` : null,
+            ServiceTime: serviceTimeSpan
           };
         }) || [],
-        // startDetails'e depo bilgilerini ekle
-        startDetails: depotInfo ? {
-          name: depotInfo.name || 'Ana Depo',
-          address: depotInfo.address || 'Depo Adresi',
-          latitude: depotInfo.latitude || 0,
-          longitude: depotInfo.longitude || 0,
-          startTime: this.getCurrentTimeAsTimeSpan(),
-          notes: data.notes || ''
-        } : undefined,
-        // endDetails'e de depo bilgilerini ekle
-        endDetails: depotInfo ? {
-          name: depotInfo.name || 'Ana Depo',
-          address: depotInfo.address || 'Depo Adresi',
-          latitude: depotInfo.latitude || 0,
-          longitude: depotInfo.longitude || 0,
-          endTime: this.getTimeSpanAfterHours(8),
-          notes: ''
-        } : undefined
+        // StartDetails - PascalCase ve Address kısaltması
+        StartDetails: depotInfo ? {
+          Name: depotInfo.name || 'Ana Depo',
+          Address: this.truncateAddress(depotInfo.address || 'Depo Adresi'), // ✅ 100 karakter sınırı
+          Latitude: depotInfo.latitude || 0,
+          Longitude: depotInfo.longitude || 0,
+          StartTime: this.getCurrentTimeAsTimeSpan()
+        } : null,
+        // EndDetails - PascalCase ve Address kısaltması
+        EndDetails: depotInfo ? {
+          Name: depotInfo.name || 'Ana Depo',
+          Address: this.truncateAddress(depotInfo.address || 'Depo Adresi'), // ✅ 100 karakter sınırı
+          Latitude: depotInfo.latitude || 0,
+          Longitude: depotInfo.longitude || 0
+        } : null
       };
 
       // Validation
-      if (!createDto.depotId || createDto.depotId === 0) {
-        console.error('DepotId is missing or zero!');
+      if (!createDto.DepotId || createDto.DepotId === 0) {
         throw new Error('Depo seçimi zorunludur!');
       }
 
-      if (!createDto.name) {
-        console.error('Name is missing!');
+      if (!createDto.Name) {
         throw new Error('Rota adı zorunludur!');
       }
 
       // NaN kontrolü
-      if (isNaN(createDto.depotId)) {
-        console.error('DepotId is NaN!', data.depotId);
+      if (isNaN(createDto.DepotId)) {
         throw new Error('Geçersiz depo ID!');
       }
 
-      if (createDto.driverId && isNaN(createDto.driverId)) {
-        console.error('DriverId is NaN!', data.driverId);
+      if (createDto.DriverId && isNaN(createDto.DriverId)) {
         throw new Error('Geçersiz sürücü ID!');
       }
 
-      if (createDto.vehicleId && isNaN(createDto.vehicleId)) {
-        console.error('VehicleId is NaN!', data.vehicleId);
+      if (createDto.VehicleId && isNaN(createDto.VehicleId)) {
         throw new Error('Geçersiz araç ID!');
       }
-
-      console.log('3. Final CreateRouteDto:', JSON.stringify(createDto, null, 2));
+      
+      console.log('Sending to backend:', JSON.stringify(createDto, null, 2));
       
       const response = await api.post(this.baseUrl, createDto);
-      console.log('4. Success response:', response.data);
       
       // Response'daki serviceTime'ları dakikaya çevir ve customer bilgilerini ekle
       const createdRoute = {
@@ -283,62 +332,40 @@ class RouteService {
           serviceTime: this.timeSpanToMinutes(stop.serviceTime),
           // Frontend'den gelen customer objesini ekle
           customer: originalCustomers[index] || undefined
-        })) || []
+        })) || [],
+        // Backend'den gelen null değerleri için varsayılan değerler
+        totalDistance: response.data.totalDistance || data.totalDistance || 0,
+        totalDuration: response.data.totalDuration || data.totalDuration || 0,
+        completedDeliveries: response.data.completedDeliveries || 0,
+        totalDeliveries: response.data.totalDeliveries || response.data.stops?.length || 0,
+        // Optimized durumunu koru
+        optimized: response.data.optimized || data.optimized || false
       };
-      
-      console.log('5. Route with customers:', createdRoute);
       
       return createdRoute;
     } catch (error: any) {
-      console.error('=== CREATE ROUTE ERROR ===');
       console.error('Error creating route:', error);
-      
-      // Axios error detayları
-      if (error.response) {
-        console.error('Response status:', error.response.status);
-        console.error('Response data:', JSON.stringify(error.response.data, null, 2));
-        
-        // Validation errors'ı parse et
-        if (error.response.data?.errors) {
-          console.error('Validation errors:');
-          if (Array.isArray(error.response.data.errors)) {
-            error.response.data.errors.forEach((err: any, index: number) => {
-              console.error(`  ${index}:`, err);
-            });
-          } else {
-            Object.entries(error.response.data.errors).forEach(([field, errors]) => {
-              console.error(`  ${field}:`, errors);
-            });
-          }
-        }
-      }
-      
+      console.error('Error response:', error.response?.data);
       throw error;
     }
   }
 
-  async update(id: string | number, data: Partial<Route> | UpdateRouteDto): Promise<Route> {
+  async update(id: string | number, data: Partial<Route>): Promise<Route> {
     try {
-      console.log('=== UPDATE ROUTE DEBUG ===');
-      console.log('1. Route ID:', id);
-      console.log('2. Input data:', data);
-      
       // Frontend'den gelen customer objelerini sakla
       const originalCustomers = data.stops?.map(s => s.customer) || [];
       
       // Depot bilgisini al
-      let depotInfo = null;
-      if (data.depot) {
-        depotInfo = data.depot;
-      }
+      let depotInfo = data.depot;
       
-      const updateDto: UpdateRouteDto = {
-        name: data.name,
-        date: data.date ? new Date(data.date).toISOString() : undefined,
-        depotId: data.depotId ? Number(data.depotId) : undefined,
-        driverId: data.driverId ? Number(data.driverId) : undefined,
-        vehicleId: data.vehicleId ? Number(data.vehicleId) : undefined,
-        stops: data.stops?.map((stop, index) => {
+      // PascalCase kullan!
+      const updateDto: any = {
+        Name: data.name,
+        Date: data.date ? new Date(data.date).toISOString() : undefined,
+        DepotId: data.depotId ? Number(data.depotId) : undefined,
+        DriverId: data.driverId ? Number(data.driverId) : undefined,
+        VehicleId: data.vehicleId ? Number(data.vehicleId) : undefined,
+        Stops: data.stops?.map((stop, index) => {
           let customerId: number;
           
           // Customer objesinden ID al
@@ -351,45 +378,49 @@ class RouteService {
           } else if (typeof stop.customerId === 'number') {
             customerId = stop.customerId;
           } else {
-            console.error(`Invalid customer at stop ${index}:`, stop);
             throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
           }
           
           // NaN kontrolü
           if (isNaN(customerId) || customerId <= 0) {
-            console.error(`Invalid customerId at stop ${index}:`, customerId);
             throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
           }
           
+          const customer = stop.customer || originalCustomers[index];
+          
           return {
-            customerId: customerId,
-            order: stop.order || index + 1,
-            overrideTimeWindow: stop.overrideTimeWindow,
-            overridePriority: stop.overridePriority,
-            serviceTime: this.minutesToTimeSpan(stop.serviceTime),
-            stopNotes: stop.stopNotes
+            CustomerId: customerId,
+            Name: customer?.name || '',
+            Address: this.truncateAddress(customer?.address || ''), // ✅ 100 karakter sınırı
+            Latitude: customer?.latitude || 0,
+            Longitude: customer?.longitude || 0,
+            Notes: stop.stopNotes || '',
+            ContactFullName: customer?.name || '',
+            ContactPhone: customer?.phone || '',
+            ContactEmail: customer?.email || '',
+            Type: 10, // Delivery
+            OrderType: 20, // Auto
+            ProofOfDeliveryRequired: false,
+            ArriveBetweenStart: stop.overrideTimeWindow?.start ? `${stop.overrideTimeWindow.start}:00` : null,
+            ArriveBetweenEnd: stop.overrideTimeWindow?.end ? `${stop.overrideTimeWindow.end}:00` : null,
+            ServiceTime: this.minutesToTimeSpan(stop.serviceTime)
           };
         }),
         // startDetails ve endDetails'e depo bilgilerini ekle
-        startDetails: data.startDetails || (depotInfo ? {
-          name: depotInfo.name || 'Ana Depo',
-          address: depotInfo.address || 'Depo Adresi',
-          latitude: depotInfo.latitude || 0,
-          longitude: depotInfo.longitude || 0,
-          startTime: this.getCurrentTimeAsTimeSpan(),
-          notes: data.notes || ''
+        StartDetails: data.startDetails || (depotInfo ? {
+          Name: depotInfo.name || 'Ana Depo',
+          Address: this.truncateAddress(depotInfo.address || 'Depo Adresi'), // ✅ 100 karakter sınırı
+          Latitude: depotInfo.latitude || 0,
+          Longitude: depotInfo.longitude || 0,
+          StartTime: this.getCurrentTimeAsTimeSpan()
         } : undefined),
-        endDetails: data.endDetails || (depotInfo ? {
-          name: depotInfo.name || 'Ana Depo',
-          address: depotInfo.address || 'Depo Adresi',
-          latitude: depotInfo.latitude || 0,
-          longitude: depotInfo.longitude || 0,
-          endTime: this.getTimeSpanAfterHours(8),
-          notes: ''
+        EndDetails: data.endDetails || (depotInfo ? {
+          Name: depotInfo.name || 'Ana Depo',
+          Address: this.truncateAddress(depotInfo.address || 'Depo Adresi'), // ✅ 100 karakter sınırı
+          Latitude: depotInfo.latitude || 0,
+          Longitude: depotInfo.longitude || 0
         } : undefined)
       };
-
-      console.log('3. Final UpdateRouteDto:', JSON.stringify(updateDto, null, 2));
 
       const response = await api.put(`${this.baseUrl}/${id}`, updateDto);
       
@@ -401,19 +432,18 @@ class RouteService {
           serviceTime: this.timeSpanToMinutes(stop.serviceTime),
           // Frontend'den gelen customer objesini ekle
           customer: originalCustomers[index] || undefined
-        })) || []
+        })) || [],
+        // Backend'den gelen null değerleri için varsayılan değerler
+        totalDistance: response.data.totalDistance || data.totalDistance || 0,
+        totalDuration: response.data.totalDuration || data.totalDuration || 0,
+        completedDeliveries: response.data.completedDeliveries || 0,
+        totalDeliveries: response.data.totalDeliveries || response.data.stops?.length || 0,
+        optimized: response.data.optimized || data.optimized || false
       };
       
       return updatedRoute;
     } catch (error: any) {
-      console.error('=== UPDATE ROUTE ERROR ===');
       console.error('Error updating route:', error);
-      
-      if (error.response) {
-        console.error('Response status:', error.response.status);
-        console.error('Response data:', JSON.stringify(error.response.data, null, 2));
-      }
-      
       throw error;
     }
   }
@@ -427,19 +457,45 @@ class RouteService {
     }
   }
 
-  // Optimize route
-  async optimize(routeId: string | number): Promise<Route> {
+  // ✅ YENİ - Backend'de optimize et
+  async optimize(routeId: string | number, mode: 'distance' | 'duration' = 'distance'): Promise<Route> {
     try {
-      const response = await api.post(`/workspace/journeys/${routeId}/optimize`);
+      console.log('=== OPTIMIZE ROUTE (Backend) ===');
+      console.log('1. Optimizing route ID:', routeId);
+      console.log('2. Optimization mode:', mode);
       
-      // Response'daki serviceTime'ları dakikaya çevir
+      const response = await api.post(`${this.baseUrl}/${routeId}/optimize`, {
+        optimizationMode: mode
+      });
+      
+      console.log('3. Optimize response:', response.data);
+      
+      // Müşteri bilgilerini korumak için customerService'i kullan
+      const { customerService } = await import('./customer.service');
+      const customers = await customerService.getAll();
+      
+      // Response'daki serviceTime'ları dakikaya çevir ve customer objelerini ekle
       const optimizedRoute = {
         ...response.data,
-        stops: response.data.stops?.map((stop: any) => ({
-          ...stop,
-          serviceTime: this.timeSpanToMinutes(stop.serviceTime)
-        })) || []
+        stops: response.data.stops?.map((stop: any) => {
+          // Customer objesini bul
+          const customer = customers.find(c => c.id.toString() === stop.customerId.toString());
+          
+          return {
+            ...stop,
+            serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+            customer: customer || undefined
+          };
+        }) || [],
+        // Backend'den gelen değerler
+        totalDistance: response.data.totalDistance || 0,
+        totalDuration: response.data.totalDuration || 0,
+        completedDeliveries: response.data.completedDeliveries || 0,
+        totalDeliveries: response.data.totalDeliveries || response.data.stops?.length || 0,
+        optimized: true // Optimize edildi
       };
+      
+      console.log('4. Final optimized route:', optimizedRoute);
       
       return optimizedRoute;
     } catch (error) {
@@ -466,13 +522,25 @@ class RouteService {
     try {
       const response = await api.get(`${this.baseUrl}?depotId=${depotId}`);
       
+      // Müşteri listesini al
+      const { customerService } = await import('./customer.service');
+      const customers = await customerService.getAll();
+      
       // ServiceTime'ları dakikaya çevir
       const routes = response.data.map((route: any) => ({
         ...route,
-        stops: route.stops?.map((stop: any) => ({
-          ...stop,
-          serviceTime: this.timeSpanToMinutes(stop.serviceTime)
-        })) || []
+        stops: route.stops?.map((stop: any) => {
+          const customer = customers.find(c => c.id.toString() === stop.customerId.toString());
+          return {
+            ...stop,
+            serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+            customer: customer || undefined
+          };
+        }) || [],
+        // Backend'den gelen null değerleri için varsayılan değerler
+        totalDistance: route.totalDistance || 0,
+        totalDuration: route.totalDuration || 0,
+        completedDeliveries: route.completedDeliveries || 0
       }));
       
       return routes;
@@ -487,13 +555,25 @@ class RouteService {
     try {
       const response = await api.get(`${this.baseUrl}?driverId=${driverId}`);
       
+      // Müşteri listesini al
+      const { customerService } = await import('./customer.service');
+      const customers = await customerService.getAll();
+      
       // ServiceTime'ları dakikaya çevir
       const routes = response.data.map((route: any) => ({
         ...route,
-        stops: response.data.stops?.map((stop: any) => ({
-          ...stop,
-          serviceTime: this.timeSpanToMinutes(stop.serviceTime)
-        })) || []
+        stops: response.data.stops?.map((stop: any) => {
+          const customer = customers.find(c => c.id.toString() === stop.customerId.toString());
+          return {
+            ...stop,
+            serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+            customer: customer || undefined
+          };
+        }) || [],
+        // Backend'den gelen null değerleri için varsayılan değerler
+        totalDistance: route.totalDistance || 0,
+        totalDuration: route.totalDuration || 0,
+        completedDeliveries: route.completedDeliveries || 0
       }));
       
       return routes;
@@ -513,13 +593,25 @@ class RouteService {
         }
       });
       
+      // Müşteri listesini al
+      const { customerService } = await import('./customer.service');
+      const customers = await customerService.getAll();
+      
       // ServiceTime'ları dakikaya çevir
       const routes = response.data.map((route: any) => ({
         ...route,
-        stops: response.data.stops?.map((stop: any) => ({
-          ...stop,
-          serviceTime: this.timeSpanToMinutes(stop.serviceTime)
-        })) || []
+        stops: response.data.stops?.map((stop: any) => {
+          const customer = customers.find(c => c.id.toString() === stop.customerId.toString());
+          return {
+            ...stop,
+            serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+            customer: customer || undefined
+          };
+        }) || [],
+        // Backend'den gelen null değerleri için varsayılan değerler
+        totalDistance: route.totalDistance || 0,
+        totalDuration: route.totalDuration || 0,
+        completedDeliveries: route.completedDeliveries || 0
       }));
       
       return routes;
