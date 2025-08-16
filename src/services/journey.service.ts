@@ -3,13 +3,48 @@ import { Journey, Route, JourneyStatus } from '@/types';
 
 // Backend'deki JourneyStatusType enum'u
 export enum JourneyStatusType {
-  InTransit = 200,     // Yolda
-  Arrived = 300,       // Varış yapıldı
-  Processing = 400,    // İşlem yapılıyor
-  Completed = 500,     // İşlem tamamlandı
-  Delayed = 600,       // Gecikme var
-  Cancelled = 700,     // İptal edildi (Başarısız durak için)
-  OnHold = 800        // Bekletiliyor
+  InTransit = 200,
+  Arrived = 300,
+  Processing = 400,
+  Completed = 500,
+  Delayed = 600,
+  Cancelled = 700,
+  OnHold = 800
+}
+
+// Journey özet bilgisi için yeni tip
+export interface JourneySummary {
+  id: number;
+  routeId: number;
+  routeName: string;
+  date: string;
+  status: string;
+  
+  // Sürücü
+  driverId?: string;
+  driverName: string;
+  
+  // Araç
+  vehicleId?: string;
+  vehiclePlateNumber: string;
+  
+  // Metrikler
+  totalStops: number;
+  completedStops: number;
+  totalDistance: number;
+  totalDuration: number;
+  
+  // Zamanlar
+  startedAt?: Date;
+  completedAt?: Date;
+  createdAt: Date;
+  
+  // Live location
+  liveLocation?: {
+    latitude: number;
+    longitude: number;
+    speed?: number;
+  };
 }
 
 export interface AssignRouteDto {
@@ -17,27 +52,24 @@ export interface AssignRouteDto {
   driverId: number;
 }
 
-// ✅ GÜNCELLENDİ - Yeni field'lar eklendi
 export interface AddJourneyStatusDto {
   stopId: number;
   status: JourneyStatusType;
   notes?: string;
-  failureReason?: string;      // ✅ YENİ
-  signatureBase64?: string;     // ✅ YENİ
-  photoBase64?: string;         // ✅ YENİ
+  failureReason?: string;
+  signatureBase64?: string;
+  photoBase64?: string;
   latitude?: number;
   longitude?: number;
   additionalValues?: Record<string, string>;
 }
 
-// ✅ YENİ - Complete stop için özel DTO
 export interface CompleteStopDto {
   notes?: string;
   signatureBase64?: string;
   photoBase64?: string;
 }
 
-// ✅ YENİ - Fail stop için özel DTO
 export interface FailStopDto {
   failureReason: string;
   notes?: string;
@@ -46,14 +78,39 @@ export interface FailStopDto {
 class JourneyService {
   private baseUrl = '/workspace/journeys';
 
-  async getAll(from?: Date, to?: Date): Promise<Journey[]> {
+  /**
+   * ✅ YENİ - Sadece özet bilgi için (Dashboard, Journeys listesi)
+   * PERFORMANS: 90% daha az veri
+   */
+  async getAllSummary(from?: Date, to?: Date): Promise<JourneySummary[]> {
     try {
       const params: any = {};
       if (from) params.from = from.toISOString();
       if (to) params.to = to.toISOString();
       
+      const response = await api.get(`${this.baseUrl}/summary`, { params });
+      console.log('Journey summaries loaded:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching journey summaries:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ⚠️ DİKKAT: Sadece gerçekten tüm detay gerektiğinde kullan!
+   * Örnek: Journey detay sayfası, export işlemleri
+   */
+  async getAll(from?: Date, to?: Date): Promise<Journey[]> {
+    try {
+      console.warn('⚠️ getAll() tüm detayları çekiyor. Eğer sadece liste için kullanıyorsanız getAllSummary() kullanın!');
+      
+      const params: any = {};
+      if (from) params.from = from.toISOString();
+      if (to) params.to = to.toISOString();
+      
       const response = await api.get(this.baseUrl, { params });
-      console.log('Journeys loaded:', response.data);
+      console.log('Full journeys loaded:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error fetching journeys:', error);
@@ -61,10 +118,13 @@ class JourneyService {
     }
   }
 
+  /**
+   * ✅ Tek journey detayı - Detay sayfası için
+   */
   async getById(id: string | number): Promise<Journey> {
     try {
       const response = await api.get(`${this.baseUrl}/${id}`);
-      console.log('Journey loaded:', response.data);
+      console.log('Journey detail loaded:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error fetching journey:', error);
@@ -74,8 +134,16 @@ class JourneyService {
 
   async getByRouteId(routeId: string | number): Promise<Journey | null> {
     try {
-      const journeys = await this.getAll();
-      return journeys.find(j => j.routeId === Number(routeId)) || null;
+      // Önce özet bilgiyle kontrol et
+      const summaries = await this.getAllSummary();
+      const summary = summaries.find(j => j.routeId === Number(routeId));
+      
+      // Eğer bulunduysa, detayını çek
+      if (summary) {
+        return await this.getById(summary.id);
+      }
+      
+      return null;
     } catch (error) {
       console.error('Error fetching journey by route:', error);
       return null;
@@ -154,9 +222,8 @@ class JourneyService {
       return response.data;
     } catch (error: any) {
       console.error('Error finishing journey:', error);
-      // ✅ Hata mesajını kullanıcıya göster
       if (error.response?.data?.message) {
-        throw error; // Hata mesajını koruyarak fırlat
+        throw error;
       }
       throw error;
     }
@@ -180,9 +247,9 @@ class JourneyService {
       console.log('Checking in stop:', journeyId, stopId);
       const statusData: AddJourneyStatusDto = {
         stopId: Number(stopId),
-        status: JourneyStatusType.Arrived, // 300
+        status: JourneyStatusType.Arrived,
         notes: 'Durağa varıldı',
-        latitude: 0,  // Gerçek koordinatlar alınabilir
+        latitude: 0,
         longitude: 0
       };
       
@@ -199,7 +266,7 @@ class JourneyService {
     }
   }
 
-  // ✅ GÜNCELLENDİ - Complete a stop delivery with signature and photo
+  // Complete a stop delivery with signature and photo
   async completeStop(
     journeyId: string | number, 
     stopId: string | number, 
@@ -208,20 +275,19 @@ class JourneyService {
     try {
       console.log('Completing stop:', journeyId, stopId, data);
       
-      // ✅ Base64 string'lerden data URL prefix'ini temizle
+      // Base64 string'lerden data URL prefix'ini temizle
       const cleanBase64 = (base64String?: string) => {
         if (!base64String) return undefined;
-        // "data:image/png;base64," veya "data:image/jpeg;base64," kısmını kaldır
         const base64Prefix = /^data:image\/[a-z]+;base64,/;
         return base64String.replace(base64Prefix, '');
       };
       
       const statusData: AddJourneyStatusDto = {
         stopId: Number(stopId),
-        status: JourneyStatusType.Completed, // 500
+        status: JourneyStatusType.Completed,
         notes: data?.notes || 'Teslimat tamamlandı',
-        signatureBase64: cleanBase64(data?.signatureBase64),  // ✅ Temizlenmiş imza
-        photoBase64: cleanBase64(data?.photoBase64),          // ✅ Temizlenmiş fotoğraf
+        signatureBase64: cleanBase64(data?.signatureBase64),
+        photoBase64: cleanBase64(data?.photoBase64),
         latitude: 0,
         longitude: 0
       };
@@ -239,7 +305,7 @@ class JourneyService {
     }
   }
 
-  // ✅ GÜNCELLENDİ - Mark stop as failed with reason and notes
+  // Mark stop as failed with reason and notes
   async failStop(
     journeyId: string | number, 
     stopId: string | number, 
@@ -250,9 +316,9 @@ class JourneyService {
       console.log('Failing stop:', journeyId, stopId, reason, notes);
       const statusData: AddJourneyStatusDto = {
         stopId: Number(stopId),
-        status: JourneyStatusType.Cancelled, // 700
-        failureReason: reason,                // ✅ Başarısızlık nedeni
-        notes: notes,                         // ✅ Ek notlar
+        status: JourneyStatusType.Cancelled,
+        failureReason: reason,
+        notes: notes,
         latitude: 0,
         longitude: 0
       };
@@ -270,7 +336,7 @@ class JourneyService {
     }
   }
 
-  // ✅ GÜNCELLENDİ - Add status for a stop (generic)
+  // Add status for a stop (generic)
   async addStopStatus(
     journeyId: string | number, 
     stopId: string | number, 
@@ -314,11 +380,21 @@ class JourneyService {
     }
   }
 
+  // ✅ YENİ - Update journey status (pause/resume için)
+  async updateStatus(journeyId: string | number, status: string): Promise<Journey> {
+    try {
+      console.log('Updating journey status:', journeyId, status);
+      const response = await api.put(`${this.baseUrl}/${journeyId}/status`, { status });
+      return response.data;
+    } catch (error) {
+      console.error('Error updating journey status:', error);
+      throw error;
+    }
+  }
+
   // Simulate movement for testing (only for development)
   async simulateMovement(journeyId: string | number): Promise<void> {
     console.warn('simulateMovement is a mock function for testing only');
-    // Backend'de bu fonksiyon yok, sadece development için
-    // SignalR entegrasyonu yapıldığında gerçek konum güncellemeleri alınacak
   }
 }
 

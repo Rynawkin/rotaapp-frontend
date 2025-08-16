@@ -19,12 +19,13 @@ import {
   Activity,
   Loader2
 } from 'lucide-react';
-import { Journey, Route } from '@/types';
-import { journeyService } from '@/services/journey.service';
+import { Route } from '@/types';
+import { journeyService, JourneySummary } from '@/services/journey.service';
 import { routeService } from '@/services/route.service';
 
 const Journeys: React.FC = () => {
-  const [journeys, setJourneys] = useState<Journey[]>([]);
+  // ✅ PERFORMANS: Journey yerine JourneySummary kullan
+  const [journeys, setJourneys] = useState<JourneySummary[]>([]);
   const [availableRoutes, setAvailableRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState('all');
@@ -35,10 +36,10 @@ const Journeys: React.FC = () => {
 
   useEffect(() => {
     loadData();
-    // Her 10 saniyede bir aktif seferleri güncelle
+    // Her 30 saniyede bir aktif seferleri güncelle (3 saniye yerine)
     const interval = setInterval(() => {
       loadJourneys();
-    }, 10000);
+    }, 30000); // ✅ PERFORMANS: 10 saniye yerine 30 saniye
     
     return () => clearInterval(interval);
   }, []);
@@ -57,7 +58,8 @@ const Journeys: React.FC = () => {
 
   const loadJourneys = async () => {
     try {
-      const data = await journeyService.getAll();
+      // ✅ PERFORMANS: getAllSummary kullan
+      const data = await journeyService.getAllSummary();
       setJourneys(data);
     } catch (error) {
       console.error('Error loading journeys:', error);
@@ -92,7 +94,7 @@ const Journeys: React.FC = () => {
     }
   };
 
-  const handlePauseJourney = async (journeyId: string) => {
+  const handlePauseJourney = async (journeyId: number) => {
     try {
       await journeyService.updateStatus(journeyId, 'preparing');
       await loadJourneys();
@@ -102,7 +104,7 @@ const Journeys: React.FC = () => {
     }
   };
 
-  const handleResumeJourney = async (journeyId: string) => {
+  const handleResumeJourney = async (journeyId: number) => {
     try {
       await journeyService.updateStatus(journeyId, 'in_progress');
       await loadJourneys();
@@ -112,7 +114,7 @@ const Journeys: React.FC = () => {
     }
   };
 
-  const handleCancelJourney = async (journeyId: string) => {
+  const handleCancelJourney = async (journeyId: number) => {
     if (window.confirm('Bu seferi iptal etmek istediğinizden emin misiniz?')) {
       try {
         await journeyService.cancel(journeyId);
@@ -124,7 +126,7 @@ const Journeys: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: Journey['status']) => {
+  const getStatusBadge = (status: string) => {
     switch(status) {
       case 'preparing':
         return (
@@ -161,10 +163,12 @@ const Journeys: React.FC = () => {
             İptal Edildi
           </span>
         );
+      default:
+        return null;
     }
   };
 
-  const formatTime = (date?: Date) => {
+  const formatTime = (date?: Date | string) => {
     if (!date) return '-';
     return new Date(date).toLocaleTimeString('tr-TR', {
       hour: '2-digit',
@@ -181,27 +185,21 @@ const Journeys: React.FC = () => {
     return `${mins}dk`;
   };
 
-  const calculateProgress = (journey: Journey) => {
-    // Stops array'i kontrolü ekle
-    if (!journey.route?.stops || journey.route.stops.length === 0) {
-      return 0;
-    }
-    const completed = journey.route.stops.filter(s => s.status === 'completed').length;
-    const total = journey.route.stops.length;
-    return total > 0 ? (completed / total) * 100 : 0;
+  const calculateProgress = (journey: JourneySummary) => {
+    if (journey.totalStops === 0) return 0;
+    return (journey.completedStops / journey.totalStops) * 100;
   };
 
-  // DÜZELTİLDİ - Filtreleme mantığı düzeltildi
   const filteredJourneys = journeys.filter(journey => {
     if (selectedStatus === 'all') return true;
     if (selectedStatus === 'active') {
       return ['preparing', 'started', 'in_progress'].includes(journey.status);
     }
     if (selectedStatus === 'completed') {
-      return journey.status === 'completed'; // Sadece tamamlananlar
+      return journey.status === 'completed';
     }
     if (selectedStatus === 'cancelled') {
-      return journey.status === 'cancelled'; // Sadece iptal edilenler
+      return journey.status === 'cancelled';
     }
     return journey.status === selectedStatus;
   });
@@ -264,7 +262,7 @@ const Journeys: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">Toplam Mesafe</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                {journeys.reduce((sum, j) => sum + (j.totalDistance || 0), 0).toFixed(1)} km
+                {journeys.reduce((sum, j) => sum + j.totalDistance, 0).toFixed(1)} km
               </p>
             </div>
             <div className="p-3 bg-purple-100 rounded-lg">
@@ -279,7 +277,7 @@ const Journeys: React.FC = () => {
               <p className="text-2xl font-bold text-gray-900 mt-1">
                 {journeys.length > 0 
                   ? formatDuration(
-                      Math.round(journeys.reduce((sum, j) => sum + (j.totalDuration || 0), 0) / journeys.length)
+                      Math.round(journeys.reduce((sum, j) => sum + j.totalDuration, 0) / journeys.length)
                     )
                   : '0dk'
                 }
@@ -292,7 +290,7 @@ const Journeys: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter Tabs - DÜZELTİLDİ */}
+      {/* Filter Tabs */}
       <div className="bg-white rounded-lg shadow-sm p-1 border border-gray-100 inline-flex">
         <button
           onClick={() => setSelectedStatus('all')}
@@ -355,7 +353,7 @@ const Journeys: React.FC = () => {
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-3">
                     <h3 className="text-lg font-semibold text-gray-900">
-                      {journey.route?.name || 'İsimsiz Rota'}
+                      {journey.routeName || 'İsimsiz Rota'}
                     </h3>
                     {getStatusBadge(journey.status)}
                   </div>
@@ -363,17 +361,17 @@ const Journeys: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div className="flex items-center text-sm text-gray-600">
                       <User className="w-4 h-4 mr-2 text-gray-400" />
-                      {journey.route?.driver?.name || 'Sürücü atanmadı'}
+                      {journey.driverName}
                     </div>
                     <div className="flex items-center text-sm text-gray-600">
                       <Truck className="w-4 h-4 mr-2 text-gray-400" />
-                      {journey.route?.vehicle?.plateNumber || 'Araç atanmadı'}
+                      {journey.vehiclePlateNumber}
                     </div>
                     <div className="flex items-center text-sm text-gray-600">
                       <Calendar className="w-4 h-4 mr-2 text-gray-400" />
-                      {new Date(journey.startedAt || '').toLocaleDateString('tr-TR')}
+                      {new Date(journey.startedAt || journey.createdAt).toLocaleDateString('tr-TR')}
                       {' • '}
-                      {formatTime(journey.startedAt)}
+                      {formatTime(journey.startedAt || journey.createdAt)}
                     </div>
                   </div>
 
@@ -382,7 +380,7 @@ const Journeys: React.FC = () => {
                     <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
                       <span>İlerleme</span>
                       <span>
-                        {journey.route?.stops?.filter(s => s.status === 'completed').length || 0} / {journey.route?.stops?.length || 0} durak
+                        {journey.completedStops} / {journey.totalStops} durak
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
@@ -401,11 +399,11 @@ const Journeys: React.FC = () => {
                   <div className="flex items-center space-x-6 text-sm">
                     <div className="flex items-center text-gray-600">
                       <MapPin className="w-4 h-4 mr-1 text-gray-400" />
-                      {(journey.totalDistance || 0).toFixed(1)} km
+                      {journey.totalDistance.toFixed(1)} km
                     </div>
                     <div className="flex items-center text-gray-600">
                       <Clock className="w-4 h-4 mr-1 text-gray-400" />
-                      {formatDuration(journey.totalDuration || 0)}
+                      {formatDuration(journey.totalDuration)}
                     </div>
                     {journey.liveLocation && (
                       <div className="flex items-center text-green-600">
@@ -419,13 +417,13 @@ const Journeys: React.FC = () => {
                 {/* Actions */}
                 <div className="relative ml-4">
                   <button
-                    onClick={() => setDropdownOpen(dropdownOpen === journey.id ? null : journey.id)}
+                    onClick={() => setDropdownOpen(dropdownOpen === journey.id.toString() ? null : journey.id.toString())}
                     className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                   >
                     <MoreVertical className="w-5 h-5 text-gray-600" />
                   </button>
                   
-                  {dropdownOpen === journey.id && (
+                  {dropdownOpen === journey.id.toString() && (
                     <>
                       <div 
                         className="fixed inset-0 z-10" 

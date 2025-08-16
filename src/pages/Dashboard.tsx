@@ -20,20 +20,9 @@ import {
 } from 'lucide-react';
 import { customerService } from '@/services/customer.service';
 import { driverService } from '@/services/driver.service';
-import { journeyService } from '@/services/journey.service';
+import { journeyService, JourneySummary } from '@/services/journey.service';
 import { routeService } from '@/services/route.service';
-import { Journey, Route as RouteType, Customer, Driver } from '@/types';
-
-interface DashboardStats {
-  totalDeliveries: number;
-  activeCustomers: number;
-  activeDrivers: number;
-  averageDeliveryTime: number;
-  todayRoutes: number;
-  completedToday: number;
-  failedToday: number;
-  onTimeRate: number;
-}
+import { Customer, Driver, Route as RouteType } from '@/types';
 
 const Dashboard: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('today');
@@ -44,7 +33,7 @@ const Dashboard: React.FC = () => {
   const [weeklyData, setWeeklyData] = useState<any[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [journeys, setJourneys] = useState<Journey[]>([]);
+  const [journeySummaries, setJourneySummaries] = useState<JourneySummary[]>([]);
   const [routes, setRoutes] = useState<RouteType[]>([]);
   const navigate = useNavigate();
 
@@ -55,30 +44,30 @@ const Dashboard: React.FC = () => {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      // Tüm verileri paralel olarak yükle
-      const [customersData, driversData, journeysData, routesData] = await Promise.all([
+      // ✅ PERFORMANS: Sadece özet veriler çekiliyor
+      const [customersData, driversData, journeySummariesData, routesData] = await Promise.all([
         customerService.getAll(),
         driverService.getAll(),
-        journeyService.getAll(),
+        journeyService.getAllSummary(), // ✅ getAll() yerine getAllSummary()
         routeService.getAll()
       ]);
 
       setCustomers(customersData);
       setDrivers(driversData);
-      setJourneys(journeysData);
+      setJourneySummaries(journeySummariesData);
       setRoutes(routesData);
 
       // İstatistikleri hesapla
-      calculateStats(customersData, driversData, journeysData, routesData);
+      calculateStats(customersData, driversData, journeySummariesData, routesData);
       
       // Bugünkü rotaları filtrele
-      filterTodayRoutes(routesData, journeysData, driversData);
+      filterTodayRoutes(routesData, journeySummariesData, driversData);
       
       // Son aktiviteleri oluştur
-      generateRecentActivities(journeysData, routesData);
+      generateRecentActivities(journeySummariesData, routesData);
       
       // Haftalık veriyi hesapla
-      calculateWeeklyData(journeysData);
+      calculateWeeklyData(journeySummariesData);
 
     } catch (error) {
       console.error('Dashboard verileri yüklenirken hata:', error);
@@ -90,42 +79,41 @@ const Dashboard: React.FC = () => {
   const calculateStats = (
     customers: Customer[], 
     drivers: Driver[], 
-    journeys: Journey[], 
+    journeySummaries: JourneySummary[], 
     routes: RouteType[]
   ) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     // Bugünkü journey'leri filtrele
-    const todayJourneys = journeys.filter(j => {
-      const journeyDate = new Date(j.startedAt || j.route?.date || 0);
+    const todayJourneys = journeySummaries.filter(j => {
+      const journeyDate = new Date(j.startedAt || j.createdAt);
       journeyDate.setHours(0, 0, 0, 0);
       return journeyDate.getTime() === today.getTime();
     });
 
-    // Tamamlanan teslimatları say
-    const completedDeliveries = journeys.reduce((total, j) => {
-      return total + (j.route?.completedDeliveries || 0);
+    // ✅ Özet verilerden hesaplama - Detay yok!
+    const completedDeliveries = journeySummaries.reduce((total, j) => {
+      return total + j.completedStops;
     }, 0);
 
-    // Toplam teslimatları say
-    const totalDeliveries = routes.reduce((total, r) => {
-      return total + (r.totalDeliveries || r.stops?.length || 0);
+    const totalDeliveries = journeySummaries.reduce((total, j) => {
+      return total + j.totalStops;
     }, 0);
 
     // Aktif (available) sürücüleri say
     const activeDrivers = drivers.filter(d => d.status === 'available').length;
 
     // Ortalama teslimat süresini hesapla (dakika)
-    const averageTime = journeys.length > 0 
-      ? journeys.reduce((sum, j) => sum + (j.totalDuration || 0), 0) / journeys.length
+    const averageTime = journeySummaries.length > 0 
+      ? journeySummaries.reduce((sum, j) => sum + j.totalDuration, 0) / journeySummaries.length
       : 0;
 
     const statsData = [
       {
         title: 'Toplam Teslimat',
         value: totalDeliveries.toString(),
-        change: '+12%', // Bu değerleri historik veriyle karşılaştırarak hesaplayabilirsiniz
+        change: '+12%',
         trend: 'up',
         icon: Package,
         color: 'blue',
@@ -163,7 +151,11 @@ const Dashboard: React.FC = () => {
     setStats(statsData);
   };
 
-  const filterTodayRoutes = (routes: RouteType[], journeys: Journey[], drivers: Driver[]) => {
+  const filterTodayRoutes = (
+    routes: RouteType[], 
+    journeySummaries: JourneySummary[], 
+    drivers: Driver[]
+  ) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -175,50 +167,47 @@ const Dashboard: React.FC = () => {
         return routeDate.getTime() === today.getTime();
       })
       .map(route => {
-        // Bu rotaya ait journey'i bul
-        const journey = journeys.find(j => j.routeId === Number(route.id));
+        // ✅ Summary'den journey bilgisi al
+        const journey = journeySummaries.find(j => j.routeId === Number(route.id));
         const driver = drivers.find(d => d.id === Number(route.driverId));
         
         // İlerleme yüzdesini hesapla
-        const progress = route.totalDeliveries > 0 
-          ? Math.round((route.completedDeliveries / route.totalDeliveries) * 100)
+        const progress = journey 
+          ? Math.round((journey.completedStops / journey.totalStops) * 100)
           : 0;
 
         // Durumu belirle
         let status = 'pending';
         if (journey) {
-          if (journey.status === 'completed') status = 'completed';
-          else if (journey.status === 'in_progress') status = 'active';
-        } else if (route.status === 'in_progress') {
-          status = 'active';
-        } else if (route.status === 'completed') {
-          status = 'completed';
+          status = journey.status === 'completed' ? 'completed' :
+                  journey.status === 'in_progress' ? 'active' :
+                  'pending';
         }
 
         return {
           id: route.id,
           driver: driver?.name || route.driver?.name || 'Atanmadı',
-          vehicle: route.vehicle?.plateNumber || 'Atanmadı',
+          vehicle: journey?.vehiclePlateNumber || route.vehicle?.plateNumber || 'Atanmadı',
           status: status,
           progress: progress,
-          deliveries: `${route.completedDeliveries}/${route.totalDeliveries || route.stops?.length || 0}`
+          deliveries: journey ? `${journey.completedStops}/${journey.totalStops}` : '0/0'
         };
       })
-      .slice(0, 5); // İlk 5 rotayı göster
+      .slice(0, 5);
 
     setTodayRoutes(todayRoutesData);
   };
 
-  const generateRecentActivities = (journeys: Journey[], routes: RouteType[]) => {
+  const generateRecentActivities = (journeySummaries: JourneySummary[], routes: RouteType[]) => {
     const activities: any[] = [];
     
-    // Son 5 journey'den aktivite oluştur
-    journeys.slice(0, 5).forEach((journey, index) => {
+    // ✅ Summary verilerinden aktivite oluştur
+    journeySummaries.slice(0, 5).forEach((journey) => {
       if (journey.status === 'completed') {
         activities.push({
           id: `j-${journey.id}`,
           type: 'delivery',
-          message: `Sefer tamamlandı - ${journey.route?.name || 'Sefer #' + journey.id}`,
+          message: `Sefer tamamlandı - ${journey.routeName}`,
           time: formatTimeAgo(journey.completedAt || journey.startedAt),
           icon: CheckCircle,
           color: 'text-green-600'
@@ -227,7 +216,7 @@ const Dashboard: React.FC = () => {
         activities.push({
           id: `j-${journey.id}`,
           type: 'driver',
-          message: `Sefer devam ediyor - ${journey.driver?.fullName || journey.route?.driver?.name || 'Sürücü'}`,
+          message: `Sefer devam ediyor - ${journey.driverName}`,
           time: formatTimeAgo(journey.startedAt),
           icon: Truck,
           color: 'text-purple-600'
@@ -247,40 +236,35 @@ const Dashboard: React.FC = () => {
       });
     });
 
-    // Sırala ve ilk 5'ini al
-    activities.sort((a, b) => {
-      // Gerçek tarih karşılaştırması yapılabilir
-      return 0;
-    });
-
+    activities.sort((a, b) => 0);
     setRecentActivities(activities.slice(0, 5));
   };
 
-  const calculateWeeklyData = (journeys: Journey[]) => {
+  const calculateWeeklyData = (journeySummaries: JourneySummary[]) => {
     const daysOfWeek = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
     const today = new Date();
     const weekData: any[] = [];
 
-    // Son 7 gün için veri hesapla
     for (let i = 6; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(today.getDate() - i);
       date.setHours(0, 0, 0, 0);
       
-      const dayJourneys = journeys.filter(j => {
-        const journeyDate = new Date(j.startedAt || j.route?.date || 0);
+      // ✅ Summary verilerinden hesapla
+      const dayJourneys = journeySummaries.filter(j => {
+        const journeyDate = new Date(j.startedAt || j.createdAt);
         journeyDate.setHours(0, 0, 0, 0);
         return journeyDate.getTime() === date.getTime();
       });
 
       const dayDeliveries = dayJourneys.reduce((sum, j) => {
-        return sum + (j.route?.completedDeliveries || 0);
+        return sum + j.completedStops;
       }, 0);
 
       weekData.push({
         day: daysOfWeek[date.getDay() === 0 ? 6 : date.getDay() - 1],
         deliveries: dayDeliveries,
-        target: date.getDay() === 0 || date.getDay() === 6 ? 50 : 150 // Hafta sonu hedef düşük
+        target: date.getDay() === 0 || date.getDay() === 6 ? 50 : 150
       });
     }
 
@@ -321,9 +305,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Rapor İndirme Fonksiyonu
   const handleDownloadReport = () => {
-    // CSV formatında rapor oluştur
     const reportData = [
       ['Dashboard Raporu', new Date().toLocaleDateString('tr-TR')],
       [''],
@@ -346,10 +328,7 @@ const Dashboard: React.FC = () => {
       ...weeklyData.map(data => [data.day, data.deliveries.toString(), data.target.toString()])
     ];
 
-    // CSV string oluştur
     const csvContent = reportData.map(row => row.join(',')).join('\n');
-    
-    // Blob ve download link oluştur
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');

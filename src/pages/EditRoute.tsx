@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save, AlertCircle, Loader2 } from 'lucide-react';
 import RouteForm from '@/components/routes/RouteForm';
 import { Route } from '@/types';
-import { routeService } from '@/services/mockData';
+import { routeService } from '@/services/route.service'; // ✅ DÜZELTME: mockData yerine route.service
 
 const EditRoute: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -18,19 +18,26 @@ const EditRoute: React.FC = () => {
   }, [id]);
 
   const loadRoute = async () => {
-    if (!id) return;
+    if (!id) {
+      setError('Rota ID bulunamadı');
+      setLoading(false);
+      return;
+    }
     
     setLoading(true);
     try {
+      console.log('Loading route with ID:', id); // Debug log
       const data = await routeService.getById(id);
+      console.log('Loaded route data:', data); // Debug log
+      
       if (data) {
         setRoute(data);
       } else {
         setError('Rota bulunamadı');
       }
-    } catch (err) {
-      setError('Rota yüklenirken bir hata oluştu');
+    } catch (err: any) {
       console.error('Error loading route:', err);
+      setError(err.response?.data?.message || 'Rota yüklenirken bir hata oluştu');
     } finally {
       setLoading(false);
     }
@@ -45,8 +52,8 @@ const EditRoute: React.FC = () => {
     try {
       await routeService.update(id, formData);
       navigate(`/routes/${id}`);
-    } catch (err) {
-      setError('Rota güncellenirken bir hata oluştu.');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Rota güncellenirken bir hata oluştu.');
       console.error('Error updating route:', err);
     } finally {
       setSaving(false);
@@ -65,8 +72,8 @@ const EditRoute: React.FC = () => {
         status: 'draft'
       });
       navigate('/routes');
-    } catch (err) {
-      setError('Taslak kaydedilirken bir hata oluştu.');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Taslak kaydedilirken bir hata oluştu.');
       console.error('Error saving draft:', err);
     } finally {
       setSaving(false);
@@ -81,12 +88,14 @@ const EditRoute: React.FC = () => {
     );
   }
 
-  if (!route) {
+  if (!route && !loading) {
     return (
       <div className="text-center py-12">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
         <h2 className="text-xl font-semibold text-gray-900 mb-2">Rota Bulunamadı</h2>
-        <p className="text-gray-600 mb-4">İstediğiniz rota bulunamadı veya silinmiş olabilir.</p>
+        <p className="text-gray-600 mb-4">
+          {error || 'İstediğiniz rota bulunamadı veya silinmiş olabilir.'}
+        </p>
         <Link
           to="/routes"
           className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -112,7 +121,7 @@ const EditRoute: React.FC = () => {
             </Link>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Rota Düzenle</h1>
-              <p className="text-gray-600 mt-1">{route.name}</p>
+              <p className="text-gray-600 mt-1">{route?.name}</p>
             </div>
           </div>
         </div>
@@ -129,13 +138,15 @@ const EditRoute: React.FC = () => {
       )}
 
       {/* Route Form */}
-      <RouteForm
-        initialData={route}
-        onSubmit={handleSubmit}
-        onSaveAsDraft={handleSaveAsDraft}
-        loading={saving}
-        isEdit
-      />
+      {route && (
+        <RouteForm
+          initialData={route}
+          onSubmit={handleSubmit}
+          onSaveAsDraft={handleSaveAsDraft}
+          loading={saving}
+          isEdit
+        />
+      )}
     </div>
   );
 };

@@ -19,14 +19,17 @@ import {
   Loader2,
   X,
   Download,
-  Eye
+  Eye,
+  CheckSquare
 } from 'lucide-react';
 import { Journey, JourneyStop, JourneyStatus } from '@/types';
-import { journeyService } from '@/services/journey.service';
+import { journeyService, CompleteStopDto } from '@/services/journey.service';
 
 const JourneyDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const journeyId = id;
+  
   const [journey, setJourney] = useState<Journey | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedStop, setSelectedStop] = useState<JourneyStop | null>(null);
@@ -37,6 +40,7 @@ const JourneyDetail: React.FC = () => {
   const [failureReason, setFailureReason] = useState('');
   const [failureNotes, setFailureNotes] = useState('');
   const [simulationActive, setSimulationActive] = useState(false);
+  const [processingStopId, setProcessingStopId] = useState<number | null>(null);
   
   // ✅ YENİ STATE'LER - İmza ve Fotoğraf için
   const [showSignatureModal, setShowSignatureModal] = useState(false);
@@ -53,13 +57,23 @@ const JourneyDetail: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ✅ PERFORMANS: Auto-refresh optimizasyonu
   useEffect(() => {
     if (id) {
       loadJourney();
-      const interval = setInterval(loadJourney, 3000);
-      return () => clearInterval(interval);
+      
+      // ✅ PERFORMANS: Sadece aktif seferler için ve 30 saniyede bir
+      let interval: NodeJS.Timeout | null = null;
+      
+      if (journey?.status === 'in_progress') {
+        interval = setInterval(loadJourney, 30000); // 30 saniye
+      }
+      
+      return () => {
+        if (interval) clearInterval(interval);
+      };
     }
-  }, [id]);
+  }, [id, journey?.status]);
 
   useEffect(() => {
     if (simulationActive && journey) {
@@ -90,8 +104,6 @@ const JourneyDetail: React.FC = () => {
     try {
       const data = await journeyService.getById(id);
       console.log('Journey detail loaded:', data);
-      console.log('Journey stops:', data.stops);
-      console.log('Journey stops count:', data.stops?.length);
       
       if (data) {
         setJourney(data);
@@ -176,32 +188,93 @@ const JourneyDetail: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  // ✅ GÜNCELLENMİŞ HANDLER'LAR
+  // ✅ PERFORMANS OPTİMİZE EDİLMİŞ HANDLER'LAR
   const handleCheckIn = async () => {
     if (!journey || !selectedStop) return;
     
+    setProcessingStopId(selectedStop.id);
     try {
+      console.log('Check-in başlatılıyor:', selectedStop.id);
+      
+      // Check-in yap
       await journeyService.checkInStop(journey.id, selectedStop.id);
-      await loadJourney();
+      
+      // ✅ PERFORMANS: Optimistic update - sadece ilgili stop'u güncelle
+      setJourney(prev => {
+        if (!prev) return prev;
+        
+        const updatedStops = prev.stops?.map(s => 
+          s.id === selectedStop.id 
+            ? { ...s, status: 'inprogress' }
+            : s
+        );
+        
+        return {
+          ...prev,
+          stops: updatedStops,
+          currentStopIndex: updatedStops?.findIndex(s => 
+            s.status === 'pending' || s.status === 'inprogress'
+          ) || 0
+        };
+      });
+      
+      // Modal'ı kapat
       setShowCheckInModal(false);
       setSelectedStop(null);
+      
+      // ✅ PERFORMANS: 5 saniye sonra arka planda tam güncelleme
+      setTimeout(() => {
+        loadJourney();
+      }, 5000);
+      
     } catch (error) {
-      console.error('Error checking in stop:', error);
-      alert('Check-in yapılamadı');
+      console.error('Check-in hatası:', error);
+      alert('Check-in işlemi başarısız!');
+      // Hata durumunda tam yenile
+      loadJourney();
+    } finally {
+      setProcessingStopId(null);
     }
   };
 
   const handleComplete = async () => {
     if (!journey || !selectedStop) return;
     
+    setProcessingStopId(selectedStop.id);
     try {
       // ✅ İmza, fotoğraf ve notları da gönder
-      await journeyService.completeStop(journey.id, selectedStop.id, {
+      const completeData: CompleteStopDto = {
         notes: deliveryNotes,
         signatureBase64: signatureBase64,
         photoBase64: photoBase64
+      };
+      
+      await journeyService.completeStop(journey.id, selectedStop.id, completeData);
+      
+      // ✅ PERFORMANS: Optimistic update
+      setJourney(prev => {
+        if (!prev) return prev;
+        
+        const updatedStops = prev.stops?.map(s => 
+          s.id === selectedStop.id 
+            ? { ...s, status: 'completed' }
+            : s
+        );
+        
+        // Tamamlanan stop sayısını güncelle
+        const completedCount = updatedStops?.filter(s => 
+          s.status === 'completed' || s.status === 'failed'
+        ).length || 0;
+        
+        return {
+          ...prev,
+          stops: updatedStops,
+          route: prev.route ? {
+            ...prev.route,
+            completedDeliveries: completedCount
+          } : prev.route
+        };
       });
-      await loadJourney();
       
       // Modal'ı kapat ve state'leri temizle
       setShowCompleteModal(false);
@@ -209,27 +282,61 @@ const JourneyDetail: React.FC = () => {
       setDeliveryNotes('');
       setSignatureBase64('');
       setPhotoBase64('');
+      
+      // ✅ 5 saniye sonra arka planda güncelle
+      setTimeout(() => {
+        loadJourney();
+      }, 5000);
+      
     } catch (error) {
       console.error('Error completing stop:', error);
       alert('Teslimat tamamlanamadı');
+      loadJourney();
+    } finally {
+      setProcessingStopId(null);
     }
   };
 
   const handleFail = async () => {
     if (!journey || !selectedStop || !failureReason) return;
     
+    setProcessingStopId(selectedStop.id);
     try {
       // ✅ Başarısızlık nedeni ve notları gönder
       await journeyService.failStop(journey.id, selectedStop.id, failureReason, failureNotes);
-      await loadJourney();
+      
+      // ✅ PERFORMANS: Optimistic update
+      setJourney(prev => {
+        if (!prev) return prev;
+        
+        const updatedStops = prev.stops?.map(s => 
+          s.id === selectedStop.id 
+            ? { ...s, status: 'failed' }
+            : s
+        );
+        
+        return {
+          ...prev,
+          stops: updatedStops
+        };
+      });
       
       setShowFailModal(false);
       setSelectedStop(null);
       setFailureReason('');
       setFailureNotes('');
+      
+      // ✅ 5 saniye sonra arka planda güncelle
+      setTimeout(() => {
+        loadJourney();
+      }, 5000);
+      
     } catch (error) {
       console.error('Error failing stop:', error);
       alert('İşlem başarısız');
+      loadJourney();
+    } finally {
+      setProcessingStopId(null);
     }
   };
 
@@ -305,7 +412,7 @@ const JourneyDetail: React.FC = () => {
   const failedStops = stops.filter((s: JourneyStop) => s.status === 'failed').length;
   const progress = stops.length > 0 ? (completedStops / stops.length) * 100 : 0;
   
-  // ✅ Sefer tamamlanabilir mi kontrolü - GÜNCELLEME
+  // ✅ Sefer tamamlanabilir mi kontrolü
   const canCompleteJourney = journey.status === 'in_progress' && 
     stops.every((s: JourneyStop) => {
       const status = s.status?.toLowerCase();
@@ -362,9 +469,15 @@ const JourneyDetail: React.FC = () => {
         
         <div className="flex items-center space-x-3">
           {journey.status === 'in_progress' && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-1 text-xs text-yellow-700">
-              ⚠️ Test Modu - Normal şartlarda şoför mobil app'ten yapar
-            </div>
+            <>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-1 text-xs text-yellow-700">
+                ⚠️ Test Modu - Normal şartlarda şoför mobil app'ten yapar
+              </div>
+              
+              <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-1 text-xs text-green-700">
+                ✅ 30 saniyede bir otomatik güncellenir
+              </div>
+            </>
           )}
           
           <button
@@ -489,7 +602,7 @@ const JourneyDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* Status History - YENİ EKLENEN */}
+      {/* Status History */}
       {journey.statuses && journey.statuses.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-100">
           <div className="p-6 border-b">
@@ -646,7 +759,7 @@ const JourneyDetail: React.FC = () => {
                       </p>
                     )}
                     
-                    {/* ✅ YENİ - Bu durak için son status notlarını göster */}
+                    {/* Bu durak için son status notlarını göster */}
                     {(() => {
                       const stopStatuses = journey.statuses?.filter(
                         (s: JourneyStatus) => s.stopId === stop.stopId || s.stopId === stop.id
@@ -693,8 +806,14 @@ const JourneyDetail: React.FC = () => {
                             setSelectedStop(stop);
                             setShowCheckInModal(true);
                           }}
-                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                          disabled={processingStopId === stop.id}
+                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                         >
+                          {processingStopId === stop.id ? (
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          ) : (
+                            <CheckSquare className="w-3 h-3 mr-1" />
+                          )}
                           Check-in
                         </button>
                       </div>
@@ -707,16 +826,22 @@ const JourneyDetail: React.FC = () => {
                             setSelectedStop(stop);
                             setShowCompleteModal(true);
                           }}
-                          className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+                          disabled={processingStopId === stop.id}
+                          className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Tamamla
+                          {processingStopId === stop.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            'Tamamla'
+                          )}
                         </button>
                         <button
                           onClick={() => {
                             setSelectedStop(stop);
                             setShowFailModal(true);
                           }}
-                          className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+                          disabled={processingStopId === stop.id}
+                          className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Başarısız
                         </button>
@@ -744,15 +869,22 @@ const JourneyDetail: React.FC = () => {
             
             <div className="flex justify-end space-x-3">
               <button
-                onClick={() => setShowCheckInModal(false)}
+                onClick={() => {
+                  setShowCheckInModal(false);
+                  setSelectedStop(null);
+                }}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 İptal
               </button>
               <button
                 onClick={handleCheckIn}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                disabled={processingStopId !== null}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
               >
+                {processingStopId !== null && (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                )}
                 Evet, Vardım
               </button>
             </div>
@@ -760,7 +892,7 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-      {/* Complete Delivery Modal - ✅ GÜNCELLENDİ */}
+      {/* Complete Delivery Modal */}
       {showCompleteModal && selectedStop && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -842,6 +974,7 @@ const JourneyDetail: React.FC = () => {
               <button
                 onClick={() => {
                   setShowCompleteModal(false);
+                  setSelectedStop(null);
                   setDeliveryNotes('');
                   setSignatureBase64('');
                   setPhotoBase64('');
@@ -852,8 +985,12 @@ const JourneyDetail: React.FC = () => {
               </button>
               <button
                 onClick={handleComplete}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                disabled={processingStopId !== null}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
               >
+                {processingStopId !== null && (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                )}
                 Tamamla
               </button>
             </div>
@@ -861,7 +998,7 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-      {/* Fail Delivery Modal - ✅ GÜNCELLENDİ */}
+      {/* Fail Delivery Modal */}
       {showFailModal && selectedStop && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
@@ -889,7 +1026,6 @@ const JourneyDetail: React.FC = () => {
               </select>
             </div>
             
-            {/* ✅ YENİ - Ek not alanı */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Ek Notlar (Opsiyonel)
@@ -907,6 +1043,7 @@ const JourneyDetail: React.FC = () => {
               <button
                 onClick={() => {
                   setShowFailModal(false);
+                  setSelectedStop(null);
                   setFailureReason('');
                   setFailureNotes('');
                 }}
@@ -916,9 +1053,12 @@ const JourneyDetail: React.FC = () => {
               </button>
               <button
                 onClick={handleFail}
-                disabled={!failureReason}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!failureReason || processingStopId !== null}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
               >
+                {processingStopId !== null && (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                )}
                 Başarısız Olarak İşaretle
               </button>
             </div>
@@ -926,7 +1066,7 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-      {/* ✅ YENİ - İmza Modal */}
+      {/* İmza Modal */}
       {showSignatureModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-lg">
@@ -972,7 +1112,7 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-      {/* ✅ YENİ - Fotoğraf Modal */}
+      {/* Fotoğraf Modal */}
       {showPhotoModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
@@ -1010,7 +1150,7 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-      {/* ✅ YENİ - İmza Görüntüleme Modal */}
+      {/* İmza Görüntüleme Modal */}
       {viewSignature && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-lg">
@@ -1034,7 +1174,7 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-      {/* ✅ YENİ - Fotoğraf Görüntüleme Modal */}
+      {/* Fotoğraf Görüntüleme Modal */}
       {viewPhoto && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
