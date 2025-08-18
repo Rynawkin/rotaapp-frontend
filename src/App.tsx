@@ -1,6 +1,6 @@
-// src/App.tsx
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, ProtectedRoute, useAuth } from '@/contexts/AuthContext';
 import MainLayout from '@/layouts/MainLayout';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
@@ -36,211 +36,229 @@ import SuperAdminDashboard from '@/pages/superadmin/SuperAdminDashboard';
 import WorkspaceDetail from '@/pages/superadmin/WorkspaceDetail';
 import WorkspaceEdit from '@/pages/superadmin/WorkspaceEdit';
 
-// Protected Route Component
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
-  
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  return <MainLayout>{children}</MainLayout>;
+// Layout wrapper for protected routes - useAuth hook'unu kullanacak şekilde güncellendi
+const ProtectedLayout: React.FC<{ 
+  children: React.ReactNode; 
+  requireAdmin?: boolean;
+  requireSuperAdmin?: boolean;
+  requireDispatcher?: boolean;
+  requireDriver?: boolean;
+}> = ({ 
+  children, 
+  requireAdmin = false,
+  requireSuperAdmin = false,
+  requireDispatcher = false,
+  requireDriver = false
+}) => {
+  const { logout } = useAuth(); // AuthContext'ten logout fonksiyonunu al
+
+  return (
+    <ProtectedRoute 
+      requireAdmin={requireAdmin}
+      requireSuperAdmin={requireSuperAdmin}
+      requireDispatcher={requireDispatcher}
+      requireDriver={requireDriver}
+    >
+      <MainLayout onLogout={logout}>{children}</MainLayout>
+    </ProtectedRoute>
+  );
+};
+
+// App Routes Component - AuthProvider içinde olması gerek
+const AppRoutes: React.FC = () => {
+  return (
+    <Routes>
+      {/* Public Routes */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/onboarding" element={<Onboarding />} />
+      <Route path="/test-map" element={<TestMap />} />
+      
+      {/* Protected Routes */}
+      <Route path="/" element={
+        <ProtectedLayout>
+          <Dashboard />
+        </ProtectedLayout>
+      } />
+      
+      <Route path="/dashboard" element={
+        <ProtectedLayout>
+          <Dashboard />
+        </ProtectedLayout>
+      } />
+      
+      {/* Routes Module */}
+      <Route path="/routes" element={
+        <ProtectedLayout>
+          <RoutesPage />
+        </ProtectedLayout>
+      } />
+      <Route path="/routes/new" element={
+        <ProtectedLayout>
+          <CreateRoute />
+        </ProtectedLayout>
+      } />
+      <Route path="/routes/:id" element={
+        <ProtectedLayout>
+          <RouteDetail />
+        </ProtectedLayout>
+      } />
+      <Route path="/routes/:id/edit" element={
+        <ProtectedLayout>
+          <EditRoute />
+        </ProtectedLayout>
+      } />
+      
+      {/* Customers Module */}
+      <Route path="/customers" element={
+        <ProtectedLayout>
+          <Customers />
+        </ProtectedLayout>
+      } />
+      <Route path="/customers/new" element={
+        <ProtectedLayout>
+          <CreateCustomer />
+        </ProtectedLayout>
+      } />
+      <Route path="/customers/:id" element={
+        <ProtectedLayout>
+          <CustomerDetail />
+        </ProtectedLayout>
+      } />
+      <Route path="/customers/:id/edit" element={
+        <ProtectedLayout>
+          <EditCustomer />
+        </ProtectedLayout>
+      } />
+      
+      {/* Drivers Module */}
+      <Route path="/drivers" element={
+        <ProtectedLayout>
+          <Drivers />
+        </ProtectedLayout>
+      } />
+      <Route path="/drivers/new" element={
+        <ProtectedLayout>
+          <CreateDriver />
+        </ProtectedLayout>
+      } />
+      <Route path="/drivers/:id" element={
+        <ProtectedLayout>
+          <DriverDetail />
+        </ProtectedLayout>
+      } />
+      <Route path="/drivers/:id/edit" element={
+        <ProtectedLayout>
+          <EditDriver />
+        </ProtectedLayout>
+      } />
+      
+      {/* Vehicles Module */}
+      <Route path="/vehicles" element={
+        <ProtectedLayout>
+          <Vehicles />
+        </ProtectedLayout>
+      } />
+      <Route path="/vehicles/new" element={
+        <ProtectedLayout>
+          <CreateVehicle />
+        </ProtectedLayout>
+      } />
+      <Route path="/vehicles/:id" element={
+        <ProtectedLayout>
+          <VehicleDetail />
+        </ProtectedLayout>
+      } />
+      <Route path="/vehicles/:id/edit" element={
+        <ProtectedLayout>
+          <EditVehicle />
+        </ProtectedLayout>
+      } />
+      
+      {/* Depots Module */}
+      <Route path="/depots" element={
+        <ProtectedLayout>
+          <Depots />
+        </ProtectedLayout>
+      } />
+      <Route path="/depots/new" element={
+        <ProtectedLayout>
+          <CreateDepot />
+        </ProtectedLayout>
+      } />
+      <Route path="/depots/:id" element={
+        <ProtectedLayout>
+          <DepotDetail />
+        </ProtectedLayout>
+      } />
+      <Route path="/depots/:id/edit" element={
+        <ProtectedLayout>
+          <EditDepot />
+        </ProtectedLayout>
+      } />
+      
+      {/* Journeys Module */}
+      <Route path="/journeys" element={
+        <ProtectedLayout>
+          <Journeys />
+        </ProtectedLayout>
+      } />
+      <Route path="/journeys/:id" element={
+        <ProtectedLayout>
+          <JourneyDetail />
+        </ProtectedLayout>
+      } />
+      
+      {/* Live Tracking */}
+      <Route path="/tracking" element={
+        <ProtectedLayout>
+          <LiveTracking />
+        </ProtectedLayout>
+      } />
+      
+      {/* Reports */}
+      <Route path="/reports" element={
+        <ProtectedLayout>
+          <Reports />
+        </ProtectedLayout>
+      } />
+      
+      {/* Settings */}
+      <Route path="/settings" element={
+        <ProtectedLayout>
+          <Settings />
+        </ProtectedLayout>
+      } />
+      
+      {/* Super Admin Routes - Require SuperAdmin Role */}
+      <Route path="/super-admin" element={
+        <ProtectedLayout requireSuperAdmin={true}>
+          <SuperAdminDashboard />
+        </ProtectedLayout>
+      } />
+      <Route path="/super-admin/workspace/:id" element={
+        <ProtectedLayout requireSuperAdmin={true}>
+          <WorkspaceDetail />
+        </ProtectedLayout>
+      } />
+      <Route path="/super-admin/workspace/:id/edit" element={
+        <ProtectedLayout requireSuperAdmin={true}>
+          <WorkspaceEdit />
+        </ProtectedLayout>
+      } />
+      
+      {/* Catch all - redirect to dashboard */}
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
+  );
 };
 
 function App() {
-  useEffect(() => {
-    // Initialize mock authentication
-    const isAuth = localStorage.getItem('isAuthenticated');
-    if (isAuth === null) {
-      localStorage.setItem('isAuthenticated', 'false');
-    }
-  }, []);
-
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/onboarding" element={<Onboarding />} />
-        <Route path="/test-map" element={<TestMap />} />
-        
-        {/* Protected Routes */}
-        <Route path="/" element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/dashboard" element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        } />
-        
-        {/* Routes Module */}
-        <Route path="/routes" element={
-          <ProtectedRoute>
-            <RoutesPage />
-          </ProtectedRoute>
-        } />
-        <Route path="/routes/new" element={
-          <ProtectedRoute>
-            <CreateRoute />
-          </ProtectedRoute>
-        } />
-        <Route path="/routes/:id" element={
-          <ProtectedRoute>
-            <RouteDetail />
-          </ProtectedRoute>
-        } />
-        <Route path="/routes/:id/edit" element={
-          <ProtectedRoute>
-            <EditRoute />
-          </ProtectedRoute>
-        } />
-        
-        {/* Customers Module */}
-        <Route path="/customers" element={
-          <ProtectedRoute>
-            <Customers />
-          </ProtectedRoute>
-        } />
-        <Route path="/customers/new" element={
-          <ProtectedRoute>
-            <CreateCustomer />
-          </ProtectedRoute>
-        } />
-        <Route path="/customers/:id" element={
-          <ProtectedRoute>
-            <CustomerDetail />
-          </ProtectedRoute>
-        } />
-        <Route path="/customers/:id/edit" element={
-          <ProtectedRoute>
-            <EditCustomer />
-          </ProtectedRoute>
-        } />
-        
-        {/* Drivers Module */}
-        <Route path="/drivers" element={
-          <ProtectedRoute>
-            <Drivers />
-          </ProtectedRoute>
-        } />
-        <Route path="/drivers/new" element={
-          <ProtectedRoute>
-            <CreateDriver />
-          </ProtectedRoute>
-        } />
-        <Route path="/drivers/:id" element={
-          <ProtectedRoute>
-            <DriverDetail />
-          </ProtectedRoute>
-        } />
-        <Route path="/drivers/:id/edit" element={
-          <ProtectedRoute>
-            <EditDriver />
-          </ProtectedRoute>
-        } />
-        
-        {/* Vehicles Module */}
-        <Route path="/vehicles" element={
-          <ProtectedRoute>
-            <Vehicles />
-          </ProtectedRoute>
-        } />
-        <Route path="/vehicles/new" element={
-          <ProtectedRoute>
-            <CreateVehicle />
-          </ProtectedRoute>
-        } />
-        <Route path="/vehicles/:id" element={
-          <ProtectedRoute>
-            <VehicleDetail />
-          </ProtectedRoute>
-        } />
-        <Route path="/vehicles/:id/edit" element={
-          <ProtectedRoute>
-            <EditVehicle />
-          </ProtectedRoute>
-        } />
-        
-        {/* Depots Module */}
-        <Route path="/depots" element={
-          <ProtectedRoute>
-            <Depots />
-          </ProtectedRoute>
-        } />
-        <Route path="/depots/new" element={
-          <ProtectedRoute>
-            <CreateDepot />
-          </ProtectedRoute>
-        } />
-        <Route path="/depots/:id" element={
-          <ProtectedRoute>
-            <DepotDetail />
-          </ProtectedRoute>
-        } />
-        <Route path="/depots/:id/edit" element={
-          <ProtectedRoute>
-            <EditDepot />
-          </ProtectedRoute>
-        } />
-        
-        {/* Journeys Module */}
-        <Route path="/journeys" element={
-          <ProtectedRoute>
-            <Journeys />
-          </ProtectedRoute>
-        } />
-        <Route path="/journeys/:id" element={
-          <ProtectedRoute>
-            <JourneyDetail />
-          </ProtectedRoute>
-        } />
-        
-        {/* Live Tracking */}
-        <Route path="/tracking" element={
-          <ProtectedRoute>
-            <LiveTracking />
-          </ProtectedRoute>
-        } />
-        
-        {/* Reports */}
-        <Route path="/reports" element={
-          <ProtectedRoute>
-            <Reports />
-          </ProtectedRoute>
-        } />
-        
-        {/* Settings */}
-        <Route path="/settings" element={
-          <ProtectedRoute>
-            <Settings />
-          </ProtectedRoute>
-        } />
-        
-        {/* Super Admin */}
-        <Route path="/super-admin" element={
-          <ProtectedRoute>
-            <SuperAdminDashboard />
-          </ProtectedRoute>
-        } />
-        <Route path="/super-admin/workspace/:id" element={
-          <ProtectedRoute>
-            <WorkspaceDetail />
-          </ProtectedRoute>
-        } />
-        <Route path="/super-admin/workspace/:id/edit" element={
-          <ProtectedRoute>
-            <WorkspaceEdit />
-          </ProtectedRoute>
-        } />
-        
-        {/* Catch all - redirect to dashboard */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
     </BrowserRouter>
   );
 }

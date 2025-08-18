@@ -17,11 +17,18 @@ import {
   AlertCircle,
   TrendingUp,
   Activity,
-  Loader2
+  Loader2,
+  Archive,
+  Trash2,
+  Ban,
+  CheckSquare,
+  Square,
+  AlertTriangle
 } from 'lucide-react';
 import { Route } from '@/types';
-import { journeyService, JourneySummary } from '@/services/journey.service';
+import { journeyService, JourneySummary, BulkOperationResult } from '@/services/journey.service';
 import { routeService } from '@/services/route.service';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Journeys: React.FC = () => {
   // ✅ PERFORMANS: Journey yerine JourneySummary kullan
@@ -32,17 +39,33 @@ const Journeys: React.FC = () => {
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
   const [showStartModal, setShowStartModal] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
+  
+  // ✅ YENİ: Toplu işlem state'leri
+  const [selectedJourneyIds, setSelectedJourneyIds] = useState<Set<number>>(new Set());
+  const [showBulkActions, setShowBulkActions] = useState(false);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false);
+  const [bulkActionType, setBulkActionType] = useState<'cancel' | 'archive' | 'delete' | null>(null);
+  
   const navigate = useNavigate();
+  
+  // ✅ ROL KONTROLÜ İÇİN AUTH HOOK
+  const { user, canAccessDispatcherFeatures } = useAuth();
 
   useEffect(() => {
     loadData();
-    // Her 30 saniyede bir aktif seferleri güncelle (3 saniye yerine)
+    // Her 30 saniyede bir aktif seferleri güncelle
     const interval = setInterval(() => {
       loadJourneys();
-    }, 30000); // ✅ PERFORMANS: 10 saniye yerine 30 saniye
+    }, 30000);
     
     return () => clearInterval(interval);
   }, []);
+
+  // Selection değiştiğinde bulk actions toolbar'ı göster/gizle
+  useEffect(() => {
+    setShowBulkActions(selectedJourneyIds.size > 0);
+  }, [selectedJourneyIds]);
 
   const loadData = async () => {
     setLoading(true);
@@ -60,7 +83,14 @@ const Journeys: React.FC = () => {
     try {
       // ✅ PERFORMANS: getAllSummary kullan
       const data = await journeyService.getAllSummary();
-      setJourneys(data);
+      
+      // ✅ Driver rolü için sadece kendi journey'lerini göster
+      if (user?.isDriver && !canAccessDispatcherFeatures()) {
+        const myJourneys = data.filter(j => j.driverId === user.id);
+        setJourneys(myJourneys);
+      } else {
+        setJourneys(data);
+      }
     } catch (error) {
       console.error('Error loading journeys:', error);
     }
@@ -68,16 +98,135 @@ const Journeys: React.FC = () => {
 
   const loadAvailableRoutes = async () => {
     try {
-      const routes = await routeService.getAll();
-      // Sadece planned veya draft durumundaki rotaları göster
-      const available = routes.filter(r => 
-        (r.status === 'planned' || r.status === 'draft') && 
-        r.driverId && 
-        r.vehicleId
-      );
-      setAvailableRoutes(available);
+      // ✅ ROL BAZLI ROUTE YÜKLEME
+      // Driver rolü için özel işlem yapacağız
+      if (user?.isDriver && !canAccessDispatcherFeatures()) {
+        // Driver için sadece basit route bilgisi çek, customer detayları olmadan
+        try {
+          const response = await fetch('/api/workspace/routes', {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (response.ok) {
+            const routes = await response.json();
+            // Driver'a atanmış ve başlatılabilir rotaları filtrele
+            const myAvailableRoutes = routes.filter((r: Route) => 
+              (r.status === 'planned' || r.status === 'draft') && 
+              r.driverId === user.id &&
+              r.vehicleId
+            );
+            setAvailableRoutes(myAvailableRoutes);
+          } else {
+            console.log('Route verileri yüklenemedi');
+            setAvailableRoutes([]);
+          }
+        } catch (error) {
+          console.log('Route API hatası:', error);
+          setAvailableRoutes([]);
+        }
+      } else {
+        // Dispatcher ve üzeri için normal route service kullan
+        const routes = await routeService.getAll();
+        const available = routes.filter(r => 
+          (r.status === 'planned' || r.status === 'draft') && 
+          r.driverId && 
+          r.vehicleId
+        );
+        setAvailableRoutes(available);
+      }
     } catch (error) {
       console.error('Error loading routes:', error);
+      setAvailableRoutes([]);
+    }
+  };
+
+  // ✅ YENİ: Checkbox işlemleri
+  const handleSelectAll = () => {
+    if (selectedJourneyIds.size === filteredJourneys.length) {
+      setSelectedJourneyIds(new Set());
+    } else {
+      const allIds = new Set(filteredJourneys.map(j => j.id));
+      setSelectedJourneyIds(allIds);
+    }
+  };
+
+  const handleSelectJourney = (journeyId: number) => {
+    const newSelection = new Set(selectedJourneyIds);
+    if (newSelection.has(journeyId)) {
+      newSelection.delete(journeyId);
+    } else {
+      newSelection.add(journeyId);
+    }
+    setSelectedJourneyIds(newSelection);
+  };
+
+  const isJourneySelected = (journeyId: number) => {
+    return selectedJourneyIds.has(journeyId);
+  };
+
+  // ✅ YENİ: Toplu işlem fonksiyonları
+  const handleBulkAction = (action: 'cancel' | 'archive' | 'delete') => {
+    setBulkActionType(action);
+    
+    // Silme için ekstra onay dialogu
+    if (action === 'delete') {
+      setShowDeleteConfirmDialog(true);
+    } else {
+      // İptal ve arşivleme için normal onay
+      const confirmMessage = action === 'cancel' 
+        ? `${selectedJourneyIds.size} seferi iptal etmek istediğinizden emin misiniz?`
+        : `${selectedJourneyIds.size} seferi arşivlemek istediğinizden emin misiniz?`;
+      
+      if (window.confirm(confirmMessage)) {
+        executeBulkAction(action);
+      }
+    }
+  };
+
+  const executeBulkAction = async (action: 'cancel' | 'archive' | 'delete') => {
+    setBulkActionLoading(true);
+    const selectedIds = Array.from(selectedJourneyIds);
+    
+    try {
+      let result: BulkOperationResult;
+      
+      switch (action) {
+        case 'cancel':
+          result = await journeyService.bulkCancel(selectedIds, 'Toplu iptal');
+          break;
+        case 'archive':
+          result = await journeyService.bulkArchive(selectedIds);
+          break;
+        case 'delete':
+          result = await journeyService.bulkDelete(selectedIds, false);
+          break;
+        default:
+          throw new Error('Geçersiz işlem');
+      }
+      
+      // Sonucu göster
+      if (result.failedCount > 0) {
+        const failedDetails = result.failedItems
+          .map(item => `${item.name || `ID: ${item.id}`}: ${item.reason}`)
+          .join('\n');
+        alert(`${result.message}\n\nBaşarısız olanlar:\n${failedDetails}`);
+      } else {
+        alert(result.message);
+      }
+      
+      // Listeyi yenile ve seçimleri temizle
+      await loadJourneys();
+      setSelectedJourneyIds(new Set());
+      setShowDeleteConfirmDialog(false);
+      
+    } catch (error: any) {
+      alert(error.message || 'İşlem başarısız oldu');
+    } finally {
+      setBulkActionLoading(false);
+      setBulkActionType(null);
     }
   };
 
@@ -87,7 +236,6 @@ const Journeys: React.FC = () => {
       await loadData();
       setShowStartModal(false);
       setSelectedRoute(null);
-      // Journey detay sayfasına yönlendir
       navigate(`/journeys/${journey.id}`);
     } catch (error: any) {
       alert(error.message || 'Sefer başlatılamadı');
@@ -163,6 +311,13 @@ const Journeys: React.FC = () => {
             İptal Edildi
           </span>
         );
+      case 'archived':
+        return (
+          <span className="flex items-center px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">
+            <Archive className="w-3 h-3 mr-1" />
+            Arşivlendi
+          </span>
+        );
       default:
         return null;
     }
@@ -191,7 +346,15 @@ const Journeys: React.FC = () => {
   };
 
   const filteredJourneys = journeys.filter(journey => {
-    if (selectedStatus === 'all') return true;
+    // Arşivlenen seferler sadece arşiv sekmesinde görünsün
+    if (journey.status === 'archived' && selectedStatus !== 'archived') {
+      return false;
+    }
+    
+    if (selectedStatus === 'all') {
+      // Tümü sekmesinde arşivlenen seferler görünmesin
+      return journey.status !== 'archived';
+    }
     if (selectedStatus === 'active') {
       return ['preparing', 'started', 'in_progress'].includes(journey.status);
     }
@@ -200,6 +363,9 @@ const Journeys: React.FC = () => {
     }
     if (selectedStatus === 'cancelled') {
       return journey.status === 'cancelled';
+    }
+    if (selectedStatus === 'archived') {
+      return journey.status === 'archived';
     }
     return journey.status === selectedStatus;
   });
@@ -218,8 +384,13 @@ const Journeys: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Seferler</h1>
-          <p className="text-gray-600 mt-1">Aktif seferleri takip edin ve yönetin</p>
+          <p className="text-gray-600 mt-1">
+            {user?.isDriver && !canAccessDispatcherFeatures() 
+              ? 'Seferlerinizi takip edin ve yönetin'
+              : 'Aktif seferleri takip edin ve yönetin'}
+          </p>
         </div>
+        {/* ✅ Driver rolü de kendi seferlerini başlatabilir */}
         <button
           onClick={() => setShowStartModal(true)}
           className="mt-4 sm:mt-0 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
@@ -228,6 +399,67 @@ const Journeys: React.FC = () => {
           Yeni Sefer Başlat
         </button>
       </div>
+
+      {/* Bulk Actions Toolbar - YENİ */}
+      {/* ✅ Bulk actions sadece Dispatcher ve üzeri için görünür */}
+      {showBulkActions && canAccessDispatcherFeatures() && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <span className="font-medium text-blue-900">
+                {selectedJourneyIds.size} sefer seçildi
+              </span>
+              <button
+                onClick={() => setSelectedJourneyIds(new Set())}
+                className="text-blue-600 hover:text-blue-700 text-sm"
+              >
+                Seçimi Temizle
+              </button>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => handleBulkAction('cancel')}
+                disabled={bulkActionLoading}
+                className="px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center text-sm disabled:opacity-50"
+              >
+                {bulkActionLoading && bulkActionType === 'cancel' ? (
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <Ban className="w-4 h-4 mr-1" />
+                )}
+                Toplu İptal
+              </button>
+              
+              <button
+                onClick={() => handleBulkAction('archive')}
+                disabled={bulkActionLoading}
+                className="px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center text-sm disabled:opacity-50"
+              >
+                {bulkActionLoading && bulkActionType === 'archive' ? (
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <Archive className="w-4 h-4 mr-1" />
+                )}
+                Toplu Arşivle
+              </button>
+              
+              <button
+                onClick={() => handleBulkAction('delete')}
+                disabled={bulkActionLoading}
+                className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center text-sm disabled:opacity-50"
+              >
+                {bulkActionLoading && bulkActionType === 'delete' ? (
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4 mr-1" />
+                )}
+                Toplu Sil
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -260,7 +492,9 @@ const Journeys: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Toplam Mesafe</p>
+              <p className="text-sm text-gray-600">
+                {user?.isDriver && !canAccessDispatcherFeatures() ? 'Toplam Mesafem' : 'Toplam Mesafe'}
+              </p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
                 {journeys.reduce((sum, j) => sum + j.totalDistance, 0).toFixed(1)} km
               </p>
@@ -300,7 +534,7 @@ const Journeys: React.FC = () => {
               : 'text-gray-600 hover:bg-gray-100'
           }`}
         >
-          Tümü ({journeys.length})
+          Tümü ({journeys.filter(j => j.status !== 'archived').length})
         </button>
         <button
           onClick={() => setSelectedStatus('active')}
@@ -332,14 +566,50 @@ const Journeys: React.FC = () => {
         >
           İptal ({journeys.filter(j => j.status === 'cancelled').length})
         </button>
+        <button
+          onClick={() => setSelectedStatus('archived')}
+          className={`px-4 py-2 rounded-md transition-colors ${
+            selectedStatus === 'archived' 
+              ? 'bg-blue-600 text-white' 
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          Arşiv ({journeys.filter(j => j.status === 'archived').length})
+        </button>
       </div>
+
+      {/* Select All Checkbox - YENİ */}
+      {/* ✅ Sadece Dispatcher ve üzeri için görünür */}
+      {filteredJourneys.length > 0 && canAccessDispatcherFeatures() && (
+        <div className="bg-white rounded-lg shadow-sm p-3 border border-gray-100 flex items-center">
+          <button
+            onClick={handleSelectAll}
+            className="flex items-center text-sm text-gray-600 hover:text-gray-900"
+          >
+            {selectedJourneyIds.size === filteredJourneys.length ? (
+              <CheckSquare className="w-5 h-5 mr-2 text-blue-600" />
+            ) : selectedJourneyIds.size > 0 && selectedJourneyIds.size < filteredJourneys.length ? (
+              <div className="w-5 h-5 mr-2 border-2 border-blue-600 rounded">
+                <div className="w-2 h-2 bg-blue-600 m-0.5" />
+              </div>
+            ) : (
+              <Square className="w-5 h-5 mr-2" />
+            )}
+            Tümünü Seç
+          </button>
+        </div>
+      )}
 
       {/* Journeys List */}
       <div className="space-y-4">
         {filteredJourneys.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm p-12 text-center">
             <Package className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500">Sefer bulunamadı</p>
+            <p className="text-gray-500">
+              {user?.isDriver && !canAccessDispatcherFeatures() 
+                ? 'Size ait sefer bulunamadı'
+                : 'Sefer bulunamadı'}
+            </p>
             {selectedStatus === 'active' && (
               <p className="text-sm text-gray-400 mt-1">
                 Yeni bir sefer başlatmak için yukarıdaki butonu kullanın
@@ -349,7 +619,23 @@ const Journeys: React.FC = () => {
         ) : (
           filteredJourneys.map((journey) => (
             <div key={journey.id} className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-              <div className="flex items-start justify-between">
+              <div className="flex items-start">
+                {/* Checkbox - YENİ - Sadece Dispatcher ve üzeri için */}
+                {canAccessDispatcherFeatures() && (
+                  <div className="mr-4 pt-1">
+                    <button
+                      onClick={() => handleSelectJourney(journey.id)}
+                      className="p-1 hover:bg-gray-100 rounded transition-colors"
+                    >
+                      {isJourneySelected(journey.id) ? (
+                        <CheckSquare className="w-5 h-5 text-blue-600" />
+                      ) : (
+                        <Square className="w-5 h-5 text-gray-400" />
+                      )}
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-3">
                     <h3 className="text-lg font-semibold text-gray-900">
@@ -361,7 +647,7 @@ const Journeys: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div className="flex items-center text-sm text-gray-600">
                       <User className="w-4 h-4 mr-2 text-gray-400" />
-                      {journey.driverName}
+                      {journey.driverName || user?.fullName || 'Sürücü'}
                     </div>
                     <div className="flex items-center text-sm text-gray-600">
                       <Truck className="w-4 h-4 mr-2 text-gray-400" />
@@ -388,6 +674,7 @@ const Journeys: React.FC = () => {
                         className={`h-2 rounded-full transition-all ${
                           journey.status === 'completed' ? 'bg-green-500' : 
                           journey.status === 'cancelled' ? 'bg-red-500' :
+                          journey.status === 'archived' ? 'bg-gray-500' :
                           'bg-blue-500'
                         }`}
                         style={{ width: `${calculateProgress(journey)}%` }}
@@ -439,6 +726,7 @@ const Journeys: React.FC = () => {
                           Detayları Görüntüle
                         </Link>
                         
+                        {/* ✅ Driver kendi seferini duraklat/devam ettirebilir */}
                         {journey.status === 'preparing' && (
                           <button
                             onClick={() => {
@@ -465,7 +753,9 @@ const Journeys: React.FC = () => {
                           </button>
                         )}
                         
-                        {['preparing', 'started', 'in_progress'].includes(journey.status) && (
+                        {/* ✅ İptal sadece Dispatcher ve üzeri veya kendi seferi için */}
+                        {['preparing', 'started', 'in_progress'].includes(journey.status) && 
+                         (canAccessDispatcherFeatures() || journey.driverId === user?.id) && (
                           <>
                             <hr className="my-1" />
                             <button
@@ -499,9 +789,15 @@ const Journeys: React.FC = () => {
             {availableRoutes.length === 0 ? (
               <div className="text-center py-8">
                 <AlertCircle className="w-12 h-12 mx-auto text-yellow-500 mb-3" />
-                <p className="text-gray-600">Başlatılabilecek rota bulunamadı.</p>
+                <p className="text-gray-600">
+                  {user?.isDriver && !canAccessDispatcherFeatures()
+                    ? 'Size atanmış başlatılabilecek rota bulunamadı.'
+                    : 'Başlatılabilecek rota bulunamadı.'}
+                </p>
                 <p className="text-sm text-gray-500 mt-2">
-                  Sefer başlatmak için rotaya sürücü ve araç atamanız gerekiyor.
+                  {user?.isDriver && !canAccessDispatcherFeatures()
+                    ? 'Yöneticinizin size rota atamasını bekleyin.'
+                    : 'Sefer başlatmak için rotaya sürücü ve araç atamanız gerekiyor.'}
                 </p>
               </div>
             ) : (
@@ -525,7 +821,7 @@ const Journeys: React.FC = () => {
                     <div className="text-sm text-gray-600 space-y-1">
                       <div className="flex items-center">
                         <User className="w-3 h-3 mr-1" />
-                        {route.driver?.name}
+                        {route.driver?.name || user?.fullName}
                       </div>
                       <div className="flex items-center">
                         <Truck className="w-3 h-3 mr-1" />
@@ -555,6 +851,59 @@ const Journeys: React.FC = () => {
                   Seferi Başlat
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog - YENİ */}
+      {showDeleteConfirmDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center mb-4">
+              <AlertTriangle className="w-8 h-8 text-red-500 mr-3" />
+              <h2 className="text-xl font-bold text-gray-900">Kalıcı Silme Uyarısı</h2>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-700 mb-3">
+                <strong>{selectedJourneyIds.size} sefer</strong> kalıcı olarak silinecek.
+              </p>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-sm text-red-800">
+                  <strong>DİKKAT:</strong> Bu işlem geri alınamaz! Silinecek seferler ve tüm ilişkili veriler 
+                  (durak bilgileri, teslimat kayıtları, imzalar, fotoğraflar) kalıcı olarak veritabanından kaldırılacaktır.
+                </p>
+              </div>
+              <p className="text-sm text-gray-600 mt-3">
+                Eğer seferleri saklamak ama görünmez yapmak istiyorsanız, bunun yerine <strong>Arşivleme</strong> seçeneğini kullanın.
+              </p>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowDeleteConfirmDialog(false)}
+                className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Vazgeç
+              </button>
+              <button
+                onClick={() => executeBulkAction('delete')}
+                disabled={bulkActionLoading}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center disabled:opacity-50"
+              >
+                {bulkActionLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Siliniyor...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Evet, Kalıcı Olarak Sil
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

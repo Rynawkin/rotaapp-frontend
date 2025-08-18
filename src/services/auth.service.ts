@@ -1,36 +1,39 @@
+// frontend/src/services/auth.service.ts
+
 import { api } from './api';
 
-interface LoginRequest {
+interface MeUserModel {
+  id: string;
   email: string;
-  password: string;
-}
-
-interface RegisterRequest {
-  email: string;
-  password: string;
-  fullName: string;
-  companyName?: string;
+  fullName?: string;
+  phoneNumber?: string;
+  workspaceId: number;
+  workspaceName?: string;
+  isAdmin: boolean;
+  isDispatcher: boolean;
+  isDriver: boolean;
+  isSuperAdmin: boolean;
+  isOnboarded: boolean;
+  depotId?: number;
 }
 
 interface TokenResponse {
   bearerToken: string;
-  me: {
-    id: string;
-    email: string;
-    name: string;
-    role: string;
-    workspaceId?: string;
-    workspaceName?: string;
-    isSuperAdmin: boolean;
-  };
+  refreshToken?: string;
+  expiresIn?: string;
+  me: MeUserModel;
 }
 
 export const authService = {
-  async login(data: LoginRequest): Promise<TokenResponse> {
+  async login(email: string, password: string): Promise<TokenResponse> {
     try {
-      console.log('Login request:', data);
+      console.log('Login request:', { email });
       
-      const response = await api.post<TokenResponse>('/me/login', data);
+      // Backend'in beklediği format
+      const response = await api.post<TokenResponse>('/me/login', {
+        Email: email,
+        Password: password
+      });
       
       console.log('Login response:', response.data);
       
@@ -44,6 +47,11 @@ export const authService = {
       localStorage.setItem('user', JSON.stringify(response.data.me));
       localStorage.setItem('isAuthenticated', 'true');
       
+      // WorkspaceId'yi ayrıca sakla
+      if (response.data.me.workspaceId) {
+        localStorage.setItem('workspaceId', response.data.me.workspaceId.toString());
+      }
+      
       // Axios header'ı güncelle
       api.defaults.headers.common['Authorization'] = `Bearer ${response.data.bearerToken}`;
       
@@ -53,29 +61,30 @@ export const authService = {
     } catch (error: any) {
       console.error('Login error:', error);
       
-      // Detaylı error handling
       if (error.response) {
-        // Server hatası
         console.error('Server error:', error.response.data);
         const message = error.response.data?.message || 'Giriş başarısız';
         throw new Error(message);
       } else if (error.request) {
-        // Request gitti ama response gelmedi
         console.error('No response:', error.request);
         throw new Error('Sunucuya bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin.');
       } else {
-        // Başka bir hata
         console.error('Error:', error.message);
         throw new Error(error.message || 'Giriş yapılırken bir hata oluştu');
       }
     }
   },
 
-  async register(data: RegisterRequest): Promise<TokenResponse> {
+  async register(email: string, password: string, fullName: string, companyName?: string): Promise<TokenResponse> {
     try {
-      console.log('Register request:', data);
+      console.log('Register request:', { email, fullName, companyName });
       
-      const response = await api.post<TokenResponse>('/me/register', data);
+      const response = await api.post<TokenResponse>('/me/register', {
+        Email: email,
+        Password: password,
+        FullName: fullName,
+        CompanyName: companyName
+      });
       
       console.log('Register response:', response.data);
       
@@ -88,6 +97,11 @@ export const authService = {
       localStorage.setItem('token', response.data.bearerToken);
       localStorage.setItem('user', JSON.stringify(response.data.me));
       localStorage.setItem('isAuthenticated', 'true');
+      
+      // WorkspaceId'yi ayrıca sakla
+      if (response.data.me.workspaceId) {
+        localStorage.setItem('workspaceId', response.data.me.workspaceId.toString());
+      }
       
       // Axios header'ı güncelle
       api.defaults.headers.common['Authorization'] = `Bearer ${response.data.bearerToken}`;
@@ -119,6 +133,7 @@ export const authService = {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('isAuthenticated');
+    localStorage.removeItem('workspaceId');
     
     // Axios header'ı temizle
     delete api.defaults.headers.common['Authorization'];
@@ -127,7 +142,7 @@ export const authService = {
     window.location.href = '/login';
   },
 
-  getUser() {
+  getUser(): MeUserModel | null {
     try {
       const userStr = localStorage.getItem('user');
       return userStr ? JSON.parse(userStr) : null;
@@ -137,14 +152,50 @@ export const authService = {
     }
   },
 
-  isAuthenticated() {
+  isAuthenticated(): boolean {
     const token = localStorage.getItem('token');
     const isAuth = localStorage.getItem('isAuthenticated');
     return !!(token && isAuth === 'true');
   },
 
-  getToken() {
+  getToken(): string | null {
     return localStorage.getItem('token');
+  },
+
+  getWorkspaceId(): string | null {
+    return localStorage.getItem('workspaceId');
+  },
+
+  // Rol kontrol helper'ları
+  getUserRole(): string {
+    const user = this.getUser();
+    if (!user) return 'guest';
+    
+    if (user.isSuperAdmin) return 'superadmin';
+    if (user.isAdmin) return 'admin';
+    if (user.isDispatcher) return 'dispatcher';
+    if (user.isDriver) return 'driver';
+    return 'user';
+  },
+
+  isSuperAdmin(): boolean {
+    const user = this.getUser();
+    return user?.isSuperAdmin === true;
+  },
+
+  isAdmin(): boolean {
+    const user = this.getUser();
+    return user?.isAdmin === true || user?.isSuperAdmin === true;
+  },
+
+  isDispatcher(): boolean {
+    const user = this.getUser();
+    return user?.isDispatcher === true || user?.isAdmin === true || user?.isSuperAdmin === true;
+  },
+
+  isDriver(): boolean {
+    const user = this.getUser();
+    return user?.isDriver === true;
   },
 
   // Debug helper
@@ -152,12 +203,20 @@ export const authService = {
     console.log('=== Auth Debug Info ===');
     console.log('Token:', this.getToken());
     console.log('User:', this.getUser());
+    console.log('Role:', this.getUserRole());
+    console.log('WorkspaceId:', this.getWorkspaceId());
     console.log('Is Authenticated:', this.isAuthenticated());
+    console.log('Is SuperAdmin:', this.isSuperAdmin());
+    console.log('Is Admin:', this.isAdmin());
+    console.log('Is Dispatcher:', this.isDispatcher());
+    console.log('Is Driver:', this.isDriver());
     console.log('LocalStorage:', {
       token: localStorage.getItem('token'),
       user: localStorage.getItem('user'),
+      workspaceId: localStorage.getItem('workspaceId'),
       isAuthenticated: localStorage.getItem('isAuthenticated')
     });
+    console.log('Axios Headers:', api.defaults.headers.common);
     console.log('=====================');
   }
 };

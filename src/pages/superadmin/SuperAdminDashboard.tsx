@@ -9,7 +9,7 @@ import {
   Archive, AlertTriangle
 } from 'lucide-react';
 import { WorkspaceUsage, WorkspaceStats } from '@/types';
-import { workspaceService } from '@/services/mockData';
+import { workspaceService } from '@/services/workspace.service';
 
 // Silme Onay Modal Componenti
 const DeleteConfirmModal: React.FC<{

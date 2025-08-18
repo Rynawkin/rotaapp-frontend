@@ -12,6 +12,13 @@ export const api = axios.create({
   timeout: 10000,
 });
 
+// Sayfa yüklendiğinde token varsa header'a ekle
+const initialToken = localStorage.getItem('token');
+if (initialToken) {
+  api.defaults.headers.common['Authorization'] = `Bearer ${initialToken}`;
+  console.log('Initial token loaded from localStorage');
+}
+
 // Request interceptor - token'ı her istekte gönder
 api.interceptors.request.use(
   (config) => {
@@ -21,6 +28,12 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
       console.log('Authorization header set:', config.headers.Authorization?.substring(0, 20) + '...');
+    }
+    
+    // WorkspaceId'yi de kontrol et (debug için)
+    const workspaceId = localStorage.getItem('workspaceId');
+    if (workspaceId) {
+      console.log('WorkspaceId in localStorage:', workspaceId);
     }
     
     console.log('API Request:', config.method?.toUpperCase(), config.url, config.data);
@@ -43,6 +56,31 @@ api.interceptors.response.use(
   (error) => {
     console.error('API Error:', error.response?.status, error.response?.data || error.message);
     
+    // Backend'den gelen "Workspace is not found" hatası kontrolü
+    if (error.response?.status === 404 && 
+        error.response?.data?.message === 'Workspace is not found.') {
+      console.error('Workspace not found - possible token/workspace mismatch');
+      
+      // Login sayfasında değilsek ve bu hata login isteğinden gelmiyorsa
+      if (!window.location.pathname.includes('/login') && 
+          !error.config?.url?.includes('/me/login')) {
+        
+        const token = localStorage.getItem('token');
+        const workspaceId = localStorage.getItem('workspaceId');
+        const user = localStorage.getItem('user');
+        
+        console.log('Debug - Token exists:', !!token);
+        console.log('Debug - WorkspaceId:', workspaceId);
+        console.log('Debug - User:', user);
+        
+        // Token varsa ama workspace bulunamıyorsa, token eski olabilir
+        console.error('Token exists but workspace not found - clearing auth and redirecting to login');
+        localStorage.clear();
+        delete api.defaults.headers.common['Authorization'];
+        window.location.href = '/login';
+      }
+    }
+    
     // Backend'den gelen HTML response'u kontrol et (Login redirect)
     if (error.response?.status === 404 && 
         typeof error.response?.data === 'string' && 
@@ -58,11 +96,11 @@ api.interceptors.response.use(
       }
     }
     
+    // 401 Unauthorized - token geçersiz veya süresi dolmuş
     if (error.response?.status === 401) {
       console.log('Unauthorized - clearing auth data');
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('isAuthenticated');
+      localStorage.clear();
+      delete api.defaults.headers.common['Authorization'];
       
       if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login';
@@ -72,3 +110,13 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Debug helper function
+export const debugApiAuth = () => {
+  console.log('=== API Auth Debug ===');
+  console.log('Token:', localStorage.getItem('token')?.substring(0, 50) + '...');
+  console.log('WorkspaceId:', localStorage.getItem('workspaceId'));
+  console.log('User:', localStorage.getItem('user'));
+  console.log('API Headers:', api.defaults.headers.common);
+  console.log('====================');
+};

@@ -6,7 +6,6 @@ import {
   Bell,
   Truck,
   CreditCard,
-  Palette,
   Globe,
   Database,
   Save,
@@ -29,74 +28,10 @@ import {
   AlertCircle,
   Crown,
   Zap,
-  Star,
-  Moon,
-  Sun,
-  Monitor
+  Star
 } from 'lucide-react';
-import { 
-  routeService, 
-  customerService, 
-  driverService, 
-  vehicleService,
-  journeyService 
-} from '@/services/mockData';
-
-interface CompanySettings {
-  name: string;
-  logo?: string;
-  address: string;
-  city: string;
-  postalCode: string;
-  taxNumber: string;
-  phone: string;
-  email: string;
-  website?: string;
-}
-
-interface DeliverySettings {
-  defaultServiceTime: number;
-  maxDeliveriesPerRoute: number;
-  workingHours: {
-    [key: string]: { start: string; end: string; enabled: boolean };
-  };
-  prioritySettings: {
-    high: { color: string; maxDelay: number };
-    normal: { color: string; maxDelay: number };
-    low: { color: string; maxDelay: number };
-  };
-  autoOptimize: boolean;
-  trafficConsideration: boolean;
-}
-
-interface NotificationSettings {
-  emailNotifications: boolean;
-  smsNotifications: boolean;
-  notificationEmail: string;
-  notificationPhone: string;
-  events: {
-    routeCompleted: boolean;
-    deliveryFailed: boolean;
-    driverDelayed: boolean;
-    newCustomer: boolean;
-    dailyReport: boolean;
-  };
-}
-
-interface ThemeSettings {
-  darkMode: boolean;
-  showLogo: boolean;
-  sidebarCollapsed: boolean;
-  fontSize: 'small' | 'medium' | 'large';
-}
-
-interface RegionalSettings {
-  language: 'tr' | 'en';
-  timezone: string;
-  currency: string;
-  dateFormat: string;
-  firstDayOfWeek: 'monday' | 'sunday';
-}
+import { settingsService } from '@/services/settings.service';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface User {
   id: string;
@@ -109,64 +44,61 @@ interface User {
   password?: string;
 }
 
-// Gerçek kullanım verilerini hesapla
-const calculateUsageLimits = async () => {
-  const [customers, drivers, vehicles, routes, journeys] = await Promise.all([
-    customerService.getAll(),
-    driverService.getAll(), 
-    vehicleService.getAll(),
-    routeService.getAll(),
-    journeyService.getAll()
-  ]);
+const Settings: React.FC = () => {
+  const { user, canAccessDispatcherFeatures, canAccessAdminFeatures } = useAuth();
+  
+  // ROL BAZLI SEKME KONTROLÜ - Theme kaldırıldı, driver'lar erişemiyor
+  const getAvailableTabs = () => {
+    if (user?.isSuperAdmin) {
+      return ['company', 'users', 'delivery', 'notifications', 'subscription', 'regional', 'data'];
+    }
+    if (canAccessAdminFeatures()) {
+      return ['company', 'users', 'delivery', 'notifications', 'subscription', 'regional', 'data'];
+    }
+    if (canAccessDispatcherFeatures()) {
+      return ['users', 'delivery', 'notifications'];
+    }
+    // Driver'lar artık hiçbir sekmeye erişemiyor
+    return [];
+  };
 
-  // Bu ayın teslimat sayısını hesapla
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
-  const monthlyDeliveries = routes
-    .filter(r => {
-      const routeDate = new Date(r.date);
-      return routeDate.getMonth() === currentMonth && 
-             routeDate.getFullYear() === currentYear;
-    })
-    .reduce((sum, r) => sum + r.completedDeliveries, 0);
-
-  // Kullanıcı sayısını localStorage'dan al
-  const savedSettings = localStorage.getItem('appSettings');
-  let userCount = 4; // varsayılan
-  if (savedSettings) {
-    const settings = JSON.parse(savedSettings);
-    userCount = settings.users?.length || 4;
+  const availableTabs = getAvailableTabs();
+  
+  // Eğer hiç sekme yoksa (driver ise) hata göster
+  if (availableTabs.length === 0) {
+    return (
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-6 h-6 text-gray-400" />
+            <p className="text-gray-600">Bu sayfaya erişim yetkiniz bulunmamaktadır.</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  return {
-    users: { used: userCount, total: 25 },
-    drivers: { used: drivers.length, total: 50 },
-    vehicles: { used: vehicles.length, total: 30 },
-    monthlyDeliveries: { used: monthlyDeliveries, total: 5000 },
-    storage: { used: 2.3, total: 10 } // GB - mock
-  };
-};
-
-const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'company' | 'users' | 'delivery' | 'notifications' | 'subscription' | 'theme' | 'regional' | 'data'>('company');
+  const [activeTab, setActiveTab] = useState<'company' | 'users' | 'delivery' | 'notifications' | 'subscription' | 'regional' | 'data'>(availableTabs[0] as any);
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const [subscriptionLimits, setSubscriptionLimits] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Company Settings
-  const [companySettings, setCompanySettings] = useState<CompanySettings>({
-    name: 'RotaApp Lojistik A.Ş.',
-    address: 'Atatürk Cad. No:123',
-    city: 'İstanbul',
-    postalCode: '34000',
-    taxNumber: '1234567890',
-    phone: '0212 123 45 67',
-    email: 'info@rotaapp.com',
-    website: 'www.rotaapp.com'
+  const [companySettings, setCompanySettings] = useState({
+    name: '',
+    logo: '',
+    address: '',
+    city: '',
+    postalCode: '',
+    taxNumber: '',
+    phoneNumber: '',
+    email: '',
+    website: ''
   });
 
-  // Users
+  // Users - Still local for now
   const [users, setUsers] = useState<User[]>([
     { id: '1', name: 'Admin Kullanıcı', email: 'admin@rotaapp.com', role: 'admin', status: 'active', createdAt: '2024-01-01', lastLogin: '2024-02-28 14:30' },
     { id: '2', name: 'Mehmet Yönetici', email: 'mehmet@rotaapp.com', role: 'manager', status: 'active', createdAt: '2024-01-15', lastLogin: '2024-02-28 09:15' },
@@ -178,8 +110,8 @@ const Settings: React.FC = () => {
   const [showUserModal, setShowUserModal] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
 
-  // Delivery Settings - Varsayılan değerler belirli
-  const [deliverySettings, setDeliverySettings] = useState<DeliverySettings>({
+  // Delivery Settings
+  const [deliverySettings, setDeliverySettings] = useState({
     defaultServiceTime: 15,
     maxDeliveriesPerRoute: 50,
     workingHours: {
@@ -196,16 +128,18 @@ const Settings: React.FC = () => {
       normal: { color: '#F59E0B', maxDelay: 60 },
       low: { color: '#10B981', maxDelay: 120 }
     },
-    autoOptimize: true, // Varsayılan değer
-    trafficConsideration: true // Varsayılan değer
+    autoOptimize: true,
+    trafficConsideration: true,
+    costPerKm: null as number | null,
+    costPerHour: null as number | null
   });
 
   // Notification Settings
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
+  const [notificationSettings, setNotificationSettings] = useState({
     emailNotifications: true,
     smsNotifications: false,
-    notificationEmail: 'bildirim@rotaapp.com',
-    notificationPhone: '0532 123 45 67',
+    notificationEmail: '',
+    notificationPhone: '',
     events: {
       routeCompleted: true,
       deliveryFailed: true,
@@ -215,176 +149,168 @@ const Settings: React.FC = () => {
     }
   });
 
-  // Theme Settings - Simplified
-  const [themeSettings, setThemeSettings] = useState<ThemeSettings>({
-    darkMode: false,
-    showLogo: true,
-    sidebarCollapsed: false,
-    fontSize: 'medium'
-  });
-
-  // Regional Settings
-  const [regionalSettings, setRegionalSettings] = useState<RegionalSettings>({
-    language: 'tr',
+  // Regional Settings - Still local
+  const [regionalSettings, setRegionalSettings] = useState({
+    language: 'tr' as 'tr' | 'en',
     timezone: 'Europe/Istanbul',
     currency: 'TRY',
     dateFormat: 'DD/MM/YYYY',
-    firstDayOfWeek: 'monday'
+    firstDayOfWeek: 'monday' as 'monday' | 'sunday'
   });
 
-  // Load settings from localStorage
+  // Load settings from backend
   useEffect(() => {
-    const savedSettings = localStorage.getItem('appSettings');
-    if (savedSettings) {
-      const settings = JSON.parse(savedSettings);
-      if (settings.company) setCompanySettings(settings.company);
-      if (settings.delivery) {
-        // autoOptimize ve trafficConsideration'ın undefined olmamasını sağla
-        setDeliverySettings({
-          ...deliverySettings,
-          ...settings.delivery,
-          autoOptimize: settings.delivery.autoOptimize ?? true,
-          trafficConsideration: settings.delivery.trafficConsideration ?? true
-        });
-      }
-      if (settings.notifications) setNotificationSettings(settings.notifications);
-      if (settings.theme) {
-        // Yeni theme yapısına uyumlu hale getir
-        setThemeSettings({
-          darkMode: settings.theme.darkMode || false,
-          showLogo: settings.theme.showLogo !== false,
-          sidebarCollapsed: settings.theme.sidebarCollapsed || false,
-          fontSize: settings.theme.fontSize || 'medium'
-        });
-      }
-      if (settings.regional) setRegionalSettings(settings.regional);
-      if (settings.users) setUsers(settings.users);
-    }
+    loadSettingsFromBackend();
   }, []);
 
-  // Apply theme settings to document
   useEffect(() => {
-    applyThemeSettings();
-  }, [themeSettings]);
-
-  // Load subscription limits
-  useEffect(() => {
-    loadSubscriptionLimits();
-  }, [users, activeTab]);
-
-  const loadSubscriptionLimits = async () => {
-    if (activeTab === 'subscription') {
-      const limits = await calculateUsageLimits();
-      setSubscriptionLimits(limits);
+    if (!availableTabs.includes(activeTab)) {
+      setActiveTab(availableTabs[0] as typeof activeTab);
     }
-  };
+  }, [user]);
 
-  const applyThemeSettings = () => {
-    const root = document.documentElement;
-    const body = document.body;
+  const loadSettingsFromBackend = async () => {
+    setLoading(true);
+    setError(null);
     
-    // Dark mode
-    if (themeSettings.darkMode) {
-      body.classList.add('dark');
-      // Dark mode colors
-      body.style.backgroundColor = '#111827';
-      root.style.setProperty('--bg-primary', '#1F2937');
-      root.style.setProperty('--bg-secondary', '#111827');
-      root.style.setProperty('--text-primary', '#F9FAFB');
-      root.style.setProperty('--text-secondary', '#D1D5DB');
-      root.style.setProperty('--border-color', '#374151');
-      
-      // Update all white backgrounds to dark
-      document.querySelectorAll('.bg-white').forEach(el => {
-        (el as HTMLElement).style.backgroundColor = '#1F2937';
-      });
-      document.querySelectorAll('.text-gray-900').forEach(el => {
-        (el as HTMLElement).style.color = '#F9FAFB';
-      });
-      document.querySelectorAll('.text-gray-700').forEach(el => {
-        (el as HTMLElement).style.color = '#D1D5DB';
-      });
-    } else {
-      body.classList.remove('dark');
-      // Light mode colors
-      body.style.backgroundColor = '#F9FAFB';
-      root.style.setProperty('--bg-primary', '#FFFFFF');
-      root.style.setProperty('--bg-secondary', '#F9FAFB');
-      root.style.setProperty('--text-primary', '#111827');
-      root.style.setProperty('--text-secondary', '#6B7280');
-      root.style.setProperty('--border-color', '#E5E7EB');
-      
-      // Reset to original colors
-      document.querySelectorAll('[style*="background-color"]').forEach(el => {
-        if ((el as HTMLElement).style.backgroundColor === 'rgb(31, 41, 55)') {
-          (el as HTMLElement).style.backgroundColor = '';
-        }
-      });
-      document.querySelectorAll('[style*="color"]').forEach(el => {
-        const element = el as HTMLElement;
-        if (element.style.color === 'rgb(249, 250, 251)' || 
-            element.style.color === 'rgb(209, 213, 219)') {
-          element.style.color = '';
-        }
-      });
-    }
-    
-    // Font size
-    const fontSizes = {
-      small: '14px',
-      medium: '16px', 
-      large: '18px'
-    };
-    body.style.fontSize = fontSizes[themeSettings.fontSize];
-    root.style.setProperty('--font-size-base', fontSizes[themeSettings.fontSize]);
-    
-    // Apply font size to specific elements
-    const baseFontSize = parseInt(fontSizes[themeSettings.fontSize]);
-    
-    // Headers
-    document.querySelectorAll('h1').forEach(el => {
-      (el as HTMLElement).style.fontSize = `${baseFontSize * 1.875}px`;
-    });
-    document.querySelectorAll('h2').forEach(el => {
-      (el as HTMLElement).style.fontSize = `${baseFontSize * 1.5}px`;
-    });
-    document.querySelectorAll('h3').forEach(el => {
-      (el as HTMLElement).style.fontSize = `${baseFontSize * 1.25}px`;
-    });
-    
-    // Text elements
-    document.querySelectorAll('p, span, div').forEach(el => {
-      if (!(el as HTMLElement).style.fontSize) {
-        (el as HTMLElement).style.fontSize = fontSizes[themeSettings.fontSize];
+    try {
+      // Load all settings from backend (theme kaldırıldı)
+      const [workspace, delivery, notifications] = await Promise.all([
+        settingsService.getWorkspaceSettings().catch(() => null),
+        settingsService.getDeliverySettings().catch(() => null),
+        settingsService.getNotificationSettings().catch(() => null)
+      ]);
+
+      if (workspace) {
+        setCompanySettings({
+          name: workspace.name || '',
+          logo: workspace.logo || '',
+          address: workspace.address || '',
+          city: workspace.city || '',
+          postalCode: workspace.postalCode || '',
+          taxNumber: workspace.taxNumber || '',
+          phoneNumber: workspace.phoneNumber || '',
+          email: workspace.email || '',
+          website: workspace.website || ''
+        });
+        
+        // Update regional settings from workspace
+        setRegionalSettings(prev => ({
+          ...prev,
+          currency: workspace.currency || 'TRY',
+          timezone: workspace.timeZone || 'Europe/Istanbul',
+          language: (workspace.language?.toLowerCase() || 'tr') as 'tr' | 'en',
+          dateFormat: workspace.dateFormat || 'DD/MM/YYYY',
+          firstDayOfWeek: (workspace.firstDayOfWeek || 'monday') as 'monday' | 'sunday'
+        }));
       }
-    });
+
+      if (delivery) {
+        setDeliverySettings({
+          defaultServiceTime: delivery.defaultServiceTime,
+          maxDeliveriesPerRoute: delivery.maxDeliveriesPerRoute,
+          workingHours: delivery.workingHours || deliverySettings.workingHours,
+          prioritySettings: delivery.prioritySettings || deliverySettings.prioritySettings,
+          autoOptimize: delivery.autoOptimize ?? true,
+          trafficConsideration: delivery.trafficConsideration ?? true,
+          costPerKm: delivery.costPerKm ?? null,
+          costPerHour: delivery.costPerHour ?? null
+        });
+      }
+
+      if (notifications) {
+        setNotificationSettings({
+          emailNotifications: notifications.emailNotifications,
+          smsNotifications: notifications.smsNotifications,
+          notificationEmail: notifications.notificationEmail || '',
+          notificationPhone: notifications.notificationPhone || '',
+          events: notifications.events || notificationSettings.events
+        });
+      }
+
+      // Also load from localStorage for backward compatibility
+      const savedSettings = localStorage.getItem('appSettings');
+      if (savedSettings) {
+        const settings = JSON.parse(savedSettings);
+        if (settings.users) setUsers(settings.users);
+      }
+      
+    } catch (err) {
+      console.error('Error loading settings:', err);
+      setError('Ayarlar yüklenirken bir hata oluştu');
+      
+      // Fallback to localStorage
+      const savedSettings = localStorage.getItem('appSettings');
+      if (savedSettings) {
+        const settings = JSON.parse(savedSettings);
+        if (settings.company) setCompanySettings(settings.company);
+        if (settings.delivery) setDeliverySettings(prev => ({ ...prev, ...settings.delivery }));
+        if (settings.notifications) setNotificationSettings(settings.notifications);
+        if (settings.regional) setRegionalSettings(settings.regional);
+        if (settings.users) setUsers(settings.users);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Save settings to localStorage
   const saveSettings = async () => {
     setSaving(true);
+    setError(null);
     
-    const settings = {
-      company: companySettings,
-      delivery: deliverySettings,
-      notifications: notificationSettings,
-      theme: themeSettings,
-      regional: regionalSettings,
-      users: users
-    };
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    localStorage.setItem('appSettings', JSON.stringify(settings));
-    
-    setSaving(false);
-    setHasChanges(false);
-    setShowSuccessMessage(true);
-    
-    setTimeout(() => {
-      setShowSuccessMessage(false);
-    }, 3000);
+    try {
+      const promises = [];
+      
+      // Save workspace settings if admin
+      if (canAccessAdminFeatures() && availableTabs.includes('company')) {
+        promises.push(
+          settingsService.updateWorkspaceSettings({
+            ...companySettings,
+            currency: regionalSettings.currency,
+            timeZone: regionalSettings.timezone,
+            language: regionalSettings.language.toUpperCase(),
+            dateFormat: regionalSettings.dateFormat,
+            firstDayOfWeek: regionalSettings.firstDayOfWeek
+          })
+        );
+      }
+      
+      // Save delivery settings if dispatcher+
+      if (canAccessDispatcherFeatures() && availableTabs.includes('delivery')) {
+        promises.push(
+          settingsService.updateDeliverySettings(deliverySettings)
+        );
+      }
+      
+      // Save notification settings if dispatcher+
+      if (canAccessDispatcherFeatures() && availableTabs.includes('notifications')) {
+        promises.push(
+          settingsService.updateNotificationSettings(notificationSettings)
+        );
+      }
+      
+      await Promise.all(promises);
+      
+      // Also save to localStorage for backward compatibility (theme kaldırıldı)
+      const settings = {
+        company: companySettings,
+        delivery: deliverySettings,
+        notifications: notificationSettings,
+        regional: regionalSettings,
+        users: users
+      };
+      localStorage.setItem('appSettings', JSON.stringify(settings));
+      
+      setShowSuccessMessage(true);
+      setTimeout(() => setShowSuccessMessage(false), 3000);
+      
+    } catch (err: any) {
+      console.error('Error saving settings:', err);
+      setError(err.response?.data?.message || 'Ayarlar kaydedilirken bir hata oluştu');
+    } finally {
+      setSaving(false);
+      setHasChanges(false);
+    }
   };
 
   // User Management Functions
@@ -454,7 +380,6 @@ const Settings: React.FC = () => {
       company: companySettings,
       delivery: deliverySettings,
       notifications: notificationSettings,
-      theme: themeSettings,
       regional: regionalSettings
     };
     
@@ -477,17 +402,8 @@ const Settings: React.FC = () => {
         try {
           const settings = JSON.parse(event.target?.result as string);
           if (settings.company) setCompanySettings(settings.company);
-          if (settings.delivery) setDeliverySettings(settings.delivery);
+          if (settings.delivery) setDeliverySettings(prev => ({ ...prev, ...settings.delivery }));
           if (settings.notifications) setNotificationSettings(settings.notifications);
-          if (settings.theme) {
-            // Yeni theme yapısına uyumlu hale getir
-            setThemeSettings({
-              darkMode: settings.theme.darkMode || false,
-              showLogo: settings.theme.showLogo !== false,
-              sidebarCollapsed: settings.theme.sidebarCollapsed || false,
-              fontSize: settings.theme.fontSize || 'medium'
-            });
-          }
           if (settings.regional) setRegionalSettings(settings.regional);
           setHasChanges(true);
         } catch (error) {
@@ -559,13 +475,25 @@ const Settings: React.FC = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Ayarlar</h1>
-          <p className="text-gray-600 mt-1">Sistem ve şirket ayarlarını yönetin</p>
+          <p className="text-gray-600 mt-1">
+            {canAccessDispatcherFeatures() && !canAccessAdminFeatures()
+              ? 'Operasyonel ayarlarınız'
+              : 'Sistem ve şirket ayarlarını yönetin'}
+          </p>
         </div>
         
         {hasChanges && (
@@ -589,11 +517,18 @@ const Settings: React.FC = () => {
         )}
       </div>
 
-      {/* Success Message */}
+      {/* Messages */}
       {showSuccessMessage && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
           <Check className="w-5 h-5 text-green-600" />
           <span className="text-green-700">Ayarlar başarıyla kaydedildi!</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600" />
+          <span className="text-red-700">{error}</span>
         </div>
       )}
 
@@ -607,10 +542,9 @@ const Settings: React.FC = () => {
               { id: 'delivery', label: 'Teslimat Ayarları', icon: Truck },
               { id: 'notifications', label: 'Bildirimler', icon: Bell },
               { id: 'subscription', label: 'Abonelik', icon: CreditCard },
-              { id: 'theme', label: 'Tema & Görünüm', icon: Palette },
               { id: 'regional', label: 'Bölgesel Ayarlar', icon: Globe },
               { id: 'data', label: 'Veri Yönetimi', icon: Database }
-            ].map((item) => (
+            ].filter(item => availableTabs.includes(item.id)).map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id as typeof activeTab)}
@@ -632,7 +566,7 @@ const Settings: React.FC = () => {
         <div className="flex-1">
           <div className="bg-white rounded-xl shadow-sm p-6">
             {/* Company Settings */}
-            {activeTab === 'company' && (
+            {activeTab === 'company' && availableTabs.includes('company') && (
               <div className="space-y-6">
                 <h2 className="text-lg font-semibold text-gray-900 border-b pb-3">Şirket Bilgileri</h2>
                 
@@ -735,9 +669,9 @@ const Settings: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">Telefon</label>
                     <input
                       type="tel"
-                      value={companySettings.phone}
+                      value={companySettings.phoneNumber}
                       onChange={(e) => {
-                        setCompanySettings({ ...companySettings, phone: e.target.value });
+                        setCompanySettings({ ...companySettings, phoneNumber: e.target.value });
                         setHasChanges(true);
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -775,7 +709,7 @@ const Settings: React.FC = () => {
             )}
 
             {/* Users Management */}
-            {activeTab === 'users' && (
+            {activeTab === 'users' && availableTabs.includes('users') && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between border-b pb-3">
                   <h2 className="text-lg font-semibold text-gray-900">Kullanıcı Yönetimi</h2>
@@ -796,7 +730,6 @@ const Settings: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Rol Açıklamaları */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <h3 className="font-medium text-blue-900 mb-3 flex items-center gap-2">
                     <Shield className="w-4 h-4" />
@@ -881,7 +814,7 @@ const Settings: React.FC = () => {
             )}
 
             {/* Delivery Settings */}
-            {activeTab === 'delivery' && (
+            {activeTab === 'delivery' && availableTabs.includes('delivery') && (
               <div className="space-y-6">
                 <h2 className="text-lg font-semibold text-gray-900 border-b pb-3">Teslimat Ayarları</h2>
                 
@@ -921,6 +854,40 @@ const Settings: React.FC = () => {
                         setHasChanges(true);
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Km Başına Maliyet (₺)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={deliverySettings.costPerKm || ''}
+                      onChange={(e) => {
+                        setDeliverySettings({ ...deliverySettings, costPerKm: e.target.value ? parseFloat(e.target.value) : null });
+                        setHasChanges(true);
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Saat Başına Maliyet (₺)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={deliverySettings.costPerHour || ''}
+                      onChange={(e) => {
+                        setDeliverySettings({ ...deliverySettings, costPerHour: e.target.value ? parseFloat(e.target.value) : null });
+                        setHasChanges(true);
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="0.00"
                     />
                   </div>
                   
@@ -975,7 +942,14 @@ const Settings: React.FC = () => {
                           }}
                           className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                         />
-                        <span className="w-24 font-medium text-gray-700 capitalize">{day === 'monday' ? 'Pazartesi' : day === 'tuesday' ? 'Salı' : day === 'wednesday' ? 'Çarşamba' : day === 'thursday' ? 'Perşembe' : day === 'friday' ? 'Cuma' : day === 'saturday' ? 'Cumartesi' : 'Pazar'}</span>
+                        <span className="w-24 font-medium text-gray-700 capitalize">
+                          {day === 'monday' ? 'Pazartesi' : 
+                           day === 'tuesday' ? 'Salı' : 
+                           day === 'wednesday' ? 'Çarşamba' : 
+                           day === 'thursday' ? 'Perşembe' : 
+                           day === 'friday' ? 'Cuma' : 
+                           day === 'saturday' ? 'Cumartesi' : 'Pazar'}
+                        </span>
                         <input
                           type="time"
                           value={hours.start}
@@ -1067,7 +1041,7 @@ const Settings: React.FC = () => {
             )}
 
             {/* Notification Settings */}
-            {activeTab === 'notifications' && (
+            {activeTab === 'notifications' && availableTabs.includes('notifications') && (
               <div className="space-y-6">
                 <h2 className="text-lg font-semibold text-gray-900 border-b pb-3">Bildirim Ayarları</h2>
                 
@@ -1170,7 +1144,7 @@ const Settings: React.FC = () => {
             )}
 
             {/* Subscription Info */}
-            {activeTab === 'subscription' && (
+            {activeTab === 'subscription' && availableTabs.includes('subscription') && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between border-b pb-3">
                   <h2 className="text-lg font-semibold text-gray-900">Abonelik Bilgileri</h2>
@@ -1197,42 +1171,6 @@ const Settings: React.FC = () => {
                   </div>
                 </div>
                 
-                {subscriptionLimits && (
-                  <div>
-                    <h3 className="text-base font-medium text-gray-900 mb-3">Kullanım Limitleri (Gerçek Veriler)</h3>
-                    <div className="space-y-3">
-                      {Object.entries(subscriptionLimits).map(([key, limit]: [string, any]) => (
-                        <div key={key} className="bg-gray-50 rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium text-gray-700">
-                              {key === 'users' && 'Kullanıcılar'}
-                              {key === 'drivers' && 'Sürücüler'}
-                              {key === 'vehicles' && 'Araçlar'}
-                              {key === 'monthlyDeliveries' && 'Aylık Teslimatlar'}
-                              {key === 'storage' && 'Depolama (GB)'}
-                            </span>
-                            <span className="text-sm text-gray-600">
-                              {limit.used} / {limit.total}
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full transition-all ${
-                                (limit.used / limit.total) * 100 > 80
-                                  ? 'bg-red-500'
-                                  : (limit.used / limit.total) * 100 > 60
-                                  ? 'bg-yellow-500'
-                                  : 'bg-green-500'
-                              }`}
-                              style={{ width: `${Math.min(100, (limit.used / limit.total) * 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
                 <div>
                   <h3 className="text-base font-medium text-gray-900 mb-3">Plan Özellikleri</h3>
                   <div className="bg-green-50 rounded-lg p-4">
@@ -1258,97 +1196,8 @@ const Settings: React.FC = () => {
               </div>
             )}
 
-            {/* Theme Settings - SIMPLIFIED */}
-            {activeTab === 'theme' && (
-              <div className="space-y-6">
-                <h2 className="text-lg font-semibold text-gray-900 border-b pb-3">Tema & Görünüm</h2>
-                
-                <div className="space-y-6">
-                  {/* Dark Mode */}
-                  <div className="border rounded-lg p-4">
-                    <label className="flex items-center justify-between cursor-pointer">
-                      <div className="flex items-center gap-3">
-                        {themeSettings.darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-                        <div>
-                          <span className="font-medium text-gray-900">Karanlık Mod</span>
-                          <p className="text-sm text-gray-600">Göz yorgunluğunu azaltır</p>
-                        </div>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={themeSettings.darkMode}
-                          onChange={(e) => {
-                            setThemeSettings({ ...themeSettings, darkMode: e.target.checked });
-                            setHasChanges(true);
-                          }}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                      </label>
-                    </label>
-                  </div>
-
-                  {/* Font Size */}
-                  <div className="border rounded-lg p-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-3">Font Boyutu</label>
-                    <div className="flex gap-2">
-                      {(['small', 'medium', 'large'] as const).map((size) => (
-                        <button
-                          key={size}
-                          onClick={() => {
-                            setThemeSettings({ ...themeSettings, fontSize: size });
-                            setHasChanges(true);
-                          }}
-                          className={`flex-1 px-4 py-2 rounded-lg transition-colors ${
-                            themeSettings.fontSize === size
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                        >
-                          {size === 'small' ? 'Küçük' : size === 'medium' ? 'Orta' : 'Büyük'}
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                      Seçili: {themeSettings.fontSize === 'small' ? 'Küçük (14px)' : themeSettings.fontSize === 'medium' ? 'Orta (16px)' : 'Büyük (18px)'}
-                    </p>
-                  </div>
-
-                  {/* Logo Display */}
-                  <div className="border rounded-lg p-4">
-                    <label className="flex items-center justify-between cursor-pointer">
-                      <div>
-                        <span className="font-medium text-gray-900">Logo Göster</span>
-                        <p className="text-sm text-gray-600">Sidebar'da şirket logosu gösterilsin</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={themeSettings.showLogo}
-                          onChange={(e) => {
-                            setThemeSettings({ ...themeSettings, showLogo: e.target.checked });
-                            setHasChanges(true);
-                          }}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                      </label>
-                    </label>
-                  </div>
-                </div>
-                
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-sm text-gray-600">
-                    <Info className="w-4 h-4 inline mr-2" />
-                    Tema değişiklikleri anında uygulanır ve tüm kullanıcıları etkiler.
-                  </p>
-                </div>
-              </div>
-            )}
-
             {/* Regional Settings */}
-            {activeTab === 'regional' && (
+            {activeTab === 'regional' && availableTabs.includes('regional') && (
               <div className="space-y-6">
                 <h2 className="text-lg font-semibold text-gray-900 border-b pb-3">Bölgesel Ayarlar</h2>
                 
@@ -1435,7 +1284,7 @@ const Settings: React.FC = () => {
             )}
 
             {/* Data Management */}
-            {activeTab === 'data' && (
+            {activeTab === 'data' && availableTabs.includes('data') && (
               <div className="space-y-6">
                 <h2 className="text-lg font-semibold text-gray-900 border-b pb-3">Veri Yönetimi</h2>
                 

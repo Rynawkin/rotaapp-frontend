@@ -82,7 +82,20 @@ export interface UpdateRouteDto {
 }
 
 class RouteService {
-  private baseUrl = '/workspace/routes'; // ✅ DÜZELTİLDİ - Routes controller'ı kullan
+  private baseUrl = '/workspace/routes';
+
+  // ✅ YENİ: Customer verilerini güvenli şekilde yükle
+  private async loadCustomersSafely(): Promise<any[]> {
+    try {
+      const { customerService } = await import('./customer.service');
+      const customers = await customerService.getAll();
+      return customers;
+    } catch (error: any) {
+      // 403 hatası veya başka bir hata durumunda boş array dön
+      console.log('Müşteri verileri yüklenemedi (yetki sorunu olabilir)');
+      return [];
+    }
+  }
 
   // Helper method: Dakikayı TimeSpan formatına çevir
   private minutesToTimeSpan(minutes: number | undefined): string | null {
@@ -154,9 +167,8 @@ class RouteService {
     try {
       const response = await api.get(this.baseUrl);
       
-      // Müşteri listesini al
-      const { customerService } = await import('./customer.service');
-      const customers = await customerService.getAll();
+      // ✅ Müşteri listesini güvenli şekilde al
+      const customers = await this.loadCustomersSafely();
       
       const routes = response.data.map((route: any) => ({
         ...route,
@@ -186,9 +198,8 @@ class RouteService {
     try {
       const response = await api.get(`${this.baseUrl}/${id}`);
       
-      // Müşteri bilgilerini korumak için customerService'i kullan
-      const { customerService } = await import('./customer.service');
-      const customers = await customerService.getAll();
+      // ✅ Müşteri bilgilerini güvenli şekilde yükle
+      const customers = await this.loadCustomersSafely();
       
       // ServiceTime'ları dakikaya çevir ve customer objelerini ekle
       const route = {
@@ -470,9 +481,8 @@ class RouteService {
       
       console.log('3. Optimize response:', response.data);
       
-      // Müşteri bilgilerini korumak için customerService'i kullan
-      const { customerService } = await import('./customer.service');
-      const customers = await customerService.getAll();
+      // ✅ Müşteri bilgilerini güvenli şekilde yükle
+      const customers = await this.loadCustomersSafely();
       
       // Response'daki serviceTime'ları dakikaya çevir ve customer objelerini ekle
       const optimizedRoute = {
@@ -522,9 +532,8 @@ class RouteService {
     try {
       const response = await api.get(`${this.baseUrl}?depotId=${depotId}`);
       
-      // Müşteri listesini al
-      const { customerService } = await import('./customer.service');
-      const customers = await customerService.getAll();
+      // ✅ Müşteri listesini güvenli şekilde al
+      const customers = await this.loadCustomersSafely();
       
       // ServiceTime'ları dakikaya çevir
       const routes = response.data.map((route: any) => ({
@@ -555,9 +564,8 @@ class RouteService {
     try {
       const response = await api.get(`${this.baseUrl}?driverId=${driverId}`);
       
-      // Müşteri listesini al
-      const { customerService } = await import('./customer.service');
-      const customers = await customerService.getAll();
+      // ✅ Müşteri listesini güvenli şekilde al
+      const customers = await this.loadCustomersSafely();
       
       // ServiceTime'ları dakikaya çevir
       const routes = response.data.map((route: any) => ({
@@ -593,9 +601,8 @@ class RouteService {
         }
       });
       
-      // Müşteri listesini al
-      const { customerService } = await import('./customer.service');
-      const customers = await customerService.getAll();
+      // ✅ Müşteri listesini güvenli şekilde al
+      const customers = await this.loadCustomersSafely();
       
       // ServiceTime'ları dakikaya çevir
       const routes = response.data.map((route: any) => ({

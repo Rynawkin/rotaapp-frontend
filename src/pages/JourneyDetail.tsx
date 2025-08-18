@@ -20,15 +20,20 @@ import {
   X,
   Download,
   Eye,
-  CheckSquare
+  CheckSquare,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { Journey, JourneyStop, JourneyStatus } from '@/types';
 import { journeyService, CompleteStopDto } from '@/services/journey.service';
+import { toast } from 'react-hot-toast';
+import signalRService from '@/services/signalr.service';
+import { useSignalR, useJourneyTracking } from '@/hooks/useSignalR';
 
 const JourneyDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const journeyId = id;
+  const journeyId = id ? parseInt(id) : null;
   
   const [journey, setJourney] = useState<Journey | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,17 +44,34 @@ const JourneyDetail: React.FC = () => {
   const [deliveryNotes, setDeliveryNotes] = useState('');
   const [failureReason, setFailureReason] = useState('');
   const [failureNotes, setFailureNotes] = useState('');
-  const [simulationActive, setSimulationActive] = useState(false);
   const [processingStopId, setProcessingStopId] = useState<number | null>(null);
   
-  // ✅ YENİ STATE'LER - İmza ve Fotoğraf için
+  // ✅ SignalR hooks kullanımı
+  const { isConnected } = useSignalR({
+    autoConnect: true,
+    onConnected: () => {
+      console.log('✅ SignalR connected in JourneyDetail');
+    },
+    onDisconnected: () => {
+      console.log('❌ SignalR disconnected in JourneyDetail');
+    },
+    onError: (error) => {
+      console.error('SignalR error:', error);
+    }
+  });
+
+  const { subscribeToUpdates } = useJourneyTracking(journeyId);
+  
+  // ✅ State'ler - İmza ve Fotoğraf için
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [signatureBase64, setSignatureBase64] = useState('');
-  const [photoBase64, setPhotoBase64] = useState('');
+  const [signatureFile, setSignatureFile] = useState<File | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [signaturePreview, setSignaturePreview] = useState('');
+  const [photoPreview, setPhotoPreview] = useState('');
   const [isDrawing, setIsDrawing] = useState(false);
   
-  // ✅ YENİ - Görüntüleme için
+  // ✅ Görüntüleme için
   const [viewSignature, setViewSignature] = useState<string | null>(null);
   const [viewPhoto, setViewPhoto] = useState<string | null>(null);
   
@@ -57,35 +79,65 @@ const JourneyDetail: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ PERFORMANS: Auto-refresh optimizasyonu
+  // ✅ SignalR Real-time Updates
+  useEffect(() => {
+    if (!journeyId) return;
+
+    subscribeToUpdates((data) => {
+      console.log('✅ Real-time update received:', data);
+      
+      switch (data.type) {
+        case 'statusUpdated':
+          loadJourney();
+          break;
+          
+        case 'stopCompleted':
+          setJourney(prev => {
+            if (!prev) return prev;
+            const updatedStops = prev.stops?.map(s => 
+              s.id === data.stopId ? { ...s, ...data.data } : s
+            );
+            return { ...prev, stops: updatedStops };
+          });
+          break;
+          
+        case 'locationUpdated':
+          setJourney(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              liveLocation: data.location,
+              currentStopIndex: data.currentStopIndex
+            };
+          });
+          break;
+          
+        default:
+          loadJourney();
+      }
+    });
+  }, [journeyId, subscribeToUpdates]);
+
+  // Initial load
   useEffect(() => {
     if (id) {
       loadJourney();
-      
-      // ✅ PERFORMANS: Sadece aktif seferler için ve 30 saniyede bir
-      let interval: NodeJS.Timeout | null = null;
-      
-      if (journey?.status === 'in_progress') {
-        interval = setInterval(loadJourney, 30000); // 30 saniye
-      }
-      
-      return () => {
-        if (interval) clearInterval(interval);
-      };
     }
-  }, [id, journey?.status]);
+  }, [id]);
 
+  // ✅ Fallback polling (only if not connected to SignalR)
   useEffect(() => {
-    if (simulationActive && journey) {
+    if (!isConnected && journey?.status === 'in_progress') {
       const interval = setInterval(() => {
-        journeyService.simulateMovement(journey.id);
+        console.log('⏱️ Polling update (SignalR not connected)');
         loadJourney();
-      }, 2000);
+      }, 10000);
+
       return () => clearInterval(interval);
     }
-  }, [simulationActive, journey]);
+  }, [isConnected, journey?.status]);
 
-  // ✅ Canvas başlangıç ayarları
+  // Canvas başlangıç ayarları
   useEffect(() => {
     if (showSignatureModal && canvasRef.current) {
       const canvas = canvasRef.current;
@@ -110,15 +162,34 @@ const JourneyDetail: React.FC = () => {
       } else {
         navigate('/journeys');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading journey:', error);
-      navigate('/journeys');
+      if (error?.code !== 'ECONNABORTED') {
+        navigate('/journeys');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ İMZA FONKSİYONLARI
+  // ✅ Seferi başlat fonksiyonu
+  const handleStartJourney = async () => {
+    if (!journey) return;
+    
+    if (window.confirm('Seferi başlatmak istediğinizden emin misiniz?')) {
+      try {
+        await journeyService.start(journey.id);
+        toast.success('Sefer başlatıldı');
+        loadJourney();
+      } catch (error: any) {
+        console.error('Error starting journey:', error);
+        const errorMessage = error.response?.data?.message || 'Sefer başlatılamadı';
+        toast.error(errorMessage);
+      }
+    }
+  };
+
+  // İmza fonksiyonları...
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     setIsDrawing(true);
     const canvas = canvasRef.current;
@@ -160,35 +231,38 @@ const JourneyDetail: React.FC = () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
 
-  const saveSignature = () => {
+  const saveSignature = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
-    const base64 = canvas.toDataURL('image/png');
-    setSignatureBase64(base64);
-    setShowSignatureModal(false);
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const file = new File([blob], 'signature.png', { type: 'image/png' });
+        setSignatureFile(file);
+        setSignaturePreview(URL.createObjectURL(blob));
+        setShowSignatureModal(false);
+        toast.success('İmza eklendi');
+      }
+    }, 'image/png');
   };
 
-  // ✅ FOTOĞRAF FONKSİYONLARI
+  // Fotoğraf fonksiyonları...
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    // Dosya boyutu kontrolü (5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert('Dosya boyutu 5MB\'dan küçük olmalıdır');
+      toast.error('Dosya boyutu 5MB\'dan küçük olmalıdır');
       return;
     }
     
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPhotoBase64(reader.result as string);
-      setShowPhotoModal(false);
-    };
-    reader.readAsDataURL(file);
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+    setShowPhotoModal(false);
+    toast.success('Fotoğraf eklendi');
   };
 
-  // ✅ PERFORMANS OPTİMİZE EDİLMİŞ HANDLER'LAR
+  // Handler'lar...
   const handleCheckIn = async () => {
     if (!journey || !selectedStop) return;
     
@@ -196,16 +270,14 @@ const JourneyDetail: React.FC = () => {
     try {
       console.log('Check-in başlatılıyor:', selectedStop.id);
       
-      // Check-in yap
       await journeyService.checkInStop(journey.id, selectedStop.id);
       
-      // ✅ PERFORMANS: Optimistic update - sadece ilgili stop'u güncelle
       setJourney(prev => {
         if (!prev) return prev;
         
         const updatedStops = prev.stops?.map(s => 
           s.id === selectedStop.id 
-            ? { ...s, status: 'inprogress' }
+            ? { ...s, status: 'InProgress' }
             : s
         );
         
@@ -213,24 +285,18 @@ const JourneyDetail: React.FC = () => {
           ...prev,
           stops: updatedStops,
           currentStopIndex: updatedStops?.findIndex(s => 
-            s.status === 'pending' || s.status === 'inprogress'
+            s.status === 'Pending' || s.status === 'InProgress'
           ) || 0
         };
       });
       
-      // Modal'ı kapat
       setShowCheckInModal(false);
       setSelectedStop(null);
-      
-      // ✅ PERFORMANS: 5 saniye sonra arka planda tam güncelleme
-      setTimeout(() => {
-        loadJourney();
-      }, 5000);
+      toast.success('Check-in başarılı');
       
     } catch (error) {
       console.error('Check-in hatası:', error);
-      alert('Check-in işlemi başarısız!');
-      // Hata durumunda tam yenile
+      toast.error('Check-in işlemi başarısız!');
       loadJourney();
     } finally {
       setProcessingStopId(null);
@@ -242,28 +308,30 @@ const JourneyDetail: React.FC = () => {
     
     setProcessingStopId(selectedStop.id);
     try {
-      // ✅ İmza, fotoğraf ve notları da gönder
-      const completeData: CompleteStopDto = {
-        notes: deliveryNotes,
-        signatureBase64: signatureBase64,
-        photoBase64: photoBase64
-      };
+      const formData = new FormData();
+      formData.append('notes', deliveryNotes);
       
-      await journeyService.completeStop(journey.id, selectedStop.id, completeData);
+      if (signatureFile) {
+        formData.append('signature', signatureFile);
+      }
       
-      // ✅ PERFORMANS: Optimistic update
+      if (photoFile) {
+        formData.append('photo', photoFile);
+      }
+      
+      await journeyService.completeStopWithFiles(journey.id, selectedStop.id, formData);
+      
       setJourney(prev => {
         if (!prev) return prev;
         
         const updatedStops = prev.stops?.map(s => 
           s.id === selectedStop.id 
-            ? { ...s, status: 'completed' }
+            ? { ...s, status: 'Completed' }
             : s
         );
         
-        // Tamamlanan stop sayısını güncelle
         const completedCount = updatedStops?.filter(s => 
-          s.status === 'completed' || s.status === 'failed'
+          s.status === 'Completed' || s.status === 'Failed'
         ).length || 0;
         
         return {
@@ -276,21 +344,19 @@ const JourneyDetail: React.FC = () => {
         };
       });
       
-      // Modal'ı kapat ve state'leri temizle
       setShowCompleteModal(false);
       setSelectedStop(null);
       setDeliveryNotes('');
-      setSignatureBase64('');
-      setPhotoBase64('');
+      setSignatureFile(null);
+      setPhotoFile(null);
+      setSignaturePreview('');
+      setPhotoPreview('');
       
-      // ✅ 5 saniye sonra arka planda güncelle
-      setTimeout(() => {
-        loadJourney();
-      }, 5000);
+      toast.success('Teslimat tamamlandı');
       
     } catch (error) {
       console.error('Error completing stop:', error);
-      alert('Teslimat tamamlanamadı');
+      toast.error('Teslimat tamamlanamadı');
       loadJourney();
     } finally {
       setProcessingStopId(null);
@@ -302,16 +368,14 @@ const JourneyDetail: React.FC = () => {
     
     setProcessingStopId(selectedStop.id);
     try {
-      // ✅ Başarısızlık nedeni ve notları gönder
       await journeyService.failStop(journey.id, selectedStop.id, failureReason, failureNotes);
       
-      // ✅ PERFORMANS: Optimistic update
       setJourney(prev => {
         if (!prev) return prev;
         
         const updatedStops = prev.stops?.map(s => 
           s.id === selectedStop.id 
-            ? { ...s, status: 'failed' }
+            ? { ...s, status: 'Failed' }
             : s
         );
         
@@ -326,14 +390,11 @@ const JourneyDetail: React.FC = () => {
       setFailureReason('');
       setFailureNotes('');
       
-      // ✅ 5 saniye sonra arka planda güncelle
-      setTimeout(() => {
-        loadJourney();
-      }, 5000);
+      toast.success('Durak başarısız olarak işaretlendi');
       
     } catch (error) {
       console.error('Error failing stop:', error);
-      alert('İşlem başarısız');
+      toast.error('İşlem başarısız');
       loadJourney();
     } finally {
       setProcessingStopId(null);
@@ -345,27 +406,26 @@ const JourneyDetail: React.FC = () => {
     if (window.confirm('Seferi tamamlamak istediğinizden emin misiniz?')) {
       try {
         await journeyService.finish(journey.id);
+        toast.success('Sefer tamamlandı');
         navigate('/journeys');
       } catch (error: any) {
         console.error('Error completing journey:', error);
-        // ✅ Backend'den gelen hata mesajını göster
         const errorMessage = error.response?.data?.message || 'Sefer tamamlanamadı';
-        alert(errorMessage);
+        toast.error(errorMessage);
       }
     }
   };
 
   const getStopStatusIcon = (status: string) => {
-    const statusLower = status?.toLowerCase();
-    switch(statusLower) {
-      case 'completed':
+    switch(status) {
+      case 'Completed':
         return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'inprogress':
+      case 'InProgress':
         return <Clock className="w-5 h-5 text-blue-500 animate-pulse" />;
-      case 'failed':
-      case 'skipped':
+      case 'Failed':
+      case 'Skipped':
         return <XCircle className="w-5 h-5 text-red-500" />;
-      case 'pending':
+      case 'Pending':
       default:
         return <div className="w-5 h-5 rounded-full border-2 border-gray-300" />;
     }
@@ -408,15 +468,18 @@ const JourneyDetail: React.FC = () => {
   const stops = journey.stops || [];
   const currentStopIndex = journey.currentStopIndex || 0;
   const currentStop = stops[currentStopIndex];
-  const completedStops = stops.filter((s: JourneyStop) => s.status === 'completed').length;
-  const failedStops = stops.filter((s: JourneyStop) => s.status === 'failed').length;
+  const completedStops = stops.filter((s: JourneyStop) => s.status === 'Completed').length;
+  const failedStops = stops.filter((s: JourneyStop) => s.status === 'Failed').length;
   const progress = stops.length > 0 ? (completedStops / stops.length) * 100 : 0;
   
-  // ✅ Sefer tamamlanabilir mi kontrolü
-  const canCompleteJourney = journey.status === 'in_progress' && 
+  // Journey durumlarını kontrol et
+  const isJourneyStarted = journey.status === 'in_progress' || journey.status === 'started';
+  const isJourneyPlanned = journey.status === 'planned' || journey.status === 'preparing';
+  
+  const canCompleteJourney = isJourneyStarted && 
     stops.every((s: JourneyStop) => {
-      const status = s.status?.toLowerCase();
-      return status === 'completed' || status === 'failed' || status === 'skipped';
+      const status = s.status;
+      return status === 'Completed' || status === 'Failed' || status === 'Skipped';
     });
 
   if (stops.length === 0) {
@@ -468,30 +531,44 @@ const JourneyDetail: React.FC = () => {
         </div>
         
         <div className="flex items-center space-x-3">
-          {journey.status === 'in_progress' && (
-            <>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-1 text-xs text-yellow-700">
-                ⚠️ Test Modu - Normal şartlarda şoför mobil app'ten yapar
-              </div>
-              
-              <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-1 text-xs text-green-700">
-                ✅ 30 saniyede bir otomatik güncellenir
-              </div>
-            </>
+          {/* SignalR Connection Status */}
+          <div className={`flex items-center px-3 py-1 rounded-lg text-xs ${
+            isConnected 
+              ? 'bg-green-50 border border-green-200 text-green-700' 
+              : 'bg-yellow-50 border border-yellow-200 text-yellow-700'
+          }`}>
+            {isConnected ? (
+              <>
+                <Wifi className="w-3 h-3 mr-1" />
+                Real-time bağlantı aktif
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-3 h-3 mr-1" />
+                Bağlantı bekleniyor...
+              </>
+            )}
+          </div>
+          
+          {/* Mobile App Bilgilendirmesi */}
+          {isJourneyStarted && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-1 text-xs text-blue-700">
+              📱 Teslimat işlemleri mobil uygulama üzerinden yapılır
+            </div>
           )}
           
-          <button
-            onClick={() => setSimulationActive(!simulationActive)}
-            className={`px-4 py-2 rounded-lg transition-colors flex items-center ${
-              simulationActive 
-                ? 'bg-green-600 text-white hover:bg-green-700' 
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            <Activity className="w-4 h-4 mr-2" />
-            {simulationActive ? 'Simülasyon Aktif' : 'Simülasyonu Başlat'}
-          </button>
+          {/* Seferi Başlat Butonu */}
+          {isJourneyPlanned && (
+            <button
+              onClick={handleStartJourney}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+            >
+              <Navigation className="w-4 h-4 mr-2" />
+              Seferi Başlat
+            </button>
+          )}
           
+          {/* Seferi Tamamla Butonu */}
           {canCompleteJourney && (
             <button
               onClick={handleCompleteJourney}
@@ -512,15 +589,15 @@ const JourneyDetail: React.FC = () => {
             <User className="w-4 h-4 text-gray-400" />
           </div>
           <p className="font-semibold text-gray-900">
-            {journey.driver?.fullName || journey.route?.driver?.name || 'Atanmadı'}
+            {journey.driver?.fullName || journey.driver?.name || journey.route?.driver?.name || 'Atanmadı'}
           </p>
-          {(journey.driver?.phoneNumber || journey.route?.driver?.phone) && (
+          {(journey.driver?.phoneNumber || journey.driver?.phone || journey.route?.driver?.phone) && (
             <a 
-              href={`tel:${journey.driver?.phoneNumber || journey.route?.driver?.phone}`} 
+              href={`tel:${journey.driver?.phoneNumber || journey.driver?.phone || journey.route?.driver?.phone}`} 
               className="text-sm text-blue-600 hover:text-blue-700 flex items-center mt-1"
             >
               <Phone className="w-3 h-3 mr-1" />
-              {journey.driver?.phoneNumber || journey.route?.driver?.phone}
+              {journey.driver?.phoneNumber || journey.driver?.phone || journey.route?.driver?.phone}
             </a>
           )}
         </div>
@@ -531,10 +608,10 @@ const JourneyDetail: React.FC = () => {
             <Truck className="w-4 h-4 text-gray-400" />
           </div>
           <p className="font-semibold text-gray-900">
-            {journey.route?.vehicle?.plateNumber || 'Atanmadı'}
+            {journey.route?.vehicle?.plateNumber || journey.vehicle?.plateNumber || 'Atanmadı'}
           </p>
           <p className="text-sm text-gray-500">
-            {journey.route?.vehicle?.brand} {journey.route?.vehicle?.model}
+            {journey.route?.vehicle?.brand || journey.vehicle?.brand} {journey.route?.vehicle?.model || journey.vehicle?.model}
           </p>
         </div>
         
@@ -544,11 +621,13 @@ const JourneyDetail: React.FC = () => {
             <Navigation className="w-4 h-4 text-gray-400" />
           </div>
           <div className="flex items-center space-x-2">
-            {journey.status === 'in_progress' && (
+            {isJourneyStarted && (
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             )}
             <p className="font-semibold text-gray-900">
               {journey.status === 'preparing' && 'Hazırlanıyor'}
+              {journey.status === 'planned' && 'Planlandı'}
+              {journey.status === 'started' && 'Başladı'}
               {journey.status === 'in_progress' && 'Devam Ediyor'}
               {journey.status === 'completed' && 'Tamamlandı'}
               {journey.status === 'cancelled' && 'İptal Edildi'}
@@ -641,6 +720,7 @@ const JourneyDetail: React.FC = () => {
                         </p>
                       )}
                       
+                      {/* @ts-ignore */}
                       {status.failureReason && (
                         <p className="text-sm text-red-600 mt-1">
                           <strong>Başarısızlık Nedeni:</strong> {status.failureReason}
@@ -648,18 +728,20 @@ const JourneyDetail: React.FC = () => {
                       )}
                       
                       <div className="flex items-center space-x-4 mt-2">
-                        {status.signatureBase64 && (
+                        {/* @ts-ignore */}
+                        {status.signatureUrl && (
                           <button
-                            onClick={() => setViewSignature(status.signatureBase64)}
+                            onClick={() => setViewSignature(status.signatureUrl)}
                             className="flex items-center text-xs text-blue-600 hover:text-blue-700"
                           >
                             <Edit3 className="w-3 h-3 mr-1" />
                             İmza görüntüle
                           </button>
                         )}
-                        {status.photoBase64 && (
+                        {/* @ts-ignore */}
+                        {status.photoUrl && (
                           <button
-                            onClick={() => setViewPhoto(status.photoBase64)}
+                            onClick={() => setViewPhoto(status.photoUrl)}
                             className="flex items-center text-xs text-blue-600 hover:text-blue-700"
                           >
                             <Camera className="w-3 h-3 mr-1" />
@@ -705,17 +787,17 @@ const JourneyDetail: React.FC = () => {
                          stop.routeStop?.name || 
                          `Durak ${stop.order}`}
                       </h4>
-                      {index === currentStopIndex && journey.status === 'in_progress' && (
+                      {index === currentStopIndex && isJourneyStarted && (
                         <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">
                           Mevcut
                         </span>
                       )}
-                      {stop.status === 'completed' && (
+                      {stop.status === 'Completed' && (
                         <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
                           Tamamlandı
                         </span>
                       )}
-                      {stop.status === 'failed' && (
+                      {stop.status === 'Failed' && (
                         <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded-full">
                           Başarısız
                         </span>
@@ -758,58 +840,23 @@ const JourneyDetail: React.FC = () => {
                         Not: {stop.routeStop.notes}
                       </p>
                     )}
-                    
-                    {/* Bu durak için son status notlarını göster */}
-                    {(() => {
-                      const stopStatuses = journey.statuses?.filter(
-                        (s: JourneyStatus) => s.stopId === stop.stopId || s.stopId === stop.id
-                      ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-                      
-                      const lastStatus = stopStatuses?.[0];
-                      if (!lastStatus) return null;
-                      
-                      return (
-                        <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
-                          {lastStatus.notes && (
-                            <p className="text-gray-600">
-                              <strong>Teslimat Notu:</strong> {lastStatus.notes}
-                            </p>
-                          )}
-                          {lastStatus.failureReason && (
-                            <p className="text-red-600">
-                              <strong>Başarısızlık:</strong> {lastStatus.failureReason}
-                            </p>
-                          )}
-                          {(lastStatus.signatureBase64 || lastStatus.photoBase64) && (
-                            <div className="flex items-center space-x-2 mt-1">
-                              {lastStatus.signatureBase64 && (
-                                <span className="text-green-600">✓ İmza</span>
-                              )}
-                              {lastStatus.photoBase64 && (
-                                <span className="text-green-600">✓ Fotoğraf</span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
                   </div>
                 </div>
                 
-                {/* Actions */}
-                {journey.status === 'in_progress' && (
+                {/* Actions - Sadece sefer başlatıldıysa göster */}
+                {isJourneyStarted && (
                   <>
-                    {stop.status === 'pending' && index === currentStopIndex && (
+                    {stop.status === 'Pending' && index === currentStopIndex && (
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => {
                             setSelectedStop(stop);
                             setShowCheckInModal(true);
                           }}
-                          disabled={processingStopId === stop.id}
+                          disabled={processingStopId === parseInt(stop.id)}
                           className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                         >
-                          {processingStopId === stop.id ? (
+                          {processingStopId === parseInt(stop.id) ? (
                             <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                           ) : (
                             <CheckSquare className="w-3 h-3 mr-1" />
@@ -819,17 +866,17 @@ const JourneyDetail: React.FC = () => {
                       </div>
                     )}
                     
-                    {stop.status === 'inprogress' && (
+                    {stop.status === 'InProgress' && (
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => {
                             setSelectedStop(stop);
                             setShowCompleteModal(true);
                           }}
-                          disabled={processingStopId === stop.id}
+                          disabled={processingStopId === parseInt(stop.id)}
                           className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {processingStopId === stop.id ? (
+                          {processingStopId === parseInt(stop.id) ? (
                             <Loader2 className="w-3 h-3 animate-spin" />
                           ) : (
                             'Tamamla'
@@ -840,7 +887,7 @@ const JourneyDetail: React.FC = () => {
                             setSelectedStop(stop);
                             setShowFailModal(true);
                           }}
-                          disabled={processingStopId === stop.id}
+                          disabled={processingStopId === parseInt(stop.id)}
                           className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Başarısız
@@ -855,6 +902,8 @@ const JourneyDetail: React.FC = () => {
         </div>
       </div>
 
+      {/* MODALS - Aynı kalacak */}
+      
       {/* Check-in Modal */}
       {showCheckInModal && selectedStop && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -922,8 +971,8 @@ const JourneyDetail: React.FC = () => {
               >
                 <Edit3 className="w-8 h-8 text-gray-400 mb-2" />
                 <span className="text-sm text-gray-600">İmza</span>
-                {signatureBase64 && (
-                  <span className="text-xs text-green-600 mt-1">✓ Eklendi</span>
+                {signaturePreview && (
+                  <span className="text-xs text-green-600 mt-1">✔ Eklendi</span>
                 )}
               </button>
               
@@ -933,33 +982,39 @@ const JourneyDetail: React.FC = () => {
               >
                 <Camera className="w-8 h-8 text-gray-400 mb-2" />
                 <span className="text-sm text-gray-600">Fotoğraf</span>
-                {photoBase64 && (
-                  <span className="text-xs text-green-600 mt-1">✓ Eklendi</span>
+                {photoPreview && (
+                  <span className="text-xs text-green-600 mt-1">✔ Eklendi</span>
                 )}
               </button>
             </div>
             
             {/* Önizleme */}
-            {(signatureBase64 || photoBase64) && (
+            {(signaturePreview || photoPreview) && (
               <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                 <p className="text-xs text-gray-600 mb-2">Ekler:</p>
                 <div className="flex space-x-2">
-                  {signatureBase64 && (
+                  {signaturePreview && (
                     <div className="relative">
-                      <img src={signatureBase64} alt="İmza" className="h-16 border rounded" />
+                      <img src={signaturePreview} alt="İmza" className="h-16 border rounded" />
                       <button 
-                        onClick={() => setSignatureBase64('')}
+                        onClick={() => {
+                          setSignatureFile(null);
+                          setSignaturePreview('');
+                        }}
                         className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
                       >
                         <X className="w-3 h-3" />
                       </button>
                     </div>
                   )}
-                  {photoBase64 && (
+                  {photoPreview && (
                     <div className="relative">
-                      <img src={photoBase64} alt="Fotoğraf" className="h-16 border rounded" />
+                      <img src={photoPreview} alt="Fotoğraf" className="h-16 border rounded" />
                       <button 
-                        onClick={() => setPhotoBase64('')}
+                        onClick={() => {
+                          setPhotoFile(null);
+                          setPhotoPreview('');
+                        }}
                         className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
                       >
                         <X className="w-3 h-3" />
@@ -976,8 +1031,10 @@ const JourneyDetail: React.FC = () => {
                   setShowCompleteModal(false);
                   setSelectedStop(null);
                   setDeliveryNotes('');
-                  setSignatureBase64('');
-                  setPhotoBase64('');
+                  setSignatureFile(null);
+                  setPhotoFile(null);
+                  setSignaturePreview('');
+                  setPhotoPreview('');
                 }}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
@@ -998,7 +1055,9 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-      {/* Fail Delivery Modal */}
+      {/* Diğer modallar aynı kalacak... */}
+      
+      {/* Fail Modal */}
       {showFailModal && selectedStop && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
@@ -1150,14 +1209,14 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-      {/* İmza Görüntüleme Modal */}
+      {/* Image Viewers */}
       {viewSignature && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-lg">
             <h2 className="text-xl font-bold mb-4">İmza</h2>
             <div className="border rounded-lg p-4 bg-gray-50">
               <img 
-                src={`data:image/png;base64,${viewSignature}`} 
+                src={viewSignature} 
                 alt="İmza" 
                 className="w-full"
               />
@@ -1174,14 +1233,13 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-      {/* Fotoğraf Görüntüleme Modal */}
       {viewPhoto && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
             <h2 className="text-xl font-bold mb-4">Teslimat Fotoğrafı</h2>
             <div className="border rounded-lg p-4 bg-gray-50">
               <img 
-                src={`data:image/png;base64,${viewPhoto}`} 
+                src={viewPhoto} 
                 alt="Teslimat Fotoğrafı" 
                 className="w-full"
               />

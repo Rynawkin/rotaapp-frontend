@@ -5,7 +5,7 @@ import {
   ArrowLeft, Building2, Save, X, AlertCircle 
 } from 'lucide-react';
 import { Workspace } from '@/types';
-import { workspaceService } from '@/services/mockData';
+import { workspaceService } from '@/services/workspace.service';
 
 const WorkspaceEdit: React.FC = () => {
   const { id } = useParams<{ id: string }>();

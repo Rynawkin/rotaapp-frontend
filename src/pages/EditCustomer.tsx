@@ -1,11 +1,13 @@
+// EditCustomer.tsx - Düzeltilmiş hali
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
 import CustomerForm from '@/components/customers/CustomerForm';
 import { Customer } from '@/types';
-import { customerService } from '@/services/mockData';
+import { customerService } from '@/services/customer.service'; // ✅ DÜZELTME: mockData yerine customer.service
 
 const EditCustomer: React.FC = () => {
+  // Geri kalan kod aynı kalacak...
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [customer, setCustomer] = useState<Customer | null>(null);

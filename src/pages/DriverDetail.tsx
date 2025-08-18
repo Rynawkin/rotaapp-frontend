@@ -21,7 +21,8 @@ import {
 } from 'lucide-react';
 import { Driver, Route as RouteType, Vehicle } from '@/types';
 import { driverService } from '@/services/driver.service';
-import { routeService, vehicleService } from '@/services/mockData'; // Bunlar daha sonra değişecek
+import { routeService } from '@/services/route.service';
+import { vehicleService } from '@/services/vehicle.service';
 
 const DriverDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();

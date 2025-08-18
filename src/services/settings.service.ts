@@ -1,0 +1,101 @@
+// frontend/src/services/settings.service.ts
+
+import { api } from './api';
+
+export interface WorkspaceSettings {
+  name: string;
+  logo?: string;
+  address?: string;
+  city?: string;
+  postalCode?: string;
+  taxNumber?: string;
+  phoneNumber?: string;
+  email?: string;
+  website?: string;
+  currency?: string;
+  timeZone?: string;
+  language?: string;
+  dateFormat?: string;
+  firstDayOfWeek?: string;
+}
+
+export interface DeliverySettings {
+  defaultServiceTime: number;
+  maxDeliveriesPerRoute: number;
+  workingHours: {
+    [key: string]: {
+      start: string;
+      end: string;
+      enabled: boolean;
+    };
+  };
+  prioritySettings: {
+    high: { color: string; maxDelay: number };
+    normal: { color: string; maxDelay: number };
+    low: { color: string; maxDelay: number };
+  };
+  autoOptimize: boolean;
+  trafficConsideration: boolean;
+  costPerKm?: number;
+  costPerHour?: number;
+}
+
+export interface NotificationSettings {
+  emailNotifications: boolean;
+  smsNotifications: boolean;
+  notificationEmail: string;
+  notificationPhone: string;
+  events: {
+    routeCompleted: boolean;
+    deliveryFailed: boolean;
+    driverDelayed: boolean;
+    newCustomer: boolean;
+    dailyReport: boolean;
+  };
+}
+
+export interface AllSettings {
+  workspace: WorkspaceSettings;
+  delivery: DeliverySettings;
+  notifications: NotificationSettings;
+}
+
+class SettingsService {
+  // Workspace Settings
+  async getWorkspaceSettings(): Promise<WorkspaceSettings> {
+    const response = await api.get('/settings/workspace');
+    return response.data;
+  }
+
+  async updateWorkspaceSettings(settings: Partial<WorkspaceSettings>): Promise<void> {
+    await api.put('/settings/workspace', settings);
+  }
+
+  // Delivery Settings
+  async getDeliverySettings(): Promise<DeliverySettings> {
+    const response = await api.get('/settings/delivery');
+    return response.data;
+  }
+
+  async updateDeliverySettings(settings: Partial<DeliverySettings>): Promise<void> {
+    await api.put('/settings/delivery', settings);
+  }
+
+  // Notification Settings
+  async getNotificationSettings(): Promise<NotificationSettings> {
+    const response = await api.get('/settings/notifications');
+    return response.data;
+  }
+
+  async updateNotificationSettings(settings: Partial<NotificationSettings>): Promise<void> {
+    await api.put('/settings/notifications', settings);
+  }
+
+  // Get All Settings (Theme kaldırıldı)
+  async getAllSettings(): Promise<AllSettings> {
+    const response = await api.get('/settings/all');
+    return response.data;
+  }
+}
+
+export const settingsService = new SettingsService();

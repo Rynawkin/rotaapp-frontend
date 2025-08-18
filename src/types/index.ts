@@ -247,13 +247,17 @@ export interface Journey {
   totalDuration: number;
   stops?: JourneyStop[];  // YENİ EKLENDİ - Journey stops listesi
   statuses?: JourneyStatus[];  // YENİ EKLENDİ - Journey status history
-  liveLocation?: {
-    latitude: number;
-    longitude: number;
-    speed?: number;
-    heading?: number;
-    timestamp: Date;
-  };
+  liveLocation?: LiveLocation;  // GÜNCELLENDİ - LiveLocation type'ı kullanılıyor
+}
+
+// LiveLocation Type - YENİ EKLENDİ (Backend'deki LiveLocation entity'sine uygun)
+export interface LiveLocation {
+  latitude: number;
+  longitude: number;
+  timestamp: Date;
+  speed?: number;
+  heading?: number;
+  accuracy?: number;
 }
 
 // Depot Types

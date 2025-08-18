@@ -187,11 +187,14 @@ const LiveMap: React.FC<LiveMapProps> = ({
     }
 
     const selectedJourney = journeys.find(j => j.id === selectedJourneyId);
-    if (!selectedJourney || !selectedJourney.liveLocation) {
+    
+    // ✅ DÜZELTME: Route kontrolü ekle
+    if (!selectedJourney || !selectedJourney.liveLocation || !selectedJourney.route?.stops) {
+      console.warn('Selected journey has no route or stops');
       return;
     }
 
-    // Tüm durakları al
+    // Tüm duraklardan customer'ı olanları filtrele
     const allStops = selectedJourney.route.stops.filter(stop => stop.customer);
     
     if (allStops.length < 2) {
@@ -261,7 +264,7 @@ const LiveMap: React.FC<LiveMapProps> = ({
         setDirections(null);
       }
     });
-  }, [selectedJourneyId, map, userInteracted]); // journeys'i dependency'den çıkardık
+  }, [selectedJourneyId, map, userInteracted]);
 
   // Araç değiştiğinde directions'ı sıfırla
   useEffect(() => {
@@ -321,11 +324,19 @@ const LiveMap: React.FC<LiveMapProps> = ({
     }
   };
 
+  // ✅ DÜZELTME: Null check ekle
   const getCurrentStop = (journey: Journey) => {
-    return journey.route.stops[journey.currentStopIndex];
+    if (!journey.route?.stops || journey.currentStopIndex === undefined) {
+      return null;
+    }
+    return journey.route.stops[journey.currentStopIndex] || null;
   };
 
+  // ✅ DÜZELTME: Null check ekle
   const getCompletionPercentage = (journey: Journey) => {
+    if (!journey.route?.stops || journey.route.stops.length === 0) {
+      return 0;
+    }
     const completed = journey.route.stops.filter(s => s.status === 'completed').length;
     return Math.round((completed / journey.route.stops.length) * 100);
   };
@@ -394,48 +405,56 @@ const LiveMap: React.FC<LiveMapProps> = ({
         )}
 
         {/* Vehicle Markers - Sürekli güncellenir */}
-        {journeys.map(journey => (
-          <React.Fragment key={journey.id}>
-            {journey.liveLocation && (
-              <Marker
-                position={{
-                  lat: journey.liveLocation.latitude,
-                  lng: journey.liveLocation.longitude
-                }}
-                icon={getVehicleIcon(journey)}
-                title={`${journey.route.driver?.name || 'Sürücü'} - ${journey.route.vehicle?.plateNumber || 'Araç'}`}
-                onClick={() => handleMarkerClick(journey)}
-                zIndex={selectedJourneyId === journey.id ? 1000 : 100}
-              />
-            )}
-
-            {/* Stop Markers for selected journey */}
-            {selectedJourneyId === journey.id && journey.route.stops.map((stop, index) => {
-              if (!stop.customer) return null;
-              const isNext = index === journey.currentStopIndex;
-              
-              return (
+        {journeys.map(journey => {
+          // ✅ DÜZELTME: Null check ekle
+          if (!journey.route) {
+            console.warn(`Journey ${journey.id} has no route, skipping map markers`);
+            return null;
+          }
+          
+          return (
+            <React.Fragment key={journey.id}>
+              {journey.liveLocation && (
                 <Marker
-                  key={`${journey.id}-stop-${index}`}
                   position={{
-                    lat: stop.customer.latitude,
-                    lng: stop.customer.longitude
+                    lat: journey.liveLocation.latitude,
+                    lng: journey.liveLocation.longitude
                   }}
-                  icon={getStopIcon(stop.status, isNext)}
-                  label={{
-                    text: String(stop.order),
-                    color: 'white',
-                    fontSize: '12px',
-                    fontWeight: 'bold'
-                  }}
-                  title={`${stop.customer.name} - ${stop.status === 'completed' ? 'Tamamlandı' : 
-                          stop.status === 'arrived' ? 'Varıldı' : 'Bekliyor'}`}
-                  zIndex={isNext ? 90 : 50}
+                  icon={getVehicleIcon(journey)}
+                  title={`${journey.route.driver?.name || 'Sürücü'} - ${journey.route.vehicle?.plateNumber || 'Araç'}`}
+                  onClick={() => handleMarkerClick(journey)}
+                  zIndex={selectedJourneyId === journey.id ? 1000 : 100}
                 />
-              );
-            })}
-          </React.Fragment>
-        ))}
+              )}
+
+              {/* Stop Markers for selected journey */}
+              {selectedJourneyId === journey.id && journey.route.stops?.map((stop, index) => {
+                if (!stop.customer) return null;
+                const isNext = index === journey.currentStopIndex;
+                
+                return (
+                  <Marker
+                    key={`${journey.id}-stop-${index}`}
+                    position={{
+                      lat: stop.customer.latitude,
+                      lng: stop.customer.longitude
+                    }}
+                    icon={getStopIcon(stop.status, isNext)}
+                    label={{
+                      text: String(stop.order),
+                      color: 'white',
+                      fontSize: '12px',
+                      fontWeight: 'bold'
+                    }}
+                    title={`${stop.customer.name} - ${stop.status === 'completed' ? 'Tamamlandı' : 
+                            stop.status === 'arrived' ? 'Varıldı' : 'Bekliyor'}`}
+                    zIndex={isNext ? 90 : 50}
+                  />
+                );
+              })}
+            </React.Fragment>
+          );
+        })}
 
         {/* Info Window */}
         {selectedMarker && selectedMarker.liveLocation && (
@@ -449,7 +468,7 @@ const LiveMap: React.FC<LiveMapProps> = ({
             <div className="p-2 min-w-[250px]">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-bold text-gray-900">
-                  {selectedMarker.route.vehicle?.plateNumber}
+                  {selectedMarker.route?.vehicle?.plateNumber || 'Araç Bilgisi Yok'}
                 </h3>
                 <span className={`px-2 py-1 text-xs rounded-full ${
                   selectedMarker.status === 'in_progress' 
@@ -461,7 +480,7 @@ const LiveMap: React.FC<LiveMapProps> = ({
               </div>
               
               <div className="space-y-1 text-sm">
-                {selectedMarker.route.driver && (
+                {selectedMarker.route?.driver && (
                   <div className="flex items-center">
                     <User className="w-4 h-4 text-gray-400 mr-2" />
                     <span>{selectedMarker.route.driver.name}</span>
@@ -475,18 +494,20 @@ const LiveMap: React.FC<LiveMapProps> = ({
                   </div>
                 )}
                 
-                <div className="flex items-center">
-                  <Package className="w-4 h-4 text-gray-400 mr-2" />
-                  <span>
-                    {selectedMarker.route.completedDeliveries} / {selectedMarker.route.totalDeliveries} teslimat
-                  </span>
-                </div>
+                {selectedMarker.route && (
+                  <div className="flex items-center">
+                    <Package className="w-4 h-4 text-gray-400 mr-2" />
+                    <span>
+                      {selectedMarker.route.completedDeliveries || 0} / {selectedMarker.route.totalDeliveries || 0} teslimat
+                    </span>
+                  </div>
+                )}
                 
                 {getCurrentStop(selectedMarker) && (
                   <div className="flex items-center">
                     <MapPin className="w-4 h-4 text-gray-400 mr-2" />
                     <span className="truncate">
-                      Hedef: {getCurrentStop(selectedMarker)?.customer?.name}
+                      Hedef: {getCurrentStop(selectedMarker)?.customer?.name || 'Bilinmiyor'}
                     </span>
                   </div>
                 )}

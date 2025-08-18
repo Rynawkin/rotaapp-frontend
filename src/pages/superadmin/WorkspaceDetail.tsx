@@ -7,7 +7,11 @@ import {
   Edit, Power, AlertCircle, CheckCircle
 } from 'lucide-react';
 import { Workspace } from '@/types';
-import { workspaceService, routeService, driverService, customerService, vehicleService } from '@/services/mockData';
+import { workspaceService } from '@/services/workspace.service';
+import { routeService } from '@/services/route.service';
+import { driverService } from '@/services/driver.service';
+import { customerService } from '@/services/customer.service';
+import { vehicleService } from '@/services/vehicle.service';
 
 const WorkspaceDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();

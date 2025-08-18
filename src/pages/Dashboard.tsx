@@ -23,6 +23,7 @@ import { driverService } from '@/services/driver.service';
 import { journeyService, JourneySummary } from '@/services/journey.service';
 import { routeService } from '@/services/route.service';
 import { Customer, Driver, Route as RouteType } from '@/types';
+import { useAuth } from '@/contexts/AuthContext'; // ✅ DOĞRU IMPORT
 
 const Dashboard: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('today');
@@ -36,6 +37,9 @@ const Dashboard: React.FC = () => {
   const [journeySummaries, setJourneySummaries] = useState<JourneySummary[]>([]);
   const [routes, setRoutes] = useState<RouteType[]>([]);
   const navigate = useNavigate();
+  
+  // ✅ ROL KONTROLÜ İÇİN AUTH HOOK
+  const { user, canAccessDispatcherFeatures } = useAuth();
 
   useEffect(() => {
     loadDashboardData();
@@ -44,30 +48,73 @@ const Dashboard: React.FC = () => {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      // ✅ PERFORMANS: Sadece özet veriler çekiliyor
-      const [customersData, driversData, journeySummariesData, routesData] = await Promise.all([
-        customerService.getAll(),
-        driverService.getAll(),
-        journeyService.getAllSummary(), // ✅ getAll() yerine getAllSummary()
-        routeService.getAll()
-      ]);
+      const promises: Promise<any>[] = [];
+      
+      // ✅ ROL BAZLI VERİ YÜKLEME
+      // Dispatcher yetkisi olanlar customer ve driver verilerini çekebilir
+      if (canAccessDispatcherFeatures()) {
+        promises.push(
+          customerService.getAll().then(data => {
+            setCustomers(data);
+            return data;
+          }).catch(err => {
+            console.log('Müşteri verileri yüklenemedi (yetki gerekebilir)');
+            setCustomers([]);
+            return [];
+          }),
+          driverService.getAll().then(data => {
+            setDrivers(data);
+            return data;
+          }).catch(err => {
+            console.log('Sürücü verileri yüklenemedi (yetki gerekebilir)');
+            setDrivers([]);
+            return [];
+          })
+        );
+      } else {
+        // Driver rolü için boş array set et
+        setCustomers([]);
+        setDrivers([]);
+      }
 
-      setCustomers(customersData);
-      setDrivers(driversData);
-      setJourneySummaries(journeySummariesData);
-      setRoutes(routesData);
+      // Journey ve Route verileri tüm roller için yüklenebilir
+      // Backend zaten rol bazlı filtreleme yapıyor
+      promises.push(
+        journeyService.getAllSummary().then(data => {
+          setJourneySummaries(data);
+          return data;
+        }).catch(err => {
+          console.log('Journey verileri yüklenemedi');
+          setJourneySummaries([]);
+          return [];
+        }),
+        routeService.getAll().then(data => {
+          setRoutes(data);
+          return data;
+        }).catch(err => {
+          console.log('Route verileri yüklenemedi');
+          setRoutes([]);
+          return [];
+        })
+      );
+
+      const results = await Promise.allSettled(promises);
+      
+      // Başarılı sonuçları al
+      const successfulResults = results
+        .filter(r => r.status === 'fulfilled')
+        .map(r => (r as PromiseFulfilledResult<any>).value);
 
       // İstatistikleri hesapla
-      calculateStats(customersData, driversData, journeySummariesData, routesData);
-      
-      // Bugünkü rotaları filtrele
-      filterTodayRoutes(routesData, journeySummariesData, driversData);
-      
-      // Son aktiviteleri oluştur
-      generateRecentActivities(journeySummariesData, routesData);
-      
-      // Haftalık veriyi hesapla
-      calculateWeeklyData(journeySummariesData);
+      const customersData = canAccessDispatcherFeatures() && successfulResults[0] ? successfulResults[0] : [];
+      const driversData = canAccessDispatcherFeatures() && successfulResults[1] ? successfulResults[1] : [];
+      const journeysData = canAccessDispatcherFeatures() ? successfulResults[2] || [] : successfulResults[0] || [];
+      const routesData = canAccessDispatcherFeatures() ? successfulResults[3] || [] : successfulResults[1] || [];
+
+      calculateStats(customersData, driversData, journeysData, routesData);
+      filterTodayRoutes(routesData, journeysData, driversData);
+      generateRecentActivities(journeysData, routesData);
+      calculateWeeklyData(journeysData);
 
     } catch (error) {
       console.error('Dashboard verileri yüklenirken hata:', error);
@@ -109,17 +156,23 @@ const Dashboard: React.FC = () => {
       ? journeySummaries.reduce((sum, j) => sum + j.totalDuration, 0) / journeySummaries.length
       : 0;
 
-    const statsData = [
-      {
-        title: 'Toplam Teslimat',
-        value: totalDeliveries.toString(),
-        change: '+12%',
-        trend: 'up',
-        icon: Package,
-        color: 'blue',
-        subtitle: 'Bu ay'
-      },
-      {
+    // ✅ ROL BAZLI İSTATİSTİKLER
+    const statsData = [];
+    
+    // Toplam teslimat - Tüm roller görebilir
+    statsData.push({
+      title: 'Toplam Teslimat',
+      value: totalDeliveries.toString(),
+      change: '+12%',
+      trend: 'up',
+      icon: Package,
+      color: 'blue',
+      subtitle: 'Bu ay'
+    });
+
+    // Müşteri sayısı - Sadece dispatcher ve üzeri
+    if (canAccessDispatcherFeatures()) {
+      statsData.push({
         title: 'Aktif Müşteri',
         value: customers.length.toString(),
         change: '+5%',
@@ -127,8 +180,12 @@ const Dashboard: React.FC = () => {
         icon: Users,
         color: 'green',
         subtitle: 'Toplam'
-      },
-      {
+      });
+    }
+
+    // Aktif sürücü - Sadece dispatcher ve üzeri
+    if (canAccessDispatcherFeatures()) {
+      statsData.push({
         title: 'Aktif Sürücü',
         value: activeDrivers.toString(),
         change: '0%',
@@ -136,17 +193,33 @@ const Dashboard: React.FC = () => {
         icon: Truck,
         color: 'purple',
         subtitle: 'Bugün'
-      },
-      {
-        title: 'Ortalama Teslimat Süresi',
-        value: averageTime > 0 ? `${Math.round(averageTime)} dk` : '0 dk',
-        change: '-8%',
-        trend: 'down',
-        icon: Clock,
-        color: 'orange',
-        subtitle: 'Bu hafta'
-      }
-    ];
+      });
+    }
+
+    // Ortalama teslimat süresi - Tüm roller görebilir
+    statsData.push({
+      title: 'Ortalama Teslimat Süresi',
+      value: averageTime > 0 ? `${Math.round(averageTime)} dk` : '0 dk',
+      change: '-8%',
+      trend: 'down',
+      icon: Clock,
+      color: 'orange',
+      subtitle: 'Bu hafta'
+    });
+
+    // Driver rolü için ek istatistik
+    if (user?.isDriver && !canAccessDispatcherFeatures()) {
+      const myJourneys = journeySummaries.filter(j => j.driverId === user.id);
+      statsData.push({
+        title: 'Benim Seferlerim',
+        value: myJourneys.length.toString(),
+        change: '0%',
+        trend: 'neutral',
+        icon: Navigation,
+        color: 'indigo',
+        subtitle: 'Bugün'
+      });
+    }
 
     setStats(statsData);
   };
@@ -160,12 +233,21 @@ const Dashboard: React.FC = () => {
     today.setHours(0, 0, 0, 0);
 
     // Bugünkü rotaları filtrele
-    const todayRoutesData = routes
+    let todayRoutesData = routes
       .filter(route => {
         const routeDate = new Date(route.date);
         routeDate.setHours(0, 0, 0, 0);
         return routeDate.getTime() === today.getTime();
-      })
+      });
+
+    // ✅ Driver rolü için sadece kendi rotalarını göster
+    if (user?.isDriver && !canAccessDispatcherFeatures()) {
+      todayRoutesData = todayRoutesData.filter(route => 
+        route.driverId === user.id || route.driver?.id === user.id
+      );
+    }
+
+    const mappedRoutes = todayRoutesData
       .map(route => {
         // ✅ Summary'den journey bilgisi al
         const journey = journeySummaries.find(j => j.routeId === Number(route.id));
@@ -186,7 +268,7 @@ const Dashboard: React.FC = () => {
 
         return {
           id: route.id,
-          driver: driver?.name || route.driver?.name || 'Atanmadı',
+          driver: driver?.name || route.driver?.name || (user?.isDriver ? user.fullName : 'Atanmadı'),
           vehicle: journey?.vehiclePlateNumber || route.vehicle?.plateNumber || 'Atanmadı',
           status: status,
           progress: progress,
@@ -195,14 +277,23 @@ const Dashboard: React.FC = () => {
       })
       .slice(0, 5);
 
-    setTodayRoutes(todayRoutesData);
+    setTodayRoutes(mappedRoutes);
   };
 
   const generateRecentActivities = (journeySummaries: JourneySummary[], routes: RouteType[]) => {
     const activities: any[] = [];
     
+    // ✅ Driver için sadece kendi aktiviteleri
+    let filteredJourneys = journeySummaries;
+    let filteredRoutes = routes;
+    
+    if (user?.isDriver && !canAccessDispatcherFeatures()) {
+      filteredJourneys = journeySummaries.filter(j => j.driverId === user.id);
+      filteredRoutes = routes.filter(r => r.driverId === user.id);
+    }
+
     // ✅ Summary verilerinden aktivite oluştur
-    journeySummaries.slice(0, 5).forEach((journey) => {
+    filteredJourneys.slice(0, 5).forEach((journey) => {
       if (journey.status === 'completed') {
         activities.push({
           id: `j-${journey.id}`,
@@ -225,7 +316,7 @@ const Dashboard: React.FC = () => {
     });
 
     // Son oluşturulan rotalar
-    routes.slice(0, 3).forEach(route => {
+    filteredRoutes.slice(0, 3).forEach(route => {
       activities.push({
         id: `r-${route.id}`,
         type: 'route',
@@ -245,13 +336,19 @@ const Dashboard: React.FC = () => {
     const today = new Date();
     const weekData: any[] = [];
 
+    // ✅ Driver için sadece kendi journey'leri
+    let filteredJourneys = journeySummaries;
+    if (user?.isDriver && !canAccessDispatcherFeatures()) {
+      filteredJourneys = journeySummaries.filter(j => j.driverId === user.id);
+    }
+
     for (let i = 6; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(today.getDate() - i);
       date.setHours(0, 0, 0, 0);
       
       // ✅ Summary verilerinden hesapla
-      const dayJourneys = journeySummaries.filter(j => {
+      const dayJourneys = filteredJourneys.filter(j => {
         const journeyDate = new Date(j.startedAt || j.createdAt);
         journeyDate.setHours(0, 0, 0, 0);
         return journeyDate.getTime() === date.getTime();
@@ -352,7 +449,9 @@ const Dashboard: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">Hoş geldiniz! İşte bugünkü özet bilgileriniz.</p>
+          <p className="text-gray-600 mt-1">
+            Hoş geldiniz {user?.fullName}! İşte {user?.isDriver && !canAccessDispatcherFeatures() ? 'size özel' : 'bugünkü'} özet bilgileriniz.
+          </p>
         </div>
         <div className="mt-4 sm:mt-0 flex items-center space-x-2">
           <select 
@@ -407,7 +506,9 @@ const Dashboard: React.FC = () => {
         {/* Weekly Chart */}
         <div className="lg:col-span-2 bg-white rounded-xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">Haftalık Teslimat Performansı</h2>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {user?.isDriver && !canAccessDispatcherFeatures() ? 'Benim Haftalık Performansım' : 'Haftalık Teslimat Performansı'}
+            </h2>
             <BarChart3 className="w-5 h-5 text-gray-400" />
           </div>
           <div className="space-y-4">
@@ -420,10 +521,12 @@ const Dashboard: React.FC = () => {
                       className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg transition-all duration-500"
                       style={{ width: `${(day.deliveries / 200) * 100}%` }}
                     />
-                    <div 
-                      className="absolute top-0 left-0 h-full border-r-2 border-dashed border-gray-400"
-                      style={{ left: `${(day.target / 200) * 100}%` }}
-                    />
+                    {canAccessDispatcherFeatures() && (
+                      <div 
+                        className="absolute top-0 left-0 h-full border-r-2 border-dashed border-gray-400"
+                        style={{ left: `${(day.target / 200) * 100}%` }}
+                      />
+                    )}
                   </div>
                 </div>
                 <span className="text-sm font-semibold text-gray-900 w-16 text-right">
@@ -436,10 +539,12 @@ const Dashboard: React.FC = () => {
                 <div className="w-3 h-3 bg-blue-500 rounded mr-2"></div>
                 <span className="text-gray-600">Gerçekleşen</span>
               </div>
-              <div className="flex items-center">
-                <div className="w-0.5 h-3 bg-gray-400 mr-2"></div>
-                <span className="text-gray-600">Hedef</span>
-              </div>
+              {canAccessDispatcherFeatures() && (
+                <div className="flex items-center">
+                  <div className="w-0.5 h-3 bg-gray-400 mr-2"></div>
+                  <span className="text-gray-600">Hedef</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -478,7 +583,9 @@ const Dashboard: React.FC = () => {
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         <div className="p-6 border-b">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Bugünkü Rotalar</h2>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {user?.isDriver && !canAccessDispatcherFeatures() ? 'Benim Bugünkü Rotalarım' : 'Bugünkü Rotalar'}
+            </h2>
             <Link 
               to="/routes" 
               className="text-sm text-blue-600 hover:text-blue-700 font-medium"
@@ -566,7 +673,11 @@ const Dashboard: React.FC = () => {
           ) : (
             <div className="p-6 text-center text-gray-500">
               <MapPin className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-              <p>Bugün için planlanmış rota bulunmuyor</p>
+              <p>
+                {user?.isDriver && !canAccessDispatcherFeatures() 
+                  ? 'Size atanmış rota bulunmuyor' 
+                  : 'Bugün için planlanmış rota bulunmuyor'}
+              </p>
             </div>
           )}
         </div>

@@ -1,3 +1,4 @@
+// frontend/src/services/journey.service.ts
 import { api } from './api';
 import { Journey, Route, JourneyStatus } from '@/types';
 
@@ -70,9 +71,31 @@ export interface CompleteStopDto {
   photoBase64?: string;
 }
 
+// ✅ V38 - FormData için yeni interface'ler
+export interface CompleteStopWithFilesDto {
+  notes?: string;
+  signatureFile?: File;
+  photoFile?: File;
+}
+
 export interface FailStopDto {
   failureReason: string;
   notes?: string;
+}
+
+// Bulk operation result tipi
+export interface BulkOperationResult {
+  totalCount: number;
+  successCount: number;
+  failedCount: number;
+  message: string;
+  failedItems: BulkOperationFailedItem[];
+}
+
+export interface BulkOperationFailedItem {
+  id: number;
+  name?: string;
+  reason: string;
 }
 
 class JourneyService {
@@ -93,6 +116,21 @@ class JourneyService {
       return response.data;
     } catch (error) {
       console.error('Error fetching journey summaries:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ V44 YENİ - LiveTracking için optimize edilmiş endpoint
+   * Sadece aktif journey'leri route detaylarıyla çeker
+   */
+  async getActiveJourneys(): Promise<any[]> {
+    try {
+      const response = await api.get(`${this.baseUrl}/active`);
+      console.log('Active journeys loaded with routes:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching active journeys:', error);
       throw error;
     }
   }
@@ -241,21 +279,17 @@ class JourneyService {
     }
   }
 
-  // Check-in to a stop
-  async checkInStop(journeyId: string | number, stopId: string | number): Promise<JourneyStatus> {
+  // ============ V38 - YENİ STOP ENDPOINT'LERİ ============
+
+  /**
+   * ✅ V38 - Check-in to a stop
+   * Yeni endpoint kullanıyor: /stops/{stopId}/checkin
+   */
+  async checkInStop(journeyId: string | number, stopId: string | number): Promise<boolean> {
     try {
       console.log('Checking in stop:', journeyId, stopId);
-      const statusData: AddJourneyStatusDto = {
-        stopId: Number(stopId),
-        status: JourneyStatusType.Arrived,
-        notes: 'Durağa varıldı',
-        latitude: 0,
-        longitude: 0
-      };
-      
       const response = await api.post(
-        `${this.baseUrl}/${journeyId}/status`,
-        statusData
+        `${this.baseUrl}/${journeyId}/stops/${stopId}/checkin`
       );
       console.log('Check-in response:', response.data);
       return response.data;
@@ -266,14 +300,100 @@ class JourneyService {
     }
   }
 
-  // Complete a stop delivery with signature and photo
+  /**
+   * ✅ V38 - Complete a stop with files using FormData
+   * PERFORMANS: FormData kullanarak timeout sorunu çözüldü
+   */
+  async completeStopWithFiles(
+    journeyId: string | number,
+    stopId: string | number,
+    data: CompleteStopWithFilesDto
+  ): Promise<boolean> {
+    try {
+      console.log('Completing stop with files:', journeyId, stopId);
+      
+      const formData = new FormData();
+      
+      // Notes varsa ekle
+      if (data.notes) {
+        formData.append('notes', data.notes);
+      }
+      
+      // Signature file varsa ekle
+      if (data.signatureFile) {
+        formData.append('signature', data.signatureFile);
+      }
+      
+      // Photo file varsa ekle
+      if (data.photoFile) {
+        formData.append('photo', data.photoFile);
+      }
+      
+      const response = await api.post(
+        `${this.baseUrl}/${journeyId}/stops/${stopId}/complete`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+      
+      console.log('Complete stop response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error completing stop:', error);
+      console.error('Error response:', error.response?.data);
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ V38 - Fail a stop with reason
+   * Yeni endpoint kullanıyor: /stops/{stopId}/fail
+   */
+  async failStop(
+    journeyId: string | number,
+    stopId: string | number,
+    reason: string,
+    notes?: string
+  ): Promise<boolean> {
+    try {
+      console.log('Failing stop:', journeyId, stopId, reason, notes);
+      
+      const requestData: FailStopDto = {
+        failureReason: reason,
+        notes: notes
+      };
+      
+      const response = await api.post(
+        `${this.baseUrl}/${journeyId}/stops/${stopId}/fail`,
+        requestData
+      );
+      
+      console.log('Fail stop response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error failing stop:', error);
+      console.error('Error response:', error.response?.data);
+      throw error;
+    }
+  }
+
+  // ============ ESKİ METODLAR (GERİ UYUMLULUK İÇİN) ============
+
+  /**
+   * @deprecated V38'den sonra completeStopWithFiles kullanın
+   * Complete a stop delivery with signature and photo (Base64)
+   */
   async completeStop(
     journeyId: string | number, 
     stopId: string | number, 
     data?: CompleteStopDto
   ): Promise<JourneyStatus> {
     try {
-      console.log('Completing stop:', journeyId, stopId, data);
+      console.warn('⚠️ completeStop() Base64 kullanıyor. Timeout riski var! completeStopWithFiles() kullanın.');
+      console.log('Completing stop (legacy):', journeyId, stopId, data);
       
       // Base64 string'lerden data URL prefix'ini temizle
       const cleanBase64 = (base64String?: string) => {
@@ -300,37 +420,6 @@ class JourneyService {
       return response.data;
     } catch (error: any) {
       console.error('Error completing stop:', error);
-      console.error('Error response:', error.response?.data);
-      throw error;
-    }
-  }
-
-  // Mark stop as failed with reason and notes
-  async failStop(
-    journeyId: string | number, 
-    stopId: string | number, 
-    reason: string,
-    notes?: string
-  ): Promise<JourneyStatus> {
-    try {
-      console.log('Failing stop:', journeyId, stopId, reason, notes);
-      const statusData: AddJourneyStatusDto = {
-        stopId: Number(stopId),
-        status: JourneyStatusType.Cancelled,
-        failureReason: reason,
-        notes: notes,
-        latitude: 0,
-        longitude: 0
-      };
-      
-      const response = await api.post(
-        `${this.baseUrl}/${journeyId}/status`,
-        statusData
-      );
-      console.log('Fail stop response:', response.data);
-      return response.data;
-    } catch (error: any) {
-      console.error('Error failing stop:', error);
       console.error('Error response:', error.response?.data);
       throw error;
     }
@@ -395,6 +484,87 @@ class JourneyService {
   // Simulate movement for testing (only for development)
   async simulateMovement(journeyId: string | number): Promise<void> {
     console.warn('simulateMovement is a mock function for testing only');
+  }
+
+  // ============ BULK OPERATIONS - YENİ ============
+
+  /**
+   * Toplu iptal işlemi
+   */
+  async bulkCancel(journeyIds: number[], reason?: string): Promise<BulkOperationResult> {
+    try {
+      console.log('Bulk cancelling journeys:', journeyIds);
+      const response = await api.post(`${this.baseUrl}/bulk/cancel`, {
+        journeyIds,
+        reason
+      });
+      console.log('Bulk cancel result:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error bulk cancelling journeys:', error);
+      throw new Error(error.response?.data?.message || 'Toplu iptal işlemi başarısız');
+    }
+  }
+
+  /**
+   * Toplu arşivleme işlemi
+   */
+  async bulkArchive(journeyIds: number[]): Promise<BulkOperationResult> {
+    try {
+      console.log('Bulk archiving journeys:', journeyIds);
+      const response = await api.post(`${this.baseUrl}/bulk/archive`, {
+        journeyIds
+      });
+      console.log('Bulk archive result:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error bulk archiving journeys:', error);
+      throw new Error(error.response?.data?.message || 'Toplu arşivleme işlemi başarısız');
+    }
+  }
+
+  /**
+   * Toplu silme işlemi (Kalıcı silme - DİKKAT!)
+   */
+  async bulkDelete(journeyIds: number[], forceDelete: boolean = false): Promise<BulkOperationResult> {
+    try {
+      console.log('Bulk deleting journeys:', journeyIds, 'Force:', forceDelete);
+      const response = await api.delete(`${this.baseUrl}/bulk/delete`, {
+        data: {
+          journeyIds,
+          forceDelete
+        }
+      });
+      console.log('Bulk delete result:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error bulk deleting journeys:', error);
+      throw new Error(error.response?.data?.message || 'Toplu silme işlemi başarısız');
+    }
+  }
+  
+  // ============ HELPER METHODS ============
+  
+  /**
+   * Base64 string'i File objesine çevirir
+   * SignaturePad'den gelen Base64'ü FormData için hazırlar
+   */
+  async base64ToFile(base64String: string, filename: string): Promise<File> {
+    // data:image/png;base64, prefix'ini kaldır
+    const base64Data = base64String.replace(/^data:image\/\w+;base64,/, '');
+    
+    // Base64'ü binary'ye çevir
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    
+    // Blob oluştur
+    const blob = new Blob([bytes], { type: 'image/png' });
+    
+    // File objesine çevir
+    return new File([blob], filename, { type: 'image/png' });
   }
 }
 

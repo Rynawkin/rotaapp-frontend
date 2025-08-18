@@ -1,5 +1,5 @@
 // src/layouts/MainLayout.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -21,10 +21,19 @@ import {
   Settings,
   Shield
 } from 'lucide-react';
+import { api } from '@/services/api';
 
 interface MainLayoutProps {
   children: React.ReactNode;
   onLogout?: () => void;
+}
+
+interface MenuItem {
+  icon: any;
+  label: string;
+  path: string;
+  badge?: string | null;
+  roles?: string[]; // Hangi roller erişebilir
 }
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
@@ -46,34 +55,113 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
       console.error('Error parsing user info:', error);
     }
     return { 
-      name: 'Admin Kullanıcı', 
-      role: 'admin', 
-      email: 'admin@rotaapp.com',
+      fullName: 'Kullanıcı', 
+      email: 'user@rotaapp.com',
+      isAdmin: false,
+      isDispatcher: false,
+      isDriver: false,
       isSuperAdmin: false
     };
   };
 
   const userInfo = getUserInfo();
 
-  // SUPER ADMIN KONTROLÜ
-  const isSuperAdmin = userInfo.email === 'super@rotaapp.com' || userInfo.isSuperAdmin === true;
+  // Kullanıcının rolünü belirle
+  const getUserRole = (): string => {
+    if (userInfo.isSuperAdmin) return 'superadmin';
+    if (userInfo.isAdmin) return 'admin';
+    if (userInfo.isDispatcher) return 'dispatcher';
+    if (userInfo.isDriver) return 'driver';
+    return 'user';
+  };
 
-  // Menu items
-  const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/', badge: null },
-    { icon: Route, label: 'Rotalar', path: '/routes', badge: '3' },
-    { icon: MapPin, label: 'Müşteriler', path: '/customers', badge: '125' },
-    { icon: UserCheck, label: 'Sürücüler', path: '/drivers', badge: null },
-    { icon: Car, label: 'Araçlar', path: '/vehicles', badge: null },
-    { icon: Warehouse, label: 'Depolar', path: '/depots', badge: null },
-    { icon: Package, label: 'Seferler', path: '/journeys', badge: '5' },
-    { icon: Navigation, label: 'Canlı Takip', path: '/tracking', badge: 'CANLI' },
-    { icon: FileText, label: 'Raporlar', path: '/reports', badge: null },
-    { icon: Settings, label: 'Ayarlar', path: '/settings', badge: null },
-    ...(isSuperAdmin ? [
-      { icon: Shield, label: 'Super Admin', path: '/super-admin', badge: 'SUPER' }
-    ] : [])
+  const currentRole = getUserRole();
+
+  // Tüm menü öğeleri ve hangi roller erişebilir
+  const allMenuItems: MenuItem[] = [
+    { 
+      icon: LayoutDashboard, 
+      label: 'Dashboard', 
+      path: '/', 
+      badge: null,
+      roles: ['driver', 'dispatcher', 'admin', 'superadmin'] // Herkes erişebilir
+    },
+    { 
+      icon: Route, 
+      label: 'Rotalar', 
+      path: '/routes', 
+      badge: '3',
+      roles: ['dispatcher', 'admin', 'superadmin'] // Driver erişemez
+    },
+    { 
+      icon: MapPin, 
+      label: 'Müşteriler', 
+      path: '/customers', 
+      badge: '125',
+      roles: ['dispatcher', 'admin', 'superadmin'] // Driver erişemez
+    },
+    { 
+      icon: UserCheck, 
+      label: 'Sürücüler', 
+      path: '/drivers', 
+      badge: null,
+      roles: ['dispatcher', 'admin', 'superadmin'] // Driver erişemez
+    },
+    { 
+      icon: Car, 
+      label: 'Araçlar', 
+      path: '/vehicles', 
+      badge: null,
+      roles: ['driver', 'dispatcher', 'admin', 'superadmin'] // Herkes erişebilir
+    },
+    { 
+      icon: Warehouse, 
+      label: 'Depolar', 
+      path: '/depots', 
+      badge: null,
+      roles: ['dispatcher', 'admin', 'superadmin'] // Driver erişemez
+    },
+    { 
+      icon: Package, 
+      label: 'Seferler', 
+      path: '/journeys', 
+      badge: '5',
+      roles: ['driver', 'dispatcher', 'admin', 'superadmin'] // Herkes erişebilir
+    },
+    { 
+      icon: Navigation, 
+      label: 'Canlı Takip', 
+      path: '/tracking', 
+      badge: 'CANLI',
+      roles: ['dispatcher', 'admin', 'superadmin'] // Driver erişemez (kendi konumunu paylaşır ama takip edemez)
+    },
+    { 
+      icon: FileText, 
+      label: 'Raporlar', 
+      path: '/reports', 
+      badge: null,
+      roles: ['driver', 'dispatcher', 'admin', 'superadmin'] // Herkes erişebilir (kendi raporlarını görür)
+    },
+    { 
+      icon: Settings, 
+      label: 'Ayarlar', 
+      path: '/settings', 
+      badge: null,
+      roles: ['dispatcher', 'admin', 'superadmin'] // Driver erişemez artık (tema kaldırıldı)
+    },
+    { 
+      icon: Shield, 
+      label: 'Super Admin', 
+      path: '/super-admin', 
+      badge: 'SUPER',
+      roles: ['superadmin'] // Sadece Super Admin
+    }
   ];
+
+  // Kullanıcının rolüne göre menüleri filtrele
+  const menuItems = allMenuItems.filter(item => 
+    item.roles ? item.roles.includes(currentRole) : true
+  );
 
   const notifications = [
     { id: 1, title: 'Yeni rota oluşturuldu', time: '5 dk önce', unread: true },
@@ -87,34 +175,62 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
     return currentItem?.label || 'Dashboard';
   };
 
+  // Logout handler
   const handleLogout = () => {
-    localStorage.setItem('isAuthenticated', 'false');
-    localStorage.removeItem('user');
+    // onLogout prop'u varsa onu kullan (AuthContext'ten gelen logout)
     if (onLogout) {
       onLogout();
+    } else {
+      // Fallback olarak manuel temizleme
+      localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      localStorage.removeItem('workspaceId');
+      
+      // API header'ını temizle
+      if (api && api.defaults && api.defaults.headers) {
+        delete api.defaults.headers.common['Authorization'];
+      }
+      
+      // Login sayfasına yönlendir
+      window.location.href = '/login';
     }
-    navigate('/login');
   };
 
   const handleProfileClick = () => {
     setUserMenuOpen(false);
-    // Profil sayfası yoksa settings'e yönlendir
     navigate('/settings');
   };
 
   const handleNotificationClick = (notificationId: number) => {
     console.log('Notification clicked:', notificationId);
     setNotificationMenuOpen(false);
-    // Bildirime göre yönlendirme yapılabilir
   };
 
   // Rol isimlendirmesi
   const getRoleDisplayName = () => {
-    if (isSuperAdmin) return 'SaaS Yönetici';
-    if (userInfo.role === 'admin') return 'Firma Yöneticisi';
-    if (userInfo.role === 'manager') return 'Operasyon Müdürü';
-    if (userInfo.role === 'driver') return 'Sürücü';
+    if (userInfo.isSuperAdmin) return 'SaaS Yönetici';
+    if (userInfo.isAdmin) return 'Firma Yöneticisi';
+    if (userInfo.isDispatcher) return 'Operasyon Müdürü';
+    if (userInfo.isDriver) return 'Sürücü';
     return 'Kullanıcı';
+  };
+
+  // Rol renkleri
+  const getRoleColor = () => {
+    if (userInfo.isSuperAdmin) return 'from-purple-500 to-purple-600';
+    if (userInfo.isAdmin) return 'from-blue-500 to-blue-600';
+    if (userInfo.isDispatcher) return 'from-green-500 to-green-600';
+    if (userInfo.isDriver) return 'from-orange-500 to-orange-600';
+    return 'from-gray-400 to-gray-500';
+  };
+
+  const getRoleBadgeColor = () => {
+    if (userInfo.isSuperAdmin) return 'bg-purple-100 text-purple-800';
+    if (userInfo.isAdmin) return 'bg-blue-100 text-blue-800';
+    if (userInfo.isDispatcher) return 'bg-green-100 text-green-800';
+    if (userInfo.isDriver) return 'bg-orange-100 text-orange-800';
+    return 'bg-gray-100 text-gray-800';
   };
 
   return (
@@ -135,7 +251,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
       `}>
         <div className="flex flex-col h-full">
           {/* Logo Section */}
-          <div className="flex items-center justify-between p-4 border-b">
+          <div className="flex items-center justify-between p-4 border-b border-gray-200">
             <Link 
               to="/" 
               className={`flex items-center ${!sidebarOpen && 'justify-center'}`}
@@ -166,7 +282,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
           <nav className="flex-1 overflow-y-auto py-4">
             {menuItems.map((item, index) => {
               const isActive = location.pathname === item.path || 
-                             location.pathname.startsWith(item.path + '/');
+                             (item.path !== '/' && location.pathname.startsWith(item.path));
               return (
                 <Link
                   key={index}
@@ -175,8 +291,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                   className={`
                     flex items-center justify-between px-4 py-3 mx-2 rounded-lg transition-colors group
                     ${isActive 
-                      ? 'bg-blue-50 text-blue-600' 
-                      : 'hover:bg-blue-50 hover:text-blue-600 text-gray-700'
+                      ? 'bg-primary-50 text-primary-600' 
+                      : 'hover:bg-gray-50 text-gray-700 hover:text-primary-600'
                     }
                   `}
                   title={!sidebarOpen ? item.label : ''}
@@ -200,7 +316,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                     </span>
                   )}
                   {!sidebarOpen && item.badge && (
-                    <span className="absolute top-2 right-2 w-2 h-2 bg-blue-600 rounded-full"></span>
+                    <span className="absolute top-2 right-2 w-2 h-2 bg-primary-600 rounded-full"></span>
                   )}
                 </Link>
               );
@@ -208,18 +324,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
           </nav>
 
           {/* User Section */}
-          <div className="border-t p-4">
+          <div className="border-t border-gray-200 p-4">
             <div className={`flex items-center ${!sidebarOpen && 'justify-center'}`}>
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                isSuperAdmin 
-                  ? 'bg-gradient-to-br from-purple-500 to-purple-600' 
-                  : 'bg-gradient-to-br from-gray-400 to-gray-500'
-              }`}>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br ${getRoleColor()}`}>
                 <User className="w-6 h-6 text-white" />
               </div>
               {sidebarOpen && (
                 <div className="ml-3">
-                  <p className="text-sm font-semibold text-gray-700">{userInfo.name}</p>
+                  <p className="text-sm font-semibold text-gray-700">
+                    {userInfo.fullName || userInfo.email}
+                  </p>
                   <p className="text-xs text-gray-500">{getRoleDisplayName()}</p>
                 </div>
               )}
@@ -231,7 +345,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
       {/* Main Content Area */}
       <div className={`transition-all duration-300 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'}`}>
         {/* Header */}
-        <header className="bg-white shadow-sm border-b sticky top-0 z-30">
+        <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
           <div className="flex items-center justify-between px-4 lg:px-6 py-4">
             <div className="flex items-center">
               <button
@@ -246,17 +360,32 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
             </div>
 
             <div className="flex items-center space-x-4">
-              {/* Quick Stats */}
-              <div className="hidden lg:flex items-center space-x-6 mr-6">
-                <div className="flex items-center">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-                  <span className="text-sm text-gray-600">3 Aktif Sefer</span>
+              {/* Quick Stats - Dispatcher ve üstü roller için */}
+              {(userInfo.isDispatcher || userInfo.isAdmin || userInfo.isSuperAdmin) && (
+                <div className="hidden lg:flex items-center space-x-6 mr-6">
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                    <span className="text-sm text-gray-600">3 Aktif Sefer</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                    <span className="text-sm text-gray-600">5 Planlanmış Rota</span>
+                  </div>
                 </div>
-                <div className="flex items-center">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
-                  <span className="text-sm text-gray-600">5 Planlanmış Rota</span>
+              )}
+
+              {/* Driver için özel bilgiler */}
+              {userInfo.isDriver && (
+                <div className="hidden lg:flex items-center space-x-6 mr-6">
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                    <span className="text-sm text-gray-600">Aktif Sefer</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="text-sm text-gray-600">Bugün: 12 Teslimat</span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Notifications */}
               <div className="relative">
@@ -274,8 +403,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                       className="fixed inset-0 z-10" 
                       onClick={() => setNotificationMenuOpen(false)}
                     />
-                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border py-2 z-20">
-                      <div className="px-4 py-2 border-b">
+                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-20">
+                      <div className="px-4 py-2 border-b border-gray-200">
                         <h3 className="font-semibold text-gray-900">Bildirimler</h3>
                       </div>
                       <div className="max-h-80 overflow-y-auto">
@@ -283,7 +412,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                           <button
                             key={notification.id}
                             onClick={() => handleNotificationClick(notification.id)}
-                            className={`w-full px-4 py-3 hover:bg-gray-50 text-left border-b last:border-b-0 ${
+                            className={`w-full px-4 py-3 hover:bg-gray-50 text-left border-b border-gray-100 last:border-b-0 ${
                               notification.unread ? 'bg-blue-50' : ''
                             }`}
                           >
@@ -299,8 +428,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                           </button>
                         ))}
                       </div>
-                      <div className="px-4 py-2 border-t">
-                        <button className="text-sm text-blue-600 hover:text-blue-700">
+                      <div className="px-4 py-2 border-t border-gray-200">
+                        <button className="text-sm text-primary-600 hover:text-primary-700">
                           Tümünü Gör
                         </button>
                       </div>
@@ -315,11 +444,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                   className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100"
                 >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    isSuperAdmin 
-                      ? 'bg-gradient-to-br from-purple-500 to-purple-600' 
-                      : 'bg-gradient-to-br from-gray-400 to-gray-500'
-                  }`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br ${getRoleColor()}`}>
                     <User className="w-5 h-5 text-white" />
                   </div>
                   <ChevronDown className="w-4 h-4 text-gray-600" />
@@ -331,36 +456,36 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                       className="fixed inset-0 z-10" 
                       onClick={() => setUserMenuOpen(false)}
                     />
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-1 z-20">
-                      <div className="px-4 py-2 border-b">
-                        <p className="text-sm font-medium text-gray-900">{userInfo.name}</p>
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                      <div className="px-4 py-2 border-b border-gray-200">
+                        <p className="text-sm font-medium text-gray-900">
+                          {userInfo.fullName || userInfo.email}
+                        </p>
                         <p className="text-xs text-gray-500">{userInfo.email}</p>
-                        <span className={`inline-block mt-1 px-2 py-0.5 text-xs rounded-full ${
-                          isSuperAdmin 
-                            ? 'bg-purple-100 text-purple-800' 
-                            : 'bg-blue-100 text-blue-800'
-                        }`}>
+                        <span className={`inline-block mt-1 px-2 py-0.5 text-xs rounded-full ${getRoleBadgeColor()}`}>
                           {getRoleDisplayName()}
                         </span>
                       </div>
-                      <button
-                        onClick={handleProfileClick}
-                        className="w-full flex items-center px-4 py-2 hover:bg-gray-50 text-left"
-                      >
-                        <User className="w-4 h-4 mr-2 text-gray-600" />
-                        <span className="text-sm text-gray-700">Profil & Ayarlar</span>
-                      </button>
-                      {isSuperAdmin && (
+                      {(userInfo.isDispatcher || userInfo.isAdmin || userInfo.isSuperAdmin) && (
+                        <button
+                          onClick={handleProfileClick}
+                          className="w-full flex items-center px-4 py-2 hover:bg-gray-50 text-left"
+                        >
+                          <User className="w-4 h-4 mr-2 text-gray-600" />
+                          <span className="text-sm text-gray-700">Profil & Ayarlar</span>
+                        </button>
+                      )}
+                      {userInfo.isSuperAdmin && (
                         <Link 
                           to="/super-admin" 
                           className="flex items-center px-4 py-2 hover:bg-gray-50"
                           onClick={() => setUserMenuOpen(false)}
                         >
                           <Shield className="w-4 h-4 mr-2 text-gray-600" />
-                          <span className="text-sm text-gray-700">Super Admin</span>
+                          <span className="text-sm text-gray-700">Super Admin Panel</span>
                         </Link>
                       )}
-                      <hr className="my-1" />
+                      <hr className="my-1 border-gray-200" />
                       <button 
                         onClick={handleLogout}
                         className="flex items-center px-4 py-2 hover:bg-gray-50 w-full text-left text-red-600"

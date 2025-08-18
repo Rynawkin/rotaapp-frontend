@@ -15,7 +15,8 @@ import {
   ArrowUp,
   ArrowDown,
   Filter,
-  Printer
+  Printer,
+  Navigation // ✅ Navigation import'u eklendi
 } from 'lucide-react';
 import {
   LineChart,
@@ -36,8 +37,14 @@ import {
 } from 'recharts';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subMonths } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { routeService, journeyService, customerService, driverService, vehicleService } from '@/services/mockData';
+import { reportService } from '@/services/report.service';
+import { routeService } from '@/services/route.service';
+import { journeyService } from '@/services/journey.service';
+import { customerService } from '@/services/customer.service';
+import { driverService } from '@/services/driver.service';
+import { vehicleService } from '@/services/vehicle.service';
 import { Route, Journey, Customer, Driver, Vehicle } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ReportData {
   deliveryTrends: Array<{ date: string; completed: number; failed: number; total: number }>;
@@ -73,13 +80,16 @@ const Reports: React.FC = () => {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [kpiMetrics, setKpiMetrics] = useState<KPIMetric[]>([]);
 
+  // ✅ ROL KONTROLÜ İÇİN AUTH HOOK
+  const { user, canAccessDispatcherFeatures, canAccessAdminFeatures } = useAuth();
+
   // Veri yükleme
   useEffect(() => {
     loadData();
   }, []);
 
   useEffect(() => {
-    if (routes.length > 0) {
+    if (routes.length > 0 || journeys.length > 0) {
       generateReportData();
     }
   }, [routes, journeys, dateRange, startDate, endDate]);
@@ -87,19 +97,69 @@ const Reports: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [routesData, journeysData, customersData, driversData, vehiclesData] = await Promise.all([
-        routeService.getAll(),
-        journeyService.getAll(),
-        customerService.getAll(),
-        driverService.getAll(),
-        vehicleService.getAll()
-      ]);
+      const promises: Promise<any>[] = [];
       
-      setRoutes(routesData);
-      setJourneys(journeysData);
-      setCustomers(customersData);
-      setDrivers(driversData);
-      setVehicles(vehiclesData);
+      // ✅ ROL BAZLI VERİ YÜKLEME
+      // Routes ve Journeys - Tüm roller yükleyebilir (backend zaten filtreliyor)
+      promises.push(
+        routeService.getAll().then(data => {
+          setRoutes(data);
+          return data;
+        }).catch(err => {
+          console.log('Route verileri yüklenemedi');
+          setRoutes([]);
+          return [];
+        }),
+        journeyService.getAll().then(data => {
+          setJourneys(data);
+          return data;
+        }).catch(err => {
+          console.log('Journey verileri yüklenemedi');
+          setJourneys([]);
+          return [];
+        })
+      );
+      
+      // Vehicles - Tüm roller görebilir
+      promises.push(
+        vehicleService.getAll().then(data => {
+          setVehicles(data);
+          return data;
+        }).catch(err => {
+          console.log('Vehicle verileri yüklenemedi');
+          setVehicles([]);
+          return [];
+        })
+      );
+
+      // Customers ve Drivers - Dispatcher ve üzeri için yükle, Driver için boş bırak
+      if (canAccessDispatcherFeatures()) {
+        promises.push(
+          customerService.getAll().then(data => {
+            setCustomers(data);
+            return data;
+          }).catch(err => {
+            console.log('Customer verileri yüklenemedi (yetki gerekebilir)');
+            setCustomers([]);
+            return [];
+          }),
+          driverService.getAll().then(data => {
+            setDrivers(data);
+            return data;
+          }).catch(err => {
+            console.log('Driver verileri yüklenemedi (yetki gerekebilir)');
+            setDrivers([]);
+            return [];
+          })
+        );
+      } else {
+        // Driver rolü için boş set et
+        setCustomers([]);
+        setDrivers([]);
+      }
+      
+      await Promise.allSettled(promises);
+      
     } catch (error) {
       console.error('Veri yüklenirken hata:', error);
     } finally {
@@ -108,13 +168,22 @@ const Reports: React.FC = () => {
   };
 
   const generateReportData = () => {
+    // ✅ Driver rolü için kendi verilerini filtrele
+    let filteredRoutes = routes;
+    let filteredJourneys = journeys;
+    
+    if (user?.isDriver && !canAccessDispatcherFeatures()) {
+      filteredRoutes = routes.filter(r => r.driverId === user.id);
+      filteredJourneys = journeys.filter(j => j.driverId === user.id);
+    }
+
     // Teslimat trendleri (son 7 gün)
     const deliveryTrends = [];
     for (let i = 6; i >= 0; i--) {
       const date = subDays(new Date(), i);
       const dateStr = format(date, 'dd MMM', { locale: tr });
       
-      const dayRoutes = routes.filter(r => 
+      const dayRoutes = filteredRoutes.filter(r => 
         format(new Date(r.date), 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
       );
       
@@ -131,49 +200,82 @@ const Reports: React.FC = () => {
     }
 
     // Sürücü performansı
-    const driverPerformance = drivers.map(driver => {
-      const driverRoutes = routes.filter(r => r.driverId === driver.id);
-      const completedRoutes = driverRoutes.filter(r => r.status === 'completed');
+    let driverPerformance = [];
+    if (canAccessDispatcherFeatures()) {
+      // Dispatcher ve üzeri tüm sürücüleri görebilir
+      driverPerformance = drivers.map(driver => {
+        const driverRoutes = routes.filter(r => r.driverId === driver.id);
+        const completedRoutes = driverRoutes.filter(r => r.status === 'completed');
+        const totalDeliveries = completedRoutes.reduce((acc, r) => acc + r.completedDeliveries, 0);
+        const avgTime = completedRoutes.length > 0 
+          ? completedRoutes.reduce((acc, r) => acc + (r.totalDuration || 0), 0) / completedRoutes.length
+          : 0;
+        
+        return {
+          name: driver.name,
+          deliveries: totalDeliveries,
+          rating: driver.rating || 0,
+          avgTime: Math.round(avgTime)
+        };
+      }).sort((a, b) => b.deliveries - a.deliveries).slice(0, 5);
+    } else if (user?.isDriver) {
+      // Driver sadece kendi performansını görebilir
+      const myRoutes = filteredRoutes;
+      const completedRoutes = myRoutes.filter(r => r.status === 'completed');
       const totalDeliveries = completedRoutes.reduce((acc, r) => acc + r.completedDeliveries, 0);
       const avgTime = completedRoutes.length > 0 
         ? completedRoutes.reduce((acc, r) => acc + (r.totalDuration || 0), 0) / completedRoutes.length
         : 0;
       
-      return {
-        name: driver.name,
+      driverPerformance = [{
+        name: user.fullName,
         deliveries: totalDeliveries,
-        rating: driver.rating || 0,
+        rating: 0,
         avgTime: Math.round(avgTime)
-      };
-    }).sort((a, b) => b.deliveries - a.deliveries).slice(0, 5);
+      }];
+    }
 
-    // Müşteri dağılımı (önceliğe göre)
-    const highPriority = customers.filter(c => c.priority === 'high').length;
-    const normalPriority = customers.filter(c => c.priority === 'normal').length;
-    const lowPriority = customers.filter(c => c.priority === 'low').length;
-    const totalCustomers = customers.length;
-    
-    const customerDistribution = [
-      { 
-        name: 'Yüksek Öncelik', 
-        value: highPriority,
-        percentage: Math.round((highPriority / totalCustomers) * 100)
-      },
-      { 
-        name: 'Normal Öncelik', 
-        value: normalPriority,
-        percentage: Math.round((normalPriority / totalCustomers) * 100)
-      },
-      { 
-        name: 'Düşük Öncelik', 
-        value: lowPriority,
-        percentage: Math.round((lowPriority / totalCustomers) * 100)
-      }
-    ];
+    // Müşteri dağılımı (önceliğe göre) - Sadece Dispatcher ve üzeri
+    let customerDistribution = [];
+    if (canAccessDispatcherFeatures() && customers.length > 0) {
+      const highPriority = customers.filter(c => c.priority === 'high').length;
+      const normalPriority = customers.filter(c => c.priority === 'normal').length;
+      const lowPriority = customers.filter(c => c.priority === 'low').length;
+      const totalCustomers = customers.length;
+      
+      customerDistribution = [
+        { 
+          name: 'Yüksek Öncelik', 
+          value: highPriority,
+          percentage: Math.round((highPriority / totalCustomers) * 100)
+        },
+        { 
+          name: 'Normal Öncelik', 
+          value: normalPriority,
+          percentage: Math.round((normalPriority / totalCustomers) * 100)
+        },
+        { 
+          name: 'Düşük Öncelik', 
+          value: lowPriority,
+          percentage: Math.round((lowPriority / totalCustomers) * 100)
+        }
+      ];
+    } else {
+      // Driver için alternatif veri
+      customerDistribution = [
+        { name: 'Tamamlanan', value: filteredJourneys.filter(j => j.status === 'completed').length, percentage: 0 },
+        { name: 'Devam Eden', value: filteredJourneys.filter(j => j.status === 'in_progress').length, percentage: 0 },
+        { name: 'İptal', value: filteredJourneys.filter(j => j.status === 'cancelled').length, percentage: 0 }
+      ];
+      const total = customerDistribution.reduce((sum, item) => sum + item.value, 0);
+      customerDistribution.forEach(item => {
+        item.percentage = total > 0 ? Math.round((item.value / total) * 100) : 0;
+      });
+    }
 
     // Araç kullanımı
     const vehicleUtilization = vehicles.map(vehicle => {
-      const vehicleRoutes = routes.filter(r => r.vehicleId === vehicle.id);
+      const vehicleRoutes = filteredRoutes.filter(r => r.vehicleId === vehicle.id);
       const trips = vehicleRoutes.length;
       const distance = vehicleRoutes.reduce((acc, r) => acc + (r.totalDistance || 0), 0);
       const utilization = Math.min(100, Math.round((trips / 30) * 100)); // 30 günde max kullanım
@@ -195,7 +297,7 @@ const Reports: React.FC = () => {
     }
 
     // Rota verimliliği
-    const routeEfficiency = routes.slice(0, 6).map(route => ({
+    const routeEfficiency = filteredRoutes.slice(0, 6).map(route => ({
       route: route.name,
       planned: route.totalDeliveries,
       actual: route.completedDeliveries,
@@ -214,18 +316,20 @@ const Reports: React.FC = () => {
     });
 
     // KPI Metrikleri
-    const totalDeliveries = routes.reduce((acc, r) => acc + r.completedDeliveries, 0);
-    const totalPlanned = routes.reduce((acc, r) => acc + r.totalDeliveries, 0);
+    const totalDeliveries = filteredRoutes.reduce((acc, r) => acc + r.completedDeliveries, 0);
+    const totalPlanned = filteredRoutes.reduce((acc, r) => acc + r.totalDeliveries, 0);
     const successRate = totalPlanned > 0 ? Math.round((totalDeliveries / totalPlanned) * 100) : 0;
-    const avgDeliveryTime = routes.length > 0
-      ? Math.round(routes.reduce((acc, r) => acc + (r.totalDuration || 0), 0) / routes.length)
+    const avgDeliveryTime = filteredRoutes.length > 0
+      ? Math.round(filteredRoutes.reduce((acc, r) => acc + (r.totalDuration || 0), 0) / filteredRoutes.length)
       : 0;
-    const activeDriversCount = drivers.filter(d => d.status === 'available' || d.status === 'busy').length;
-    const totalDistance = Math.round(routes.reduce((acc, r) => acc + (r.totalDistance || 0), 0));
+    const activeDriversCount = canAccessDispatcherFeatures() 
+      ? drivers.filter(d => d.status === 'available' || d.status === 'busy').length
+      : (user?.isDriver ? 1 : 0);
+    const totalDistance = Math.round(filteredRoutes.reduce((acc, r) => acc + (r.totalDistance || 0), 0));
 
-    setKpiMetrics([
+    const metrics: KPIMetric[] = [
       {
-        title: 'Toplam Teslimat',
+        title: user?.isDriver && !canAccessDispatcherFeatures() ? 'Benim Teslimatlarım' : 'Toplam Teslimat',
         value: totalDeliveries.toLocaleString('tr-TR'),
         change: 12.5,
         trend: 'up',
@@ -250,35 +354,65 @@ const Reports: React.FC = () => {
         icon: Clock,
         color: 'orange',
         subtitle: 'Rota başına'
-      },
-      {
-        title: 'Aktif Sürücü',
-        value: activeDriversCount,
-        change: 0,
-        trend: 'neutral',
-        icon: Users,
-        color: 'purple',
-        subtitle: `${drivers.length} toplam`
-      },
-      {
-        title: 'Toplam Mesafe',
-        value: `${totalDistance} km`,
-        change: 15.7,
-        trend: 'up',
-        icon: Truck,
-        color: 'indigo',
-        subtitle: 'Katedilen mesafe'
-      },
-      {
-        title: 'Müşteri Sayısı',
-        value: customers.length,
-        change: 3.4,
-        trend: 'up',
-        icon: Users,
-        color: 'pink',
-        subtitle: 'Aktif müşteriler'
       }
-    ]);
+    ];
+
+    // Dispatcher ve üzeri için ek metrikler
+    if (canAccessDispatcherFeatures()) {
+      metrics.push(
+        {
+          title: 'Aktif Sürücü',
+          value: activeDriversCount,
+          change: 0,
+          trend: 'neutral',
+          icon: Users,
+          color: 'purple',
+          subtitle: `${drivers.length} toplam`
+        },
+        {
+          title: 'Toplam Mesafe',
+          value: `${totalDistance} km`,
+          change: 15.7,
+          trend: 'up',
+          icon: Truck,
+          color: 'indigo',
+          subtitle: 'Katedilen mesafe'
+        },
+        {
+          title: 'Müşteri Sayısı',
+          value: customers.length,
+          change: 3.4,
+          trend: 'up',
+          icon: Users,
+          color: 'pink',
+          subtitle: 'Aktif müşteriler'
+        }
+      );
+    } else {
+      // Driver için özel metrikler
+      metrics.push(
+        {
+          title: 'Benim Mesafem',
+          value: `${totalDistance} km`,
+          change: 15.7,
+          trend: 'up',
+          icon: Truck,
+          color: 'indigo',
+          subtitle: 'Katedilen mesafe'
+        },
+        {
+          title: 'Aktif Seferim',
+          value: filteredJourneys.filter(j => j.status === 'in_progress').length,
+          change: 0,
+          trend: 'neutral',
+          icon: Navigation,
+          color: 'purple',
+          subtitle: 'Devam eden'
+        }
+      );
+    }
+
+    setKpiMetrics(metrics);
   };
 
   const handleDateRangeChange = (range: typeof dateRange) => {
@@ -352,13 +486,22 @@ const Reports: React.FC = () => {
     );
   }
 
+  // ✅ Driver için tab kısıtlaması
+  const availableTabs = user?.isDriver && !canAccessDispatcherFeatures()
+    ? ['overview', 'deliveries', 'vehicles']
+    : ['overview', 'deliveries', 'drivers', 'vehicles', 'customers'];
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Raporlar</h1>
-          <p className="text-gray-600 mt-1">Detaylı performans analizleri ve istatistikler</p>
+          <p className="text-gray-600 mt-1">
+            {user?.isDriver && !canAccessDispatcherFeatures() 
+              ? 'Kişisel performans analizleriniz'
+              : 'Detaylı performans analizleri ve istatistikler'}
+          </p>
         </div>
         
         <div className="flex flex-col sm:flex-row gap-3">
@@ -425,7 +568,7 @@ const Reports: React.FC = () => {
             { id: 'drivers', label: 'Sürücüler', icon: Users },
             { id: 'vehicles', label: 'Araçlar', icon: Truck },
             { id: 'customers', label: 'Müşteriler', icon: Users }
-          ].map((tab) => (
+          ].filter(tab => availableTabs.includes(tab.id)).map((tab) => (
             <button
               key={tab.id}
               onClick={() => setSelectedTab(tab.id as typeof selectedTab)}
@@ -481,7 +624,9 @@ const Reports: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Teslimat Trendleri */}
               <div className="bg-white rounded-xl shadow-sm p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Teslimat Trendleri</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  {user?.isDriver && !canAccessDispatcherFeatures() ? 'Benim Teslimat Trendlerim' : 'Teslimat Trendleri'}
+                </h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <AreaChart data={reportData.deliveryTrends}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -495,9 +640,11 @@ const Reports: React.FC = () => {
                 </ResponsiveContainer>
               </div>
 
-              {/* Müşteri Dağılımı */}
+              {/* Müşteri Dağılımı veya Sefer Durumları */}
               <div className="bg-white rounded-xl shadow-sm p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Müşteri Öncelik Dağılımı</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  {canAccessDispatcherFeatures() ? 'Müşteri Öncelik Dağılımı' : 'Sefer Durumları'}
+                </h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
@@ -540,7 +687,9 @@ const Reports: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Rota Verimliliği */}
               <div className="bg-white rounded-xl shadow-sm p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Rota Verimliliği</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  {user?.isDriver && !canAccessDispatcherFeatures() ? 'Benim Rota Verimliliğim' : 'Rota Verimliliği'}
+                </h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={reportData.routeEfficiency} layout="horizontal">
                     <CartesianGrid strokeDasharray="3 3" />
@@ -592,8 +741,8 @@ const Reports: React.FC = () => {
             </div>
           )}
 
-          {/* Sürücüler Tab */}
-          {selectedTab === 'drivers' && (
+          {/* Sürücüler Tab - Sadece Dispatcher ve üzeri */}
+          {selectedTab === 'drivers' && canAccessDispatcherFeatures() && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Sürücü Performansı */}
               <div className="bg-white rounded-xl shadow-sm p-6">
@@ -708,8 +857,8 @@ const Reports: React.FC = () => {
             </div>
           )}
 
-          {/* Müşteriler Tab */}
-          {selectedTab === 'customers' && (
+          {/* Müşteriler Tab - Sadece Dispatcher ve üzeri */}
+          {selectedTab === 'customers' && canAccessDispatcherFeatures() && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Müşteri Öncelik Dağılımı */}
               <div className="bg-white rounded-xl shadow-sm p-6">
@@ -801,12 +950,18 @@ const Reports: React.FC = () => {
           <div className="text-center">
             <Package className="w-8 h-8 mx-auto mb-2 opacity-80" />
             <p className="text-3xl font-bold">{kpiMetrics[0]?.value || '0'}</p>
-            <p className="text-sm opacity-80 mt-1">Toplam Teslimat</p>
+            <p className="text-sm opacity-80 mt-1">
+              {user?.isDriver && !canAccessDispatcherFeatures() ? 'Benim Teslimatlarım' : 'Toplam Teslimat'}
+            </p>
           </div>
           <div className="text-center">
             <Truck className="w-8 h-8 mx-auto mb-2 opacity-80" />
-            <p className="text-3xl font-bold">{kpiMetrics[4]?.value || '0 km'}</p>
-            <p className="text-sm opacity-80 mt-1">Toplam Mesafe</p>
+            <p className="text-3xl font-bold">
+              {canAccessDispatcherFeatures() ? kpiMetrics[4]?.value : kpiMetrics[3]?.value || '0 km'}
+            </p>
+            <p className="text-sm opacity-80 mt-1">
+              {user?.isDriver && !canAccessDispatcherFeatures() ? 'Benim Mesafem' : 'Toplam Mesafe'}
+            </p>
           </div>
         </div>
       </div>
