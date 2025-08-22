@@ -3,8 +3,9 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
   Building2, Mail, Lock, Phone, User, Loader2, 
-  AlertCircle, CheckCircle, ArrowRight, Truck 
+  AlertCircle, CheckCircle, ArrowRight, Truck, Info 
 } from 'lucide-react';
+import { authService } from '@/services/auth.service';
 
 interface SignupForm {
   // Workspace bilgileri
@@ -31,6 +32,7 @@ const Signup: React.FC = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
   
   const [formData, setFormData] = useState<SignupForm>({
     workspaceName: '',
@@ -72,8 +74,50 @@ const Signup: React.FC = () => {
     }
   ];
 
+  // Şifre validation fonksiyonu
+  const validatePassword = (password: string): string[] => {
+    const errors: string[] = [];
+    
+    if (password.length < 6) {
+      errors.push('En az 6 karakter olmalı');
+    }
+    if (!/[A-Z]/.test(password)) {
+      errors.push('En az 1 büyük harf içermeli');
+    }
+    if (!/[a-z]/.test(password)) {
+      errors.push('En az 1 küçük harf içermeli');
+    }
+    if (!/[0-9]/.test(password)) {
+      errors.push('En az 1 rakam içermeli');
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      errors.push('En az 1 özel karakter içermeli (!@#$% vb.)');
+    }
+    
+    return errors;
+  };
+
+  // Email validation fonksiyonu
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Telefon validation fonksiyonu
+  const validatePhone = (phone: string): boolean => {
+    const phoneRegex = /^[\d\s\-\+\(\)]+$/;
+    return phone.length >= 10 && phoneRegex.test(phone);
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
+    
+    // Şifre değiştiğinde validation yap
+    if (name === 'adminPassword') {
+      const errors = validatePassword(value);
+      setPasswordErrors(errors);
+    }
+    
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
@@ -83,11 +127,24 @@ const Signup: React.FC = () => {
   const validateStep = (stepNum: number): boolean => {
     switch(stepNum) {
       case 1:
-        return !!(formData.workspaceName && formData.workspaceEmail && formData.workspacePhone);
+        return !!(
+          formData.workspaceName && 
+          formData.workspaceEmail && 
+          validateEmail(formData.workspaceEmail) &&
+          formData.workspacePhone && 
+          validatePhone(formData.workspacePhone)
+        );
       case 2:
-        return !!(formData.adminFullName && formData.adminEmail && 
-                 formData.adminPassword && formData.adminPasswordConfirm &&
-                 formData.adminPassword === formData.adminPasswordConfirm);
+        const passwordValidation = validatePassword(formData.adminPassword);
+        return !!(
+          formData.adminFullName && 
+          formData.adminEmail && 
+          validateEmail(formData.adminEmail) &&
+          formData.adminPassword && 
+          passwordValidation.length === 0 &&
+          formData.adminPasswordConfirm &&
+          formData.adminPassword === formData.adminPasswordConfirm
+        );
       case 3:
         return formData.termsAccepted && formData.privacyAccepted;
       default:
@@ -100,34 +157,23 @@ const Signup: React.FC = () => {
     setError('');
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Gerçek API çağrısı
+      const response = await authService.register(
+        formData.adminEmail,
+        formData.adminPassword,
+        formData.adminFullName,
+        formData.workspaceName
+      );
       
-      // Backend'e gönderilecek veri
-      const payload = {
-        workspaceName: formData.workspaceName,
-        adminUserFullName: formData.adminFullName,
-        adminUserEmail: formData.adminEmail,
-        adminUserPassword: formData.adminPassword,
-        plan: formData.plan
-      };
+      console.log('Register successful:', response);
       
-      console.log('Signup payload:', payload);
+      // authService.register içinde token ve user bilgileri zaten kaydediliyor
+      // Direkt dashboard'a yönlendir
+      navigate('/dashboard');
       
-      // Token ve user bilgilerini kaydet (gerçek API'den gelecek)
-      localStorage.setItem('isAuthenticated', 'true');
-      localStorage.setItem('user', JSON.stringify({
-        id: Date.now().toString(),
-        email: formData.adminEmail,
-        name: formData.adminFullName,
-        role: 'admin',
-        workspaceId: Date.now().toString()
-      }));
-      
-      // Onboarding'e yönlendir
-      navigate('/onboarding');
-    } catch (err) {
-      setError('Kayıt sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+    } catch (err: any) {
+      console.error('Register error:', err);
+      setError(err.message || 'Kayıt sırasında bir hata oluştu. Lütfen tekrar deneyin.');
       setLoading(false);
     }
   };
@@ -220,10 +266,17 @@ const Signup: React.FC = () => {
                       name="workspaceEmail"
                       value={formData.workspaceEmail}
                       onChange={handleInputChange}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        formData.workspaceEmail && !validateEmail(formData.workspaceEmail) 
+                          ? 'border-red-500' 
+                          : 'border-gray-300'
+                      }`}
                       placeholder="info@firma.com"
                     />
                   </div>
+                  {formData.workspaceEmail && !validateEmail(formData.workspaceEmail) && (
+                    <p className="text-xs text-red-600 mt-1">Geçerli bir email adresi giriniz</p>
+                  )}
                 </div>
 
                 <div>
@@ -237,10 +290,17 @@ const Signup: React.FC = () => {
                       name="workspacePhone"
                       value={formData.workspacePhone}
                       onChange={handleInputChange}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        formData.workspacePhone && !validatePhone(formData.workspacePhone) 
+                          ? 'border-red-500' 
+                          : 'border-gray-300'
+                      }`}
                       placeholder="0532 XXX XX XX"
                     />
                   </div>
+                  {formData.workspacePhone && !validatePhone(formData.workspacePhone) && (
+                    <p className="text-xs text-red-600 mt-1">Geçerli bir telefon numarası giriniz</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -279,10 +339,17 @@ const Signup: React.FC = () => {
                       name="adminEmail"
                       value={formData.adminEmail}
                       onChange={handleInputChange}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        formData.adminEmail && !validateEmail(formData.adminEmail) 
+                          ? 'border-red-500' 
+                          : 'border-gray-300'
+                      }`}
                       placeholder="admin@firma.com"
                     />
                   </div>
+                  {formData.adminEmail && !validateEmail(formData.adminEmail) && (
+                    <p className="text-xs text-red-600 mt-1">Geçerli bir email adresi giriniz</p>
+                  )}
                 </div>
 
                 <div>
@@ -296,10 +363,61 @@ const Signup: React.FC = () => {
                       name="adminPassword"
                       value={formData.adminPassword}
                       onChange={handleInputChange}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        formData.adminPassword && passwordErrors.length > 0 
+                          ? 'border-red-500' 
+                          : 'border-gray-300'
+                      }`}
                       placeholder="••••••••"
                     />
                   </div>
+                  
+                  {/* Şifre kuralları */}
+                  {formData.adminPassword && (
+                    <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-start space-x-2">
+                        <Info className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                        <div className="text-xs space-y-1">
+                          <p className="font-medium text-gray-700 mb-1">Şifre gereksinimleri:</p>
+                          <div className={`flex items-center ${formData.adminPassword.length >= 6 ? 'text-green-600' : 'text-gray-500'}`}>
+                            {formData.adminPassword.length >= 6 ? 
+                              <CheckCircle className="w-3 h-3 mr-1" /> : 
+                              <div className="w-3 h-3 mr-1 border border-gray-400 rounded-full" />
+                            }
+                            En az 6 karakter
+                          </div>
+                          <div className={`flex items-center ${/[A-Z]/.test(formData.adminPassword) ? 'text-green-600' : 'text-gray-500'}`}>
+                            {/[A-Z]/.test(formData.adminPassword) ? 
+                              <CheckCircle className="w-3 h-3 mr-1" /> : 
+                              <div className="w-3 h-3 mr-1 border border-gray-400 rounded-full" />
+                            }
+                            En az 1 büyük harf
+                          </div>
+                          <div className={`flex items-center ${/[a-z]/.test(formData.adminPassword) ? 'text-green-600' : 'text-gray-500'}`}>
+                            {/[a-z]/.test(formData.adminPassword) ? 
+                              <CheckCircle className="w-3 h-3 mr-1" /> : 
+                              <div className="w-3 h-3 mr-1 border border-gray-400 rounded-full" />
+                            }
+                            En az 1 küçük harf
+                          </div>
+                          <div className={`flex items-center ${/[0-9]/.test(formData.adminPassword) ? 'text-green-600' : 'text-gray-500'}`}>
+                            {/[0-9]/.test(formData.adminPassword) ? 
+                              <CheckCircle className="w-3 h-3 mr-1" /> : 
+                              <div className="w-3 h-3 mr-1 border border-gray-400 rounded-full" />
+                            }
+                            En az 1 rakam
+                          </div>
+                          <div className={`flex items-center ${/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.adminPassword) ? 'text-green-600' : 'text-gray-500'}`}>
+                            {/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.adminPassword) ? 
+                              <CheckCircle className="w-3 h-3 mr-1" /> : 
+                              <div className="w-3 h-3 mr-1 border border-gray-400 rounded-full" />
+                            }
+                            En az 1 özel karakter (!@#$% vb.)
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -313,16 +431,18 @@ const Signup: React.FC = () => {
                       name="adminPasswordConfirm"
                       value={formData.adminPasswordConfirm}
                       onChange={handleInputChange}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        formData.adminPasswordConfirm && formData.adminPassword !== formData.adminPasswordConfirm 
+                          ? 'border-red-500' 
+                          : 'border-gray-300'
+                      }`}
                       placeholder="••••••••"
                     />
                   </div>
+                  {formData.adminPasswordConfirm && formData.adminPassword !== formData.adminPasswordConfirm && (
+                    <p className="text-xs text-red-600 mt-1">Şifreler eşleşmiyor!</p>
+                  )}
                 </div>
-
-                {formData.adminPassword && formData.adminPasswordConfirm && 
-                 formData.adminPassword !== formData.adminPasswordConfirm && (
-                  <p className="text-sm text-red-600">Şifreler eşleşmiyor!</p>
-                )}
               </div>
             </div>
           )}
