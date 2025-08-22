@@ -126,6 +126,54 @@ export const authService = {
     }
   },
 
+  async forgotPassword(email: string): Promise<void> {
+    try {
+      console.log('Forgot password request:', { email });
+      
+      await api.post('/me/forgot-password', { 
+        email 
+      });
+      
+      console.log('Forgot password email sent successfully');
+    } catch (error: any) {
+      console.error('Forgot password error:', error);
+      
+      if (error.response) {
+        const message = error.response.data?.message || 'Şifre sıfırlama bağlantısı gönderilemedi';
+        throw new Error(message);
+      } else if (error.request) {
+        throw new Error('Sunucuya bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin.');
+      } else {
+        throw new Error(error.message || 'Şifre sıfırlama işlemi sırasında bir hata oluştu');
+      }
+    }
+  },
+
+  async resetPassword(email: string, token: string, newPassword: string): Promise<void> {
+    try {
+      console.log('Reset password request:', { email, token: '***' });
+      
+      await api.post('/me/reset-password', { 
+        email, 
+        token, 
+        newPassword 
+      });
+      
+      console.log('Password reset successfully');
+    } catch (error: any) {
+      console.error('Reset password error:', error);
+      
+      if (error.response) {
+        const message = error.response.data?.message || 'Şifre sıfırlama başarısız';
+        throw new Error(message);
+      } else if (error.request) {
+        throw new Error('Sunucuya bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin.');
+      } else {
+        throw new Error(error.message || 'Şifre sıfırlama işlemi sırasında bir hata oluştu');
+      }
+    }
+  },
+
   logout() {
     console.log('Logging out...');
     

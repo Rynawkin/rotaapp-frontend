@@ -12,14 +12,17 @@ import {
   Package,
   UserCheck,
   UserX,
-  Shield
+  Shield,
+  Eye,
+  EyeOff,
+  RefreshCw
 } from 'lucide-react';
 import { Driver, Vehicle } from '@/types';
 import { vehicleService } from '@/services/vehicle.service';
 
 interface DriverFormProps {
   initialData?: Driver;
-  onSubmit: (data: Partial<Driver>) => void;
+  onSubmit: (data: any) => void;
   loading?: boolean;
   isEdit?: boolean;
 }
@@ -42,14 +45,22 @@ const DriverForm: React.FC<DriverFormProps> = ({
     totalDeliveries: initialData?.totalDeliveries || 0
   });
 
-  // ✅ YENİ: Araçlar state'i
+  // Password state'leri
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [generateRandomPassword, setGenerateRandomPassword] = useState(false);
+  const [sendCredentialsBySms, setSendCredentialsBySms] = useState(false);
+  const [sendCredentialsByEmail, setSendCredentialsByEmail] = useState(true);
+
+  // Araçlar state'i
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [vehiclesLoading, setVehiclesLoading] = useState(false);
 
   // Validation state
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // ✅ YENİ: Araçları yükle
+  // Araçları yükle
   useEffect(() => {
     loadVehicles();
   }, []);
@@ -61,12 +72,34 @@ const DriverForm: React.FC<DriverFormProps> = ({
       setVehicles(data);
     } catch (error) {
       console.error('Error loading vehicles:', error);
-      // Hata durumunda boş liste kullan
       setVehicles([]);
     } finally {
       setVehiclesLoading(false);
     }
   };
+
+  // Random şifre oluştur
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$';
+    let pwd = '';
+    for (let i = 0; i < 10; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setPassword(pwd);
+    setConfirmPassword(pwd);
+    setShowPassword(true);
+    return pwd;
+  };
+
+  // Generate random password when checkbox is checked
+  useEffect(() => {
+    if (generateRandomPassword) {
+      generatePassword();
+    } else {
+      setPassword('');
+      setConfirmPassword('');
+    }
+  }, [generateRandomPassword]);
 
   // Validate form
   const validateForm = () => {
@@ -82,8 +115,31 @@ const DriverForm: React.FC<DriverFormProps> = ({
       newErrors.phone = 'Geçerli bir telefon numarası girin';
     }
 
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    // Email artık zorunlu (edit modunda değilse)
+    if (!isEdit && !formData.email?.trim()) {
+      newErrors.email = 'Email adresi zorunludur';
+    } else if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Geçerli bir email adresi girin';
+    }
+
+    // Password kontrolü (create modunda ve otomatik oluşturma seçili değilse)
+    if (!isEdit && !generateRandomPassword) {
+      if (!password.trim()) {
+        newErrors.password = 'Şifre zorunludur veya otomatik oluşturmayı seçin';
+      } else if (password.length < 6) {
+        newErrors.password = 'Şifre en az 6 karakter olmalıdır';
+      } else if (password !== confirmPassword) {
+        newErrors.confirmPassword = 'Şifreler eşleşmiyor';
+      }
+    }
+
+    // Edit modunda ve şifre girilmişse kontrol et
+    if (isEdit && password) {
+      if (password.length < 6) {
+        newErrors.password = 'Şifre en az 6 karakter olmalıdır';
+      } else if (password !== confirmPassword) {
+        newErrors.confirmPassword = 'Şifreler eşleşmiyor';
+      }
     }
 
     if (!formData.licenseNumber?.trim()) {
@@ -106,12 +162,23 @@ const DriverForm: React.FC<DriverFormProps> = ({
       return;
     }
 
-    // Boş string'leri null/undefined'a çevir
-    const submitData = {
+    // Tüm data'yı hazırla
+    const submitData: any = {
       ...formData,
-      email: formData.email?.trim() || undefined,
+      email: formData.email?.trim(),
       vehicleId: formData.vehicleId?.trim() || undefined
     };
+
+    // Create modunda password ve bilgilendirme seçeneklerini ekle
+    if (!isEdit) {
+      submitData.password = password;
+      submitData.generateRandomPassword = generateRandomPassword;
+      submitData.sendCredentialsBySms = sendCredentialsBySms;
+      submitData.sendCredentialsByEmail = sendCredentialsByEmail;
+    } else if (password) {
+      // Edit modunda sadece şifre değiştirilecekse
+      submitData.newPassword = password;
+    }
 
     onSubmit(submitData);
   };
@@ -190,10 +257,10 @@ const DriverForm: React.FC<DriverFormProps> = ({
             )}
           </div>
 
-          {/* Email */}
+          {/* Email - ARTIK ZORUNLU */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
+              Email {!isEdit && <span className="text-red-500">*</span>}
             </label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -205,12 +272,18 @@ const DriverForm: React.FC<DriverFormProps> = ({
                   errors.email ? 'border-red-300' : 'border-gray-300'
                 }`}
                 placeholder="Örn: mehmet@example.com"
+                required={!isEdit}
               />
             </div>
             {errors.email && (
               <p className="text-xs text-red-500 mt-1 flex items-center">
                 <AlertCircle className="w-3 h-3 mr-1" />
                 {errors.email}
+              </p>
+            )}
+            {!isEdit && (
+              <p className="text-xs text-gray-500 mt-1">
+                Sürücü bu email ile giriş yapacak
               </p>
             )}
           </div>
@@ -241,6 +314,195 @@ const DriverForm: React.FC<DriverFormProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Giriş Bilgileri Bölümü (Sadece Create modunda) */}
+      {!isEdit && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Shield className="w-5 h-5 mr-2" />
+            Giriş Bilgileri
+          </h2>
+
+          {/* Otomatik şifre oluştur checkbox */}
+          <div className="mb-4">
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={generateRandomPassword}
+                onChange={(e) => setGenerateRandomPassword(e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Otomatik güvenli şifre oluştur
+              </span>
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Password */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Şifre <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={generateRandomPassword}
+                  className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.password ? 'border-red-300' : 'border-gray-300'
+                  } ${generateRandomPassword ? 'bg-gray-50' : ''}`}
+                  placeholder="En az 6 karakter"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {errors.password && (
+                <p className="text-xs text-red-500 mt-1 flex items-center">
+                  <AlertCircle className="w-3 h-3 mr-1" />
+                  {errors.password}
+                </p>
+              )}
+            </div>
+
+            {/* Confirm Password */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Şifre Tekrar <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={generateRandomPassword}
+                  className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.confirmPassword ? 'border-red-300' : 'border-gray-300'
+                  } ${generateRandomPassword ? 'bg-gray-50' : ''}`}
+                  placeholder="Şifreyi tekrar girin"
+                />
+              </div>
+              {errors.confirmPassword && (
+                <p className="text-xs text-red-500 mt-1 flex items-center">
+                  <AlertCircle className="w-3 h-3 mr-1" />
+                  {errors.confirmPassword}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Bilgilendirme Seçenekleri */}
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+            <p className="text-sm font-medium text-gray-700 mb-2">
+              Giriş bilgilerini gönder:
+            </p>
+            <div className="space-y-2">
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={sendCredentialsByEmail}
+                  onChange={(e) => setSendCredentialsByEmail(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">
+                  <Mail className="w-4 h-4 inline mr-1" />
+                  Email ile gönder
+                </span>
+              </label>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={sendCredentialsBySms}
+                  onChange={(e) => setSendCredentialsBySms(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">
+                  <Phone className="w-4 h-4 inline mr-1" />
+                  SMS ile gönder
+                </span>
+              </label>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              İşaretli kanallardan sürücüye giriş bilgileri gönderilecektir.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Edit modunda şifre değiştirme */}
+      {isEdit && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Shield className="w-5 h-5 mr-2" />
+            Şifre Değiştir (Opsiyonel)
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Yeni Şifre
+              </label>
+              <div className="relative">
+                <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.password ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  placeholder="Boş bırakırsanız değişmez"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {errors.password && (
+                <p className="text-xs text-red-500 mt-1 flex items-center">
+                  <AlertCircle className="w-3 h-3 mr-1" />
+                  {errors.password}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Yeni Şifre Tekrar
+              </label>
+              <div className="relative">
+                <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.confirmPassword ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  placeholder="Yeni şifreyi tekrar girin"
+                />
+              </div>
+              {errors.confirmPassword && (
+                <p className="text-xs text-red-500 mt-1 flex items-center">
+                  <AlertCircle className="w-3 h-3 mr-1" />
+                  {errors.confirmPassword}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Status & Assignment */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -298,7 +560,7 @@ const DriverForm: React.FC<DriverFormProps> = ({
             </p>
           </div>
 
-          {/* Vehicle Assignment - ✅ GÜNCELLEME */}
+          {/* Vehicle Assignment */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Atanmış Araç

@@ -1,3 +1,5 @@
+// frontend/src/pages/Journeys.tsx
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
@@ -340,9 +342,27 @@ const Journeys: React.FC = () => {
     return `${mins}dk`;
   };
 
+  // ✅ DÜZELTİLDİ: Progress hesaplaması
   const calculateProgress = (journey: JourneySummary) => {
     if (journey.totalStops === 0) return 0;
-    return (journey.completedStops / journey.totalStops) * 100;
+    
+    // Eğer journey tamamlandıysa %100 göster
+    if (journey.status === 'completed') return 100;
+    
+    // Başarısız durakları da hesaba kat
+    const failedStops = journey.failedStops || 0;
+    const processedStops = journey.completedStops + failedStops;
+    
+    return Math.min(100, Math.round((processedStops / journey.totalStops) * 100));
+  };
+
+  // ✅ YENİ: Başarısız durak sayısını hesapla
+  const getFailedStops = (journey: JourneySummary) => {
+    // Backend'den failedStops gelmiyorsa ve journey tamamlandıysa hesapla
+    if (journey.status === 'completed' && !journey.failedStops) {
+      return Math.max(0, journey.totalStops - journey.completedStops);
+    }
+    return journey.failedStops || 0;
   };
 
   const filteredJourneys = journeys.filter(journey => {
@@ -617,166 +637,189 @@ const Journeys: React.FC = () => {
             )}
           </div>
         ) : (
-          filteredJourneys.map((journey) => (
-            <div key={journey.id} className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-              <div className="flex items-start">
-                {/* Checkbox - YENİ - Sadece Dispatcher ve üzeri için */}
-                {canAccessDispatcherFeatures() && (
-                  <div className="mr-4 pt-1">
-                    <button
-                      onClick={() => handleSelectJourney(journey.id)}
-                      className="p-1 hover:bg-gray-100 rounded transition-colors"
-                    >
-                      {isJourneySelected(journey.id) ? (
-                        <CheckSquare className="w-5 h-5 text-blue-600" />
-                      ) : (
-                        <Square className="w-5 h-5 text-gray-400" />
-                      )}
-                    </button>
-                  </div>
-                )}
+          filteredJourneys.map((journey) => {
+            const failedStops = getFailedStops(journey);
+            const displayedCompletedStops = journey.status === 'completed' 
+              ? journey.totalStops - failedStops
+              : journey.completedStops;
 
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      {journey.routeName || 'İsimsiz Rota'}
-                    </h3>
-                    {getStatusBadge(journey.status)}
-                  </div>
+            return (
+              <div key={journey.id} className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+                <div className="flex items-start">
+                  {/* Checkbox - YENİ - Sadece Dispatcher ve üzeri için */}
+                  {canAccessDispatcherFeatures() && (
+                    <div className="mr-4 pt-1">
+                      <button
+                        onClick={() => handleSelectJourney(journey.id)}
+                        className="p-1 hover:bg-gray-100 rounded transition-colors"
+                      >
+                        {isJourneySelected(journey.id) ? (
+                          <CheckSquare className="w-5 h-5 text-blue-600" />
+                        ) : (
+                          <Square className="w-5 h-5 text-gray-400" />
+                        )}
+                      </button>
+                    </div>
+                  )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div className="flex items-center text-sm text-gray-600">
-                      <User className="w-4 h-4 mr-2 text-gray-400" />
-                      {journey.driverName || user?.fullName || 'Sürücü'}
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        {journey.routeName || 'İsimsiz Rota'}
+                      </h3>
+                      {getStatusBadge(journey.status)}
                     </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Truck className="w-4 h-4 mr-2 text-gray-400" />
-                      {journey.vehiclePlateNumber}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Calendar className="w-4 h-4 mr-2 text-gray-400" />
-                      {new Date(journey.startedAt || journey.createdAt).toLocaleDateString('tr-TR')}
-                      {' • '}
-                      {formatTime(journey.startedAt || journey.createdAt)}
-                    </div>
-                  </div>
 
-                  {/* Progress Bar */}
-                  <div className="mb-4">
-                    <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-                      <span>İlerleme</span>
-                      <span>
-                        {journey.completedStops} / {journey.totalStops} durak
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full transition-all ${
-                          journey.status === 'completed' ? 'bg-green-500' : 
-                          journey.status === 'cancelled' ? 'bg-red-500' :
-                          journey.status === 'archived' ? 'bg-gray-500' :
-                          'bg-blue-500'
-                        }`}
-                        style={{ width: `${calculateProgress(journey)}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Stats */}
-                  <div className="flex items-center space-x-6 text-sm">
-                    <div className="flex items-center text-gray-600">
-                      <MapPin className="w-4 h-4 mr-1 text-gray-400" />
-                      {journey.totalDistance.toFixed(1)} km
-                    </div>
-                    <div className="flex items-center text-gray-600">
-                      <Clock className="w-4 h-4 mr-1 text-gray-400" />
-                      {formatDuration(journey.totalDuration)}
-                    </div>
-                    {journey.liveLocation && (
-                      <div className="flex items-center text-green-600">
-                        <Activity className="w-4 h-4 mr-1 animate-pulse" />
-                        {journey.liveLocation.speed?.toFixed(0)} km/h
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div className="flex items-center text-sm text-gray-600">
+                        <User className="w-4 h-4 mr-2 text-gray-400" />
+                        {journey.driverName || user?.fullName || 'Sürücü'}
                       </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Truck className="w-4 h-4 mr-2 text-gray-400" />
+                        {journey.vehiclePlateNumber}
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Calendar className="w-4 h-4 mr-2 text-gray-400" />
+                        {new Date(journey.startedAt || journey.createdAt).toLocaleDateString('tr-TR')}
+                        {' • '}
+                        {formatTime(journey.startedAt || journey.createdAt)}
+                      </div>
+                    </div>
+
+                    {/* Progress Bar - DÜZELTİLDİ */}
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
+                        <span>İlerleme</span>
+                        <span>
+                          {/* ✅ Tamamlanan seferler için özel gösterim */}
+                          {journey.status === 'completed' 
+                            ? `${journey.totalStops} / ${journey.totalStops} durak`
+                            : failedStops > 0
+                              ? `${displayedCompletedStops} başarılı, ${failedStops} başarısız / ${journey.totalStops} durak`
+                              : `${displayedCompletedStops} / ${journey.totalStops} durak`
+                          }
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2 relative overflow-hidden">
+                        {/* ✅ İki renkli progress bar */}
+                        {displayedCompletedStops > 0 && (
+                          <div 
+                            className="absolute h-full bg-green-500 transition-all"
+                            style={{ 
+                              width: `${(displayedCompletedStops / journey.totalStops) * 100}%`,
+                              left: 0
+                            }}
+                          />
+                        )}
+                        {failedStops > 0 && (
+                          <div 
+                            className="absolute h-full bg-red-500 transition-all"
+                            style={{ 
+                              width: `${(failedStops / journey.totalStops) * 100}%`,
+                              left: `${(displayedCompletedStops / journey.totalStops) * 100}%`
+                            }}
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="flex items-center space-x-6 text-sm">
+                      <div className="flex items-center text-gray-600">
+                        <MapPin className="w-4 h-4 mr-1 text-gray-400" />
+                        {journey.totalDistance.toFixed(1)} km
+                      </div>
+                      <div className="flex items-center text-gray-600">
+                        <Clock className="w-4 h-4 mr-1 text-gray-400" />
+                        {formatDuration(journey.totalDuration)}
+                      </div>
+                      {journey.liveLocation && (
+                        <div className="flex items-center text-green-600">
+                          <Activity className="w-4 h-4 mr-1 animate-pulse" />
+                          {journey.liveLocation.speed?.toFixed(0)} km/h
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="relative ml-4">
+                    <button
+                      onClick={() => setDropdownOpen(dropdownOpen === journey.id.toString() ? null : journey.id.toString())}
+                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <MoreVertical className="w-5 h-5 text-gray-600" />
+                    </button>
+                    
+                    {dropdownOpen === journey.id.toString() && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-10" 
+                          onClick={() => setDropdownOpen(null)}
+                        />
+                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-1 z-20">
+                          <Link
+                            to={`/journeys/${journey.id}`}
+                            className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
+                            onClick={() => setDropdownOpen(null)}
+                          >
+                            <Eye className="w-4 h-4 mr-2" />
+                            Detayları Görüntüle
+                          </Link>
+                          
+                          {/* ✅ Driver kendi seferini duraklat/devam ettirebilir */}
+                          {journey.status === 'preparing' && (
+                            <button
+                              onClick={() => {
+                                handleResumeJourney(journey.id);
+                                setDropdownOpen(null);
+                              }}
+                              className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700 w-full text-left"
+                            >
+                              <Play className="w-4 h-4 mr-2" />
+                              Devam Et
+                            </button>
+                          )}
+                          
+                          {journey.status === 'in_progress' && (
+                            <button
+                              onClick={() => {
+                                handlePauseJourney(journey.id);
+                                setDropdownOpen(null);
+                              }}
+                              className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700 w-full text-left"
+                            >
+                              <Pause className="w-4 h-4 mr-2" />
+                              Duraklat
+                            </button>
+                          )}
+                          
+                          {/* ✅ İptal sadece Dispatcher ve üzeri veya kendi seferi için */}
+                          {['preparing', 'started', 'in_progress'].includes(journey.status) && 
+                           (canAccessDispatcherFeatures() || journey.driverId === user?.id) && (
+                            <>
+                              <hr className="my-1" />
+                              <button
+                                onClick={() => {
+                                  handleCancelJourney(journey.id);
+                                  setDropdownOpen(null);
+                                }}
+                                className="flex items-center px-4 py-2 hover:bg-gray-50 text-red-600 w-full text-left"
+                              >
+                                <XCircle className="w-4 h-4 mr-2" />
+                                İptal Et
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
-
-                {/* Actions */}
-                <div className="relative ml-4">
-                  <button
-                    onClick={() => setDropdownOpen(dropdownOpen === journey.id.toString() ? null : journey.id.toString())}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <MoreVertical className="w-5 h-5 text-gray-600" />
-                  </button>
-                  
-                  {dropdownOpen === journey.id.toString() && (
-                    <>
-                      <div 
-                        className="fixed inset-0 z-10" 
-                        onClick={() => setDropdownOpen(null)}
-                      />
-                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-1 z-20">
-                        <Link
-                          to={`/journeys/${journey.id}`}
-                          className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
-                          onClick={() => setDropdownOpen(null)}
-                        >
-                          <Eye className="w-4 h-4 mr-2" />
-                          Detayları Görüntüle
-                        </Link>
-                        
-                        {/* ✅ Driver kendi seferini duraklat/devam ettirebilir */}
-                        {journey.status === 'preparing' && (
-                          <button
-                            onClick={() => {
-                              handleResumeJourney(journey.id);
-                              setDropdownOpen(null);
-                            }}
-                            className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700 w-full text-left"
-                          >
-                            <Play className="w-4 h-4 mr-2" />
-                            Devam Et
-                          </button>
-                        )}
-                        
-                        {journey.status === 'in_progress' && (
-                          <button
-                            onClick={() => {
-                              handlePauseJourney(journey.id);
-                              setDropdownOpen(null);
-                            }}
-                            className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700 w-full text-left"
-                          >
-                            <Pause className="w-4 h-4 mr-2" />
-                            Duraklat
-                          </button>
-                        )}
-                        
-                        {/* ✅ İptal sadece Dispatcher ve üzeri veya kendi seferi için */}
-                        {['preparing', 'started', 'in_progress'].includes(journey.status) && 
-                         (canAccessDispatcherFeatures() || journey.driverId === user?.id) && (
-                          <>
-                            <hr className="my-1" />
-                            <button
-                              onClick={() => {
-                                handleCancelJourney(journey.id);
-                                setDropdownOpen(null);
-                              }}
-                              className="flex items-center px-4 py-2 hover:bg-gray-50 text-red-600 w-full text-left"
-                            >
-                              <XCircle className="w-4 h-4 mr-2" />
-                              İptal Et
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

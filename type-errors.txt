@@ -1,0 +1,132 @@
+src/components/depots/DepotForm.tsx(402,19): error TS2741: Property 'type' is missing in type '{ position: { lat: number; lng: number; }; title: string; }' but required in type 'MarkerData'.
+src/components/drivers/DriverForm.tsx(43,5): error TS2322: Type 'string | number' is not assignable to type 'number | undefined'.
+  Type 'string' is not assignable to type 'number'.
+src/components/drivers/DriverForm.tsx(169,38): error TS2339: Property 'trim' does not exist on type 'number'.
+src/components/drivers/DriverForm.tsx(570,59): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/drivers/DriverForm.tsx(579,28): error TS2339: Property 'plate' does not exist on type 'Vehicle'.
+src/components/journey/StopCard.tsx(19,28): error TS2307: Cannot find module '../../utils/formatters' or its corresponding type declarations.
+src/components/journey/StopCard.tsx(156,23): error TS2339: Property 'actualArrivalTime' does not exist on type 'JourneyStop'.
+src/components/journey/StopCard.tsx(158,57): error TS2339: Property 'actualArrivalTime' does not exist on type 'JourneyStop'.
+src/components/maps/MapComponent.tsx(401,59): error TS2339: Property 'order' does not exist on type 'MarkerData'.
+src/components/maps/MapComponent.tsx(474,67): error TS2367: This comparison appears to be unintentional because the types 'number' and 'string | undefined' have no overlap.
+src/components/maps/MapComponent.tsx(483,54): error TS2367: This comparison appears to be unintentional because the types 'number' and 'string | undefined' have no overlap.
+src/components/routes/CustomerSelector.tsx(52,58): error TS2339: Property 'startsWith' does not exist on type 'never'.
+src/components/routes/CustomerSelector.tsx(87,56): error TS2339: Property 'startsWith' does not exist on type 'never'.
+src/components/routes/CustomerSelector.tsx(129,68): error TS2339: Property 'startsWith' does not exist on type 'never'.
+src/components/routes/RouteForm.tsx(235,72): error TS2339: Property 'startsWith' does not exist on type 'never'.
+src/components/routes/RouteForm.tsx(282,56): error TS2339: Property 'startsWith' does not exist on type 'never'.
+src/components/routes/RouteForm.tsx(395,11): error TS2554: Expected 3 arguments, but got 4.
+src/components/routes/RouteForm.tsx(477,58): error TS2339: Property 'startsWith' does not exist on type 'never'.
+src/components/routes/RouteForm.tsx(516,7): error TS2561: Object literal may only specify known properties, but 'depot' does not exist in type 'Partial<Route>'. Did you mean to write 'depotId'?
+src/components/routes/RouteForm.tsx(536,58): error TS2339: Property 'startsWith' does not exist on type 'never'.
+src/components/routes/RouteForm.tsx(575,7): error TS2561: Object literal may only specify known properties, but 'depot' does not exist in type 'Partial<Route>'. Did you mean to write 'depotId'?
+src/components/routes/StopsList.tsx(236,51): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/components/tracking/VehicleCard.tsx(166,61): error TS2339: Property 'address' does not exist on type 'RouteStop'.
+src/contexts/AuthContext.tsx(119,38): error TS2551: Property 'workspace' does not exist on type 'MeUserModel'. Did you mean 'workspaceId'?
+src/pages/CreateDriver.tsx(20,20): error TS2339: Property 'isUserCreated' does not exist on type 'Driver'.
+src/pages/CreateDriver.tsx(23,34): error TS2339: Property 'generatedPassword' does not exist on type 'Driver'.
+src/pages/CreateDriver.tsx(27,22): error TS2339: Property 'isUserCreated' does not exist on type 'Driver'.
+src/pages/CreateDriver.tsx(27,48): error TS2339: Property 'generatedPassword' does not exist on type 'Driver'.
+src/pages/Dashboard.tsx(246,39): error TS2367: This comparison appears to be unintentional because the types 'number | undefined' and 'string' have no overlap.
+src/pages/DepotDetail.tsx(395,25): error TS2741: Property 'type' is missing in type '{ position: { lat: number; lng: number; }; title: string; label: string; }' but required in type 'MarkerData'.
+src/pages/DriverDetail.tsx(71,34): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/pages/Drivers.tsx(452,67): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/pages/Drivers.tsx(481,62): error TS2367: This comparison appears to be unintentional because the types 'string | null' and 'number' have no overlap.
+src/pages/Drivers.tsx(481,62): error TS2345: Argument of type 'number | null' is not assignable to parameter of type 'SetStateAction<string | null>'.
+  Type 'number' is not assignable to type 'SetStateAction<string | null>'.
+src/pages/Drivers.tsx(487,30): error TS2367: This comparison appears to be unintentional because the types 'string | null' and 'number' have no overlap.
+src/pages/Drivers.tsx(514,52): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/pages/Drivers.tsx(559,54): error TS2367: This comparison appears to be unintentional because the types 'string | null' and 'number' have no overlap.
+src/pages/Drivers.tsx(559,54): error TS2345: Argument of type 'number | null' is not assignable to parameter of type 'SetStateAction<string | null>'.
+  Type 'number' is not assignable to type 'SetStateAction<string | null>'.
+src/pages/Drivers.tsx(565,22): error TS2367: This comparison appears to be unintentional because the types 'string | null' and 'number' have no overlap.
+src/pages/Drivers.tsx(591,44): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/pages/EditDriver.tsx(45,38): error TS2345: Argument of type 'Partial<Driver>' is not assignable to parameter of type 'UpdateDriverDto'.
+  Types of property 'name' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/pages/JourneyDetail.tsx(544,28): error TS2367: This comparison appears to be unintentional because the types '"cancelled" | "in_progress" | "completed" | "preparing" | "started"' and '"planned"' have no overlap.
+src/pages/JourneyDetail.tsx(659,22): error TS2339: Property 'driver' does not exist on type 'Journey'.
+src/pages/JourneyDetail.tsx(659,50): error TS2339: Property 'driver' does not exist on type 'Journey'.
+src/pages/JourneyDetail.tsx(661,21): error TS2339: Property 'driver' does not exist on type 'Journey'.
+src/pages/JourneyDetail.tsx(661,52): error TS2339: Property 'driver' does not exist on type 'Journey'.
+src/pages/JourneyDetail.tsx(663,36): error TS2339: Property 'driver' does not exist on type 'Journey'.
+src/pages/JourneyDetail.tsx(663,67): error TS2339: Property 'driver' does not exist on type 'Journey'.
+src/pages/JourneyDetail.tsx(667,24): error TS2339: Property 'driver' does not exist on type 'Journey'.
+src/pages/JourneyDetail.tsx(667,55): error TS2339: Property 'driver' does not exist on type 'Journey'.
+src/pages/JourneyDetail.tsx(678,61): error TS2339: Property 'vehicle' does not exist on type 'Journey'.
+src/pages/JourneyDetail.tsx(681,55): error TS2339: Property 'vehicle' does not exist on type 'Journey'.
+src/pages/JourneyDetail.tsx(681,113): error TS2339: Property 'vehicle' does not exist on type 'Journey'.
+src/pages/JourneyDetail.tsx(696,16): error TS2367: This comparison appears to be unintentional because the types '"cancelled" | "in_progress" | "completed" | "preparing" | "started"' and '"planned"' have no overlap.
+src/pages/JourneyDetail.tsx(877,44): error TS2339: Property 'name' does not exist on type 'RouteStop'.
+src/pages/JourneyDetail.tsx(899,42): error TS2339: Property 'address' does not exist on type 'RouteStop'.
+src/pages/JourneyDetail.tsx(941,40): error TS2339: Property 'notes' does not exist on type 'RouteStop'.
+src/pages/JourneyDetail.tsx(943,48): error TS2339: Property 'notes' does not exist on type 'RouteStop'.
+src/pages/JourneyDetail.tsx(1017,90): error TS2339: Property 'name' does not exist on type 'RouteStop'.
+src/pages/JourneyDetail.tsx(1020,67): error TS2339: Property 'address' does not exist on type 'RouteStop'.
+src/pages/JourneyDetail.tsx(1054,90): error TS2339: Property 'name' does not exist on type 'RouteStop'.
+src/pages/JourneyDetail.tsx(1170,90): error TS2339: Property 'name' does not exist on type 'RouteStop'.
+src/pages/LiveTracking.tsx(307,9): error TS2367: This comparison appears to be unintentional because the types '"cancelled" | "in_progress" | "completed" | "preparing" | "started"' and '"InProgress"' have no overlap.
+src/pages/LiveTracking.tsx(308,9): error TS2367: This comparison appears to be unintentional because the types 'string' and 'number' have no overlap.
+src/pages/LiveTracking.tsx(309,9): error TS2367: This comparison appears to be unintentional because the types '"cancelled" | "in_progress" | "completed" | "preparing" | "started"' and '"Planned"' have no overlap.
+src/pages/LiveTracking.tsx(310,9): error TS2367: This comparison appears to be unintentional because the types 'string' and 'number' have no overlap.
+src/pages/LiveTracking.tsx(316,44): error TS2551: Property 'estimatedArrivalTime' does not exist on type 'RouteStop'. Did you mean 'estimatedArrival'?
+src/pages/LiveTracking.tsx(323,41): error TS2339: Property 'driverId' does not exist on type 'Journey'.
+src/pages/LiveTracking.tsx(328,41): error TS2339: Property 'vehicleId' does not exist on type 'Journey'.
+src/pages/LiveTracking.tsx(403,7): error TS2367: This comparison appears to be unintentional because the types 'string' and 'number' have no overlap.
+src/pages/LiveTracking.tsx(403,27): error TS2367: This comparison appears to be unintentional because the types '"cancelled" | "in_progress" | "completed" | "preparing" | "started"' and '"InProgress"' have no overlap.
+src/pages/LiveTracking.tsx(404,7): error TS2367: This comparison appears to be unintentional because the types 'string' and 'number' have no overlap.
+src/pages/LiveTracking.tsx(404,27): error TS2367: This comparison appears to be unintentional because the types '"cancelled" | "in_progress" | "completed" | "preparing" | "started"' and '"Planned"' have no overlap.
+src/pages/LiveTracking.tsx(410,23): error TS2339: Property 'totalStops' does not exist on type 'Journey'.
+src/pages/LiveTracking.tsx(417,27): error TS2551: Property 'completedStops' does not exist on type 'Journey'. Did you mean 'completedAt'?
+src/pages/LiveTracking.tsx(677,40): error TS2339: Property 'vehiclePlateNumber' does not exist on type 'Journey'.
+src/pages/LiveTracking.tsx(677,93): error TS2339: Property 'driverName' does not exist on type 'Journey'.
+src/pages/Reports.tsx(177,49): error TS2339: Property 'driverId' does not exist on type 'Journey'.
+src/pages/Reports.tsx(203,9): error TS7034: Variable 'driverPerformance' implicitly has type 'any[]' in some locations where its type cannot be determined.
+src/pages/Reports.tsx(207,49): error TS2367: This comparison appears to be unintentional because the types 'string | undefined' and 'number' have no overlap.
+src/pages/Reports.tsx(278,56): error TS2367: This comparison appears to be unintentional because the types 'string | undefined' and 'number' have no overlap.
+src/pages/Reports.tsx(311,7): error TS7005: Variable 'driverPerformance' implicitly has an 'any[]' type.
+src/pages/RouteDetail.tsx(123,54): error TS2367: This comparison appears to be unintentional because the types 'number' and 'string' have no overlap.
+src/pages/RouteDetail.tsx(135,39): error TS2551: Property 'depot' does not exist on type 'Route'. Did you mean 'depotId'?
+src/pages/RouteDetail.tsx(149,61): error TS2367: This comparison appears to be unintentional because the types 'number' and 'string' have no overlap.
+src/pages/RouteDetail.tsx(192,61): error TS2367: This comparison appears to be unintentional because the types 'number' and 'string' have no overlap.
+src/pages/RouteDetail.tsx(261,9): error TS2561: Object literal may only specify known properties, but 'depot' does not exist in type 'Partial<Route>'. Did you mean to write 'depotId'?
+src/pages/RouteDetail.tsx(427,16): error TS2551: Property 'depot' does not exist on type 'Route'. Did you mean 'depotId'?
+src/pages/RouteDetail.tsx(429,20): error TS2551: Property 'depot' does not exist on type 'Route'. Did you mean 'depotId'?
+src/pages/RouteDetail.tsx(430,20): error TS2551: Property 'depot' does not exist on type 'Route'. Did you mean 'depotId'?
+src/pages/RouteDetail.tsx(483,13): error TS2322: Type '{ customer: Customer | { id: string; name: string; address: string; phone: string; latitude: number; longitude: number; code: string; priority: "normal"; tags: never[]; createdAt: Date; updatedAt: Date; }; order: number; }[]' is not assignable to type '{ customer: Customer; order: number; }[]'.
+  Type '{ customer: Customer | { id: string; name: string; address: string; phone: string; latitude: number; longitude: number; code: string; priority: "normal"; tags: never[]; createdAt: Date; updatedAt: Date; }; order: number; }' is not assignable to type '{ customer: Customer; order: number; }'.
+    Types of property 'customer' are incompatible.
+      Type 'Customer | { id: string; name: string; address: string; phone: string; latitude: number; longitude: number; code: string; priority: "normal"; tags: never[]; createdAt: Date; updatedAt: Date; }' is not assignable to type 'Customer'.
+        Type '{ id: string; name: string; address: string; phone: string; latitude: number; longitude: number; code: string; priority: "normal"; tags: never[]; createdAt: Date; updatedAt: Date; }' is not assignable to type 'Customer'.
+          Types of property 'id' are incompatible.
+            Type 'string' is not assignable to type 'number'.
+src/pages/RouteDetail.tsx(484,62): error TS2367: This comparison appears to be unintentional because the types 'number' and 'string' have no overlap.
+src/pages/RouteDetail.tsx(818,58): error TS2339: Property 'name' does not exist on type 'RouteStop'.
+src/pages/RouteDetail.tsx(824,59): error TS2339: Property 'address' does not exist on type 'RouteStop'.
+src/pages/RouteDetail.tsx(828,58): error TS2339: Property 'contactPhone' does not exist on type 'RouteStop'.
+src/pages/RouteDetail.tsx(831,61): error TS2339: Property 'contactPhone' does not exist on type 'RouteStop'.
+src/pages/RouteDetail.tsx(858,50): error TS2339: Property 'notes' does not exist on type 'RouteStop'.
+src/pages/RouteDetail.tsx(861,55): error TS2339: Property 'notes' does not exist on type 'RouteStop'.
+src/pages/RouteDetail.tsx(908,66): error TS2551: Property 'depot' does not exist on type 'Route'. Did you mean 'depotId'?
+src/pages/Settings.tsx(212,11): error TS2740: Type '{ [key: string]: { start: string; end: string; enabled: boolean; }; }' is missing the following properties from type '{ monday: { start: string; end: string; enabled: boolean; }; tuesday: { start: string; end: string; enabled: boolean; }; wednesday: { start: string; end: string; enabled: boolean; }; thursday: { start: string; end: string; enabled: boolean; }; friday: { ...; }; saturday: { ...; }; sunday: { ...; }; }': monday, tuesday, wednesday, thursday, and 3 more.
+src/pages/Settings.tsx(281,50): error TS2345: Argument of type '{ defaultServiceTime: number; maxDeliveriesPerRoute: number; workingHours: { monday: { start: string; end: string; enabled: boolean; }; tuesday: { start: string; end: string; enabled: boolean; }; wednesday: { ...; }; thursday: { ...; }; friday: { ...; }; saturday: { ...; }; sunday: { ...; }; }; ... 4 more ...; costP...' is not assignable to parameter of type 'Partial<DeliverySettings>'.
+  Types of property 'costPerKm' are incompatible.
+    Type 'number | null' is not assignable to type 'number | undefined'.
+      Type 'null' is not assignable to type 'number | undefined'.
+src/pages/Vehicles.tsx(519,60): error TS2367: This comparison appears to be unintentional because the types 'string | null' and 'number' have no overlap.
+src/pages/Vehicles.tsx(519,60): error TS2345: Argument of type 'number | null' is not assignable to parameter of type 'SetStateAction<string | null>'.
+  Type 'number' is not assignable to type 'SetStateAction<string | null>'.
+src/pages/Vehicles.tsx(525,28): error TS2367: This comparison appears to be unintentional because the types 'string | null' and 'number' have no overlap.
+src/pages/Vehicles.tsx(597,54): error TS2367: This comparison appears to be unintentional because the types 'string | null' and 'number' have no overlap.
+src/pages/Vehicles.tsx(597,54): error TS2345: Argument of type 'number | null' is not assignable to parameter of type 'SetStateAction<string | null>'.
+  Type 'number' is not assignable to type 'SetStateAction<string | null>'.
+src/pages/Vehicles.tsx(603,22): error TS2367: This comparison appears to be unintentional because the types 'string | null' and 'number' have no overlap.
+src/services/googleMapsService.ts(460,7): error TS2322: Type 'number' is not assignable to type 'string'.
+src/services/report.service.ts(55,49): error TS2367: This comparison appears to be unintentional because the types 'string | undefined' and 'number' have no overlap.
+src/services/route.service.ts(219,26): error TS2551: Property 'depot' does not exist on type 'Partial<Route>'. Did you mean 'depotId'?
+src/services/route.service.ts(236,95): error TS2339: Property 'startsWith' does not exist on type 'never'.
+src/services/route.service.ts(336,28): error TS2551: Property 'depot' does not exist on type 'Partial<Route>'. Did you mean 'depotId'?
+src/services/route.service.ts(349,97): error TS2339: Property 'startsWith' does not exist on type 'never'.
+src/services/route.service.ts(383,28): error TS2339: Property 'startDetails' does not exist on type 'Partial<Route>'.
+src/services/route.service.ts(390,26): error TS2339: Property 'endDetails' does not exist on type 'Partial<Route>'.

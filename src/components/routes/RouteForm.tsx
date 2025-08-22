@@ -27,7 +27,6 @@ import { depotService } from '@/services/depot.service';
 import { routeService } from '@/services/route.service';
 import { googleMapsService } from '@/services/googleMapsService';
 
-// Stop data interface for managing customer overrides
 interface StopData {
   customer: Customer;
   overrideTimeWindow?: { start: string; end: string };
@@ -45,7 +44,6 @@ interface RouteFormProps {
   isEdit?: boolean;
 }
 
-// Dakikayı saat ve dakika formatına çevir
 const formatDuration = (totalMinutes: number): string => {
   if (totalMinutes < 60) {
     return `${totalMinutes} dakika`;
@@ -68,7 +66,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
   loading = false,
   isEdit = false
 }) => {
-  // localStorage'dan veri yükle (sadece create mode'da)
   const loadSavedData = useCallback(() => {
     if (!isEdit && !initialData) {
       try {
@@ -76,7 +73,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
         if (saved) {
           const parsed = JSON.parse(saved);
           console.log('Loading saved form data from localStorage:', parsed);
-          // Date string'ini Date objesine çevir
           if (parsed.date) {
             parsed.date = new Date(parsed.date);
           }
@@ -90,7 +86,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
     return null;
   }, [isEdit, initialData]);
 
-  // Form State - localStorage'dan veya initialData'dan yükle
   const savedData = loadSavedData();
   const [formData, setFormData] = useState<Partial<Route>>({
     name: savedData?.name || initialData?.name || '',
@@ -105,14 +100,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
     optimized: savedData?.optimized || initialData?.optimized || false
   });
 
-  // Lists State
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [depots, setDepots] = useState<Depot[]>([]);
   const [loadingLists, setLoadingLists] = useState(true);
 
-  // Stops with override data - localStorage'dan yükle
   const [stopsData, setStopsData] = useState<StopData[]>(() => {
     if (savedData?.stops && savedData.stops.length > 0) {
       return savedData.stops.map((stop: any) => ({
@@ -126,10 +119,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
     return [];
   });
   
-  // Flag to track if initial stops have been loaded
   const initialStopsLoadedRef = useRef(false);
 
-  // Map State
   const [mapCenter, setMapCenter] = useState<LatLng>({ lat: 40.9869, lng: 29.0252 });
   const [mapDirections, setMapDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [optimizing, setOptimizing] = useState(false);
@@ -139,7 +130,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
       savedData.stops.map((_: any, index: number) => index) : [];
   });
 
-  // Form değişikliklerini localStorage'a kaydet (sadece create mode'da)
   const saveToLocalStorage = useCallback((data: Partial<Route>) => {
     if (!isEdit) {
       try {
@@ -160,7 +150,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
     }
   }, [isEdit, stopsData]);
 
-  // Form değişikliklerinde hem state'i güncelle hem de localStorage'a kaydet
   const updateFormData = useCallback((updates: Partial<Route>) => {
     setFormData(prev => {
       const newData = { ...prev, ...updates };
@@ -172,32 +161,24 @@ const RouteForm: React.FC<RouteFormProps> = ({
     });
   }, [saveToLocalStorage, onFormChange]);
 
-  // Load lists on mount
   useEffect(() => {
     loadLists();
   }, []);
 
-  // Initialize stops from initial data - sadece bir kez çalışır
   useEffect(() => {
-    // Eğer daha önce yüklendiyse veya initialData yoksa çıkış yap
     if (initialStopsLoadedRef.current || !initialData?.stops || initialData.stops.length === 0) {
       return;
     }
 
-    // Eğer müşteriler henüz yüklenmediyse çıkış yap
     if (customers.length === 0) {
       return;
     }
 
-    // Initial stops'ları yükle
     const initialStops: StopData[] = initialData.stops
       .map(stop => {
-        // Önce stop'un içindeki customer'ı kontrol et
         let customer = stop.customer;
         
-        // Eğer stop'ta customer yoksa, customers listesinden bul
         if (!customer) {
-          // customerId'yi string'e çevir karşılaştırma için
           customer = customers.find(c => c.id.toString() === stop.customerId.toString());
         }
         
@@ -218,17 +199,15 @@ const RouteForm: React.FC<RouteFormProps> = ({
     
     if (initialStops.length > 0) {
       setStopsData(initialStops);
-      initialStopsLoadedRef.current = true; // Yüklendiğini işaretle
+      initialStopsLoadedRef.current = true;
       
-      // Eğer rota optimize edilmişse, optimized order'ı da ayarla
       if (initialData.optimized) {
         setOptimizedOrder(initialStops.map((_, index) => index));
         updateFormData({ optimized: true });
       }
     }
-  }, [initialData, customers]); // customers dependency'si kalıyor ama ref kontrolü ile
+  }, [initialData, customers]);
 
-  // Müşteri eklendiğinde otomatik olarak haritada göster
   useEffect(() => {
     if (stopsData.length > 0) {
       const timer = setTimeout(() => updateMapRoute(), 500);
@@ -236,7 +215,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
     }
   }, [stopsData]);
 
-  // StopsData değiştiğinde localStorage'a kaydet
   useEffect(() => {
     if (stopsData.length > 0 || formData.name || formData.driverId || formData.vehicleId) {
       saveToLocalStorage(formData);
@@ -253,7 +231,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
         depotService.getAll()
       ]);
 
-      // Google Places müşterilerini filtrele
       const validCustomers = customersData.filter(c => 
         typeof c.id === 'number' || (typeof c.id === 'string' && !c.id.startsWith('google-'))
       );
@@ -263,18 +240,15 @@ const RouteForm: React.FC<RouteFormProps> = ({
       setVehicles(vehiclesData);
       setDepots(depotsData);
       
-      // Set map center to default depot
       const defaultDepot = depotsData.find(d => d.isDefault);
       if (defaultDepot) {
         setMapCenter({ lat: defaultDepot.latitude, lng: defaultDepot.longitude });
         
-        // Set default depot if not set - string olarak ayarla
         if (!formData.depotId) {
           updateFormData({ depotId: defaultDepot.id.toString() });
         }
       }
 
-      // localStorage'dan yüklenen stops'ları customer objeleriyle güncelle
       if (savedData?.stops && savedData.stops.length > 0 && !initialStopsLoadedRef.current) {
         const savedStops: StopData[] = savedData.stops
           .map((stop: any) => {
@@ -305,7 +279,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
   };
 
   const handleAddCustomer = (customer: Customer) => {
-    // Google Places müşterisi kontrolü
     if (typeof customer.id === 'string' && customer.id.startsWith('google-')) {
       alert('⚠️ Bu müşteri henüz veritabanına kaydedilmemiş. Lütfen önce Müşteriler sayfasından ekleyin.');
       return;
@@ -317,7 +290,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
         serviceTime: customer.estimatedServiceTime || 10
       }];
       setStopsData(newStopsData);
-      // StopsData güncellendiğinde localStorage'a kaydet
       saveToLocalStorage(formData);
     }
   };
@@ -345,11 +317,9 @@ const RouteForm: React.FC<RouteFormProps> = ({
     setStopsData(newStops);
   };
 
-  // Haritada rotayı güncelle
   const updateMapRoute = async () => {
     if (stopsData.length === 0) return;
 
-    // String karşılaştırması yap
     const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
     if (!selectedDepot) return;
 
@@ -375,7 +345,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
       if (directions) {
         setMapDirections(directions);
         
-        // Eğer initialData'da totalDistance ve totalDuration varsa onları kullan
         if (initialData?.totalDistance && initialData?.totalDuration) {
           updateFormData({
             totalDistance: initialData.totalDistance,
@@ -386,21 +355,18 @@ const RouteForm: React.FC<RouteFormProps> = ({
     }
   };
 
-  // GERÇEK OPTİMİZASYON FONKSİYONU - BACKEND KULLANIMI
   const handleOptimize = async () => {
     if (stopsData.length < 2) {
       alert('Optimizasyon için en az 2 durak gerekli!');
       return;
     }
 
-    // String karşılaştırması yap
     const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
     if (!selectedDepot) {
       alert('Lütfen bir depo seçin!');
       return;
     }
 
-    // Form validasyonu
     if (!formData.name) {
       alert('Lütfen rota adı girin!');
       return;
@@ -409,219 +375,65 @@ const RouteForm: React.FC<RouteFormProps> = ({
     setOptimizing(true);
     
     try {
-      // Önce rotayı oluştur/kaydet
-      let routeId = initialData?.id;
-      
-      // ✅ Debug log - optimize öncesi durum
-      console.log('=== OPTIMIZE START (Frontend) ===');
-      console.log('Current stopsData before optimize:');
-      stopsData.forEach((stop, index) => {
-        console.log(`  ${index + 1}. ${stop.customer.name} (ID: ${stop.customer.id})`);
-      });
-      
-      if (!routeId) {
-        // Yeni rota oluştur - route.service.ts'nin beklediği format (camelCase)
-        const stops = stopsData.map((stopData, index) => ({
-          customer: stopData.customer,
-          customerId: stopData.customer.id,
-          serviceTime: stopData.serviceTime || stopData.customer.estimatedServiceTime || 10,
-          stopNotes: stopData.stopNotes || '',
-          overrideTimeWindow: stopData.overrideTimeWindow,
-          overridePriority: stopData.overridePriority || stopData.customer.priority || 'normal'
+      if (window.google && window.google.maps) {
+        const depotLocation: LatLng = {
+          lat: selectedDepot.latitude,
+          lng: selectedDepot.longitude
+        };
+
+        const waypointLocations = stopsData.map(stop => ({
+          lat: stop.customer.latitude,
+          lng: stop.customer.longitude
         }));
 
-        // Backend için route data hazırla - camelCase kullan
-        const createRouteData: Partial<Route> = {
-          name: formData.name,
-          date: formData.date,
-          depotId: formData.depotId,
-          driverId: formData.driverId,
-          vehicleId: formData.vehicleId,
-          notes: formData.notes || '',
-          stops: stops,
-          depot: selectedDepot, // Depot objesini ekle
-          optimized: false,
-          totalDistance: 0,
-          totalDuration: 0
-        };
-        
-        console.log('Creating route with data:', createRouteData);
-        
-        // Rotayı backend'e kaydet (route.service.ts halledecek)
-        const createdRoute = await routeService.create(createRouteData);
-        routeId = createdRoute.id;
-        console.log('Route created with ID:', routeId);
-      }
-      
-      // Backend'de optimize et
-      console.log('Calling optimize for route ID:', routeId);
-      const optimizedRoute = await routeService.optimize(routeId, optimizationMode);
-      
-      if (optimizedRoute) {
-        // ✅ Debug log - optimize response
-        console.log('=== OPTIMIZE RESPONSE ===');
-        console.log('Optimized Route:', optimizedRoute);
-        console.log('Total Distance:', optimizedRoute.totalDistance);
-        console.log('Total Duration:', optimizedRoute.totalDuration);
-        console.log('Optimized:', optimizedRoute.optimized);
-        console.log('Stops count:', optimizedRoute.stops?.length);
-        
-        // Stops'ları order'a göre sıralayıp logla
-        if (optimizedRoute.stops) {
-          const sortedStops = [...optimizedRoute.stops].sort((a, b) => a.order - b.order);
-          console.log('Sorted stops by order:');
-          sortedStops.forEach((stop, index) => {
-            console.log(`  ${index + 1}. Order ${stop.order}: ${stop.customer?.name || stop.name} (CustomerId: ${stop.customerId})`);
+        googleMapsService.initializeServices();
+
+        const directions = await googleMapsService.getDirections(
+          depotLocation,
+          waypointLocations,
+          depotLocation,
+          true
+        );
+
+        if (directions) {
+          setMapDirections(directions);
+          
+          let totalDistance = 0;
+          let totalDuration = 0;
+          
+          directions.routes[0].legs.forEach(leg => {
+            totalDistance += leg.distance?.value || 0;
+            totalDuration += leg.duration?.value || 0;
           });
-          
-          // ✅ YENİ: Optimize edilmiş sırayla stopsData'yı güncelle
-          const newStopsData: StopData[] = sortedStops.map(stop => {
-            // Önce optimize edilmiş stop'un customer'ını bul
-            let customer = stop.customer;
-            
-            // Eğer customer yoksa, customers listesinden bul
-            if (!customer) {
-              customer = customers.find(c => c.id.toString() === stop.customerId.toString());
-            }
-            
-            // Hala bulunamadıysa eski stopsData'dan bul
-            if (!customer) {
-              const oldStopData = stopsData.find(sd => sd.customer.id.toString() === stop.customerId.toString());
-              if (oldStopData) {
-                customer = oldStopData.customer;
-              }
-            }
-            
-            if (!customer) {
-              console.error(`Customer not found for stop with customerId: ${stop.customerId}`);
-              // Fallback - en azından temel bilgileri koru
-              customer = {
-                id: stop.customerId,
-                name: stop.name || `Müşteri ${stop.customerId}`,
-                address: stop.address || '',
-                latitude: stop.latitude || 0,
-                longitude: stop.longitude || 0,
-                phone: stop.contactPhone || '',
-                email: stop.contactEmail || '',
-                code: '',
-                priority: 'normal' as const,
-                tags: [],
-                createdAt: new Date(),
-                updatedAt: new Date()
-              };
-            }
-            
-            return {
-              customer: customer,
-              overrideTimeWindow: stop.overrideTimeWindow,
-              overridePriority: stop.overridePriority,
-              serviceTime: stop.serviceTime,
-              stopNotes: stop.stopNotes
-            };
+
+          stopsData.forEach(stop => {
+            const serviceMinutes = stop.serviceTime || stop.customer.estimatedServiceTime || 10;
+            totalDuration += serviceMinutes * 60;
           });
-          
-          console.log('=== UPDATING FRONTEND STATE ===');
-          console.log('New stopsData order:');
-          newStopsData.forEach((stop, index) => {
-            console.log(`  ${index + 1}. ${stop.customer.name} (ID: ${stop.customer.id})`);
-          });
-          
-          // ✅ State'leri güncelle
-          setStopsData(newStopsData);
-          setOptimizedOrder(newStopsData.map((_, index) => index));
-          
-          // ✅ Form data'yı güncelle
+
+          const waypointOrder = directions.routes[0].waypoint_order;
+          if (waypointOrder && waypointOrder.length > 0) {
+            const newStopsData = waypointOrder.map(index => stopsData[index]);
+            setStopsData(newStopsData);
+            setOptimizedOrder(newStopsData.map((_, i) => i));
+          }
+
           updateFormData({
-            totalDuration: optimizedRoute.totalDuration,
-            totalDistance: optimizedRoute.totalDistance,
-            optimized: true,
-            stops: sortedStops // stops'ları da güncelle
+            totalDuration: Math.round(totalDuration / 60),
+            totalDistance: totalDistance / 1000,
+            optimized: true
           });
-          
-          // ✅ Haritada rotayı güncelle
-          await updateMapRoute();
-          
-          console.log('=== OPTIMIZE COMPLETE (Frontend) ===');
-          
-          // Formatlanmış süre ile mesaj göster
+
           alert(`✅ Rota optimize edildi!\n\n` +
-                `📍 Toplam Mesafe: ${optimizedRoute.totalDistance.toFixed(1)} km\n` +
-                `⏱️ Tahmini Süre: ${formatDuration(optimizedRoute.totalDuration)}\n` +
+                `📍 Toplam Mesafe: ${(totalDistance / 1000).toFixed(1)} km\n` +
+                `⏱️ Tahmini Süre: ${formatDuration(Math.round(totalDuration / 60))}\n` +
                 `🗺️ Google Maps ile optimize edildi\n` +
                 `${optimizationMode === 'distance' ? '🎯 En kısa mesafe' : '⚡ En hızlı rota'}`);
-          
-          // ✅ Eğer edit modunda değilse ve optimize başarılı olduysa
-          if (!isEdit) {
-            // localStorage'ı temizle
-            localStorage.removeItem(STORAGE_KEY);
-            
-            // Eğer initialData.id varsa (rota kaydedildiyse), detay sayfasına yönlendir
-            if (routeId) {
-              setTimeout(() => {
-                window.location.href = `/routes/${routeId}`;
-              }, 1500);
-            }
-          }
-        } else {
-          console.error('No stops in optimized route!');
-          alert('⚠️ Optimizasyon sonucu alınamadı!');
         }
-      } else {
-        console.error('No optimized route returned!');
-        alert('⚠️ Optimizasyon başarısız!');
       }
     } catch (error: any) {
       console.error('Optimization error:', error);
-      console.error('Error response:', error.response);
-      
-      // Google Maps API hatası için özel mesaj
-      if (error.response?.data?.message?.includes('Google Maps API')) {
-        alert('⚠️ Rota optimizasyonu başarısız!\n\n' +
-              'Google Maps rotayı optimize edemedi. Muhtemel sebepler:\n' +
-              '• Çok uzun adresler nedeniyle konum bulunamıyor\n' +
-              '• Google Maps API anahtarı eksik veya geçersiz\n' +
-              '• Seçilen konumlar arasında rota oluşturulamıyor\n\n' +
-              'Rota kaydedildi ancak optimize edilmedi.');
-        
-        // Rota oluşturuldu ama optimize edilmedi, localStorage'ı temizle
-        if (!isEdit) {
-          localStorage.removeItem(STORAGE_KEY);
-        }
-        
-        // Ana sayfaya yönlendir
-        window.location.href = '/routes';
-        return;
-      }
-      
-      // Validation hatalarını detaylı logla
-      if (error.response?.data?.errors) {
-        console.log('Validation errors:', JSON.stringify(error.response.data.errors, null, 2));
-      }
-      
-      // Genel hata mesajı
-      let errorMessage = 'Optimizasyon sırasında bir hata oluştu.';
-      
-      if (error.response?.data?.errors) {
-        const validationErrors = error.response.data.errors;
-        errorMessage += '\n\nHatalar:\n';
-        if (Array.isArray(validationErrors)) {
-          validationErrors.forEach((err: any) => {
-            if (typeof err === 'object' && err.ErrorMessage) {
-              errorMessage += `• ${err.ErrorMessage}\n`;
-            } else {
-              errorMessage += `• ${err}\n`;
-            }
-          });
-        } else {
-          errorMessage += JSON.stringify(validationErrors, null, 2);
-        }
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      alert(errorMessage);
+      alert('Optimizasyon sırasında bir hata oluştu.');
     } finally {
       setOptimizing(false);
     }
@@ -644,47 +456,36 @@ const RouteForm: React.FC<RouteFormProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Sürücü ve araç kontrolü
     if (!formData.driverId || !formData.vehicleId) {
       alert('⚠️ Lütfen sürücü ve araç ataması yapın!');
       return;
     }
     
-    // Seçili depoyu bul
     const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
     if (!selectedDepot) {
       alert('⚠️ Lütfen bir depo seçin!');
       return;
     }
     
-    // ✅ DÜZELTME: Customer ID kontrolü güçlendirildi
     const stops: RouteStop[] = stopsData.map((stopData, index) => {
-      // Customer nesnesini kontrol et
       if (!stopData.customer) {
-        console.error('Customer missing for stop:', index, stopData);
         throw new Error(`Durak ${index + 1} için müşteri bilgisi eksik`);
       }
       
       const customer = stopData.customer;
-      let customerId: string;
       
-      // Google Places kontrolü
       if (typeof customer.id === 'string' && customer.id.startsWith('google-')) {
-        console.error('Google Places customer detected:', customer);
-        throw new Error(`Durak ${index + 1} için müşteri henüz veritabanına kaydedilmemiş. Lütfen önce Müşteriler sayfasından ekleyin.`);
+        throw new Error(`Durak ${index + 1} için müşteri henüz veritabanına kaydedilmemiş.`);
       }
       
-      // ID'yi string'e çevir
+      let customerId: string;
       if (typeof customer.id === 'number') {
         customerId = customer.id.toString();
       } else if (typeof customer.id === 'string') {
         customerId = customer.id;
       } else {
-        console.error('Invalid customer ID type:', typeof customer.id, customer);
         throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
       }
-      
-      console.log(`Stop ${index}: Customer ID = ${customerId}, Name = ${customer.name}`);
       
       return {
         id: isEdit && initialData?.stops?.[index]?.id ? initialData.stops[index].id : `${Date.now()}-${index}`,
@@ -710,19 +511,11 @@ const RouteForm: React.FC<RouteFormProps> = ({
       totalDistance: formData.totalDistance || 0,
       status: 'planned',
       optimized: formData.optimized || false,
-      // Driver ve Vehicle bilgilerini ekle
       driver: drivers.find(d => d.id.toString() === formData.driverId?.toString()),
       vehicle: vehicles.find(v => v.id.toString() === formData.vehicleId?.toString()),
-      // Depot objesini ekle - ÖNEMLİ: Backend'de startDetails için gerekli
       depot: selectedDepot
     };
-
-    console.log('Submitting route with depot:', selectedDepot);
-    console.log('Route optimized status:', routeData.optimized);
-    console.log('Route totalDistance:', routeData.totalDistance);
-    console.log('Route totalDuration:', routeData.totalDuration);
     
-    // Başarılı submit'ten sonra localStorage'ı temizle
     if (!isEdit) {
       localStorage.removeItem(STORAGE_KEY);
     }
@@ -731,33 +524,25 @@ const RouteForm: React.FC<RouteFormProps> = ({
   };
 
   const handleSaveDraft = () => {
-    // Seçili depoyu bul
     const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
     
-    // ✅ DÜZELTME: Customer ID kontrolü güçlendirildi
     const stops: RouteStop[] = stopsData.map((stopData, index) => {
-      // Customer nesnesini kontrol et
       if (!stopData.customer) {
-        console.error('Customer missing for stop:', index, stopData);
         throw new Error(`Durak ${index + 1} için müşteri bilgisi eksik`);
       }
       
       const customer = stopData.customer;
-      let customerId: string;
       
-      // Google Places kontrolü
       if (typeof customer.id === 'string' && customer.id.startsWith('google-')) {
-        console.error('Google Places customer detected:', customer);
-        throw new Error(`Durak ${index + 1} için müşteri henüz veritabanına kaydedilmemiş. Lütfen önce Müşteriler sayfasından ekleyin.`);
+        throw new Error(`Durak ${index + 1} için müşteri henüz veritabanına kaydedilmemiş.`);
       }
       
-      // ID'yi string'e çevir
+      let customerId: string;
       if (typeof customer.id === 'number') {
         customerId = customer.id.toString();
       } else if (typeof customer.id === 'string') {
         customerId = customer.id;
       } else {
-        console.error('Invalid customer ID type:', typeof customer.id, customer);
         throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
       }
       
@@ -785,14 +570,11 @@ const RouteForm: React.FC<RouteFormProps> = ({
       totalDistance: formData.totalDistance || 0,
       status: 'draft',
       optimized: formData.optimized || false,
-      // Driver ve Vehicle bilgilerini ekle
       driver: drivers.find(d => d.id.toString() === formData.driverId?.toString()),
       vehicle: vehicles.find(v => v.id.toString() === formData.vehicleId?.toString()),
-      // Depot objesini ekle
       depot: selectedDepot
     };
 
-    // Başarılı submit'ten sonra localStorage'ı temizle
     if (!isEdit) {
       localStorage.removeItem(STORAGE_KEY);
     }
@@ -803,7 +585,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
   };
 
   const getDepotLocation = (): LatLng | undefined => {
-    // String karşılaştırması yap ve depot varsa dön
     const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
     if (selectedDepot) {
       console.log('Selected depot for map:', selectedDepot);
@@ -843,12 +624,10 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Basic Information */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Temel Bilgiler</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Route Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Rota Adı <span className="text-red-500">*</span>
@@ -863,7 +642,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
             />
           </div>
 
-          {/* Date */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Tarih <span className="text-red-500">*</span>
@@ -880,7 +658,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
             </div>
           </div>
 
-          {/* Driver */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Sürücü <span className="text-red-500">*</span>
@@ -903,7 +680,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
             </div>
           </div>
 
-          {/* Vehicle */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Araç <span className="text-red-500">*</span>
@@ -926,7 +702,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
             </div>
           </div>
 
-          {/* Depot */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Depo <span className="text-red-500">*</span>
@@ -949,7 +724,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
             </div>
           </div>
 
-          {/* Notes */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Notlar
@@ -965,7 +739,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
         </div>
       </div>
 
-      {/* Customer Selection */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Müşteri Seçimi</h2>
@@ -988,7 +761,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
               </>
             )}
 
-            {/* Optimization Mode Selector */}
             {stopsData.length > 1 && (
               <select
                 value={optimizationMode}
@@ -1000,7 +772,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
               </select>
             )}
 
-            {/* Optimize Button */}
             <button
               type="button"
               onClick={handleOptimize}
@@ -1029,9 +800,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
         />
       </div>
 
-      {/* Map ve Stops List - YAN YANA */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Sol Taraf - Harita */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Rota Haritası</h2>
@@ -1073,7 +842,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
           )}
         </div>
 
-        {/* Sağ Taraf - Duraklar Listesi */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Duraklar {stopsData.length > 0 && `(${stopsData.length})`}
@@ -1100,7 +868,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
         </div>
       </div>
 
-      {/* Actions */}
       <div className="flex items-center justify-end space-x-3">
         {onSaveAsDraft && (
           <button

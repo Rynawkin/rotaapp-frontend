@@ -1,7 +1,6 @@
 // frontend/src/services/signalr.service.ts
 import * as signalR from '@microsoft/signalr';
 
-// SignalR DTO Types
 export interface UpdateLocationDto {
   journeyId: number;
   latitude: number;
@@ -41,26 +40,30 @@ export interface LiveLocation {
 }
 
 class SignalRService {
-  private journeyHub: signalR.HubConnection | null = null;
-  private trackingHub: signalR.HubConnection | null = null;
+  private _journeyHub: signalR.HubConnection | null = null;
+  private _trackingHub: signalR.HubConnection | null = null;
   
-  // Callback maps for different events
   private journeyCallbacks: Map<number, (data: any) => void> = new Map();
   private vehicleCallbacks: Map<number, (data: any) => void> = new Map();
   private workspaceCallbacks: ((data: any) => void)[] = [];
   private emergencyCallbacks: ((data: any) => void)[] = [];
 
-  // Connection promise to prevent multiple simultaneous connections
   private connectionPromise: Promise<void> | null = null;
 
-  // Connect to both hubs
+  // ✅ Public getters for hubs
+  get journeyHub(): signalR.HubConnection | null {
+    return this._journeyHub;
+  }
+
+  get trackingHub(): signalR.HubConnection | null {
+    return this._trackingHub;
+  }
+
   async connect(): Promise<void> {
-    // If already connecting, wait for that connection
     if (this.connectionPromise) {
       return this.connectionPromise;
     }
 
-    // If already connected, return immediately
     if (this.getConnectionStatus()) {
       return Promise.resolve();
     }
@@ -87,23 +90,20 @@ class SignalRService {
     ]);
   }
 
-  // Connect to JourneyHub
   private async connectJourneyHub(token: string): Promise<void> {
-    // If already connected, skip
-    if (this.journeyHub?.state === signalR.HubConnectionState.Connected) {
+    if (this._journeyHub?.state === signalR.HubConnectionState.Connected) {
       return;
     }
 
-    // If hub exists but not connected, stop it first
-    if (this.journeyHub) {
+    if (this._journeyHub) {
       try {
-        await this.journeyHub.stop();
+        await this._journeyHub.stop();
       } catch (err) {
         // Ignore stop errors
       }
     }
 
-    this.journeyHub = new signalR.HubConnectionBuilder()
+    this._journeyHub = new signalR.HubConnectionBuilder()
       .withUrl('http://localhost:5055/hubs/journey', {
         accessTokenFactory: () => token,
         skipNegotiation: true,
@@ -113,38 +113,35 @@ class SignalRService {
       .configureLogging(signalR.LogLevel.Information)
       .build();
 
-    // JourneyHub event listeners
-    this.journeyHub.on('JourneyStatusUpdated', (journeyId: number, status: any) => {
+    this._journeyHub.on('JourneyStatusUpdated', (journeyId: number, status: any) => {
       console.log('Journey status updated:', journeyId, status);
       const callback = this.journeyCallbacks.get(journeyId);
       if (callback) callback({ type: 'statusUpdated', journeyId, status });
     });
 
-    this.journeyHub.on('StopCompleted', (journeyId: number, stopId: number, data: any) => {
+    this._journeyHub.on('StopCompleted', (journeyId: number, stopId: number, data: any) => {
       console.log('Stop completed:', journeyId, stopId, data);
       const callback = this.journeyCallbacks.get(journeyId);
       if (callback) callback({ type: 'stopCompleted', journeyId, stopId, data });
     });
 
-    // Connection state handlers
-    this.journeyHub.onreconnecting(() => {
+    this._journeyHub.onreconnecting(() => {
       console.log('JourneyHub reconnecting...');
     });
 
-    this.journeyHub.onreconnected(() => {
+    this._journeyHub.onreconnected(() => {
       console.log('JourneyHub reconnected');
-      // Rejoin all journey groups
       this.journeyCallbacks.forEach((_, journeyId) => {
-        this.journeyHub?.invoke('JoinJourneyGroup', journeyId).catch(console.error);
+        this._journeyHub?.invoke('JoinJourneyGroup', journeyId).catch(console.error);
       });
     });
 
-    this.journeyHub.onclose(() => {
+    this._journeyHub.onclose(() => {
       console.log('JourneyHub disconnected');
     });
 
     try {
-      await this.journeyHub.start();
+      await this._journeyHub.start();
       console.log('JourneyHub Connected');
     } catch (err) {
       console.error('JourneyHub Connection Error:', err);
@@ -152,23 +149,20 @@ class SignalRService {
     }
   }
 
-  // Connect to TrackingHub
   private async connectTrackingHub(token: string): Promise<void> {
-    // If already connected, skip
-    if (this.trackingHub?.state === signalR.HubConnectionState.Connected) {
+    if (this._trackingHub?.state === signalR.HubConnectionState.Connected) {
       return;
     }
 
-    // If hub exists but not connected, stop it first
-    if (this.trackingHub) {
+    if (this._trackingHub) {
       try {
-        await this.trackingHub.stop();
+        await this._trackingHub.stop();
       } catch (err) {
         // Ignore stop errors
       }
     }
 
-    this.trackingHub = new signalR.HubConnectionBuilder()
+    this._trackingHub = new signalR.HubConnectionBuilder()
       .withUrl('http://localhost:5055/hubs/tracking', {
         accessTokenFactory: () => token,
         skipNegotiation: true,
@@ -178,46 +172,42 @@ class SignalRService {
       .configureLogging(signalR.LogLevel.Information)
       .build();
 
-    // TrackingHub event listeners
-    this.trackingHub.on('VehicleLocationUpdated', (data: any) => {
+    this._trackingHub.on('VehicleLocationUpdated', (data: any) => {
       console.log('Vehicle location updated:', data);
       const callback = this.vehicleCallbacks.get(data.vehicleId);
       if (callback) callback(data);
       
-      // Also notify journey callbacks
       const journeyCallback = this.journeyCallbacks.get(data.journeyId);
       if (journeyCallback) journeyCallback({ type: 'locationUpdated', ...data });
     });
 
-    this.trackingHub.on('WorkspaceVehicleUpdated', (data: any) => {
+    this._trackingHub.on('WorkspaceVehicleUpdated', (data: any) => {
       console.log('Workspace vehicle updated:', data);
       this.workspaceCallbacks.forEach(callback => callback(data));
     });
 
-    this.trackingHub.on('EmergencyAlert', (data: any) => {
+    this._trackingHub.on('EmergencyAlert', (data: any) => {
       console.log('EMERGENCY ALERT:', data);
       this.emergencyCallbacks.forEach(callback => callback(data));
     });
 
-    // Connection state handlers
-    this.trackingHub.onreconnecting(() => {
+    this._trackingHub.onreconnecting(() => {
       console.log('TrackingHub reconnecting...');
     });
 
-    this.trackingHub.onreconnected(() => {
+    this._trackingHub.onreconnected(() => {
       console.log('TrackingHub reconnected');
-      // Rejoin all tracking groups
       this.vehicleCallbacks.forEach((_, vehicleId) => {
-        this.trackingHub?.invoke('JoinVehicleTracking', vehicleId).catch(console.error);
+        this._trackingHub?.invoke('JoinVehicleTracking', vehicleId).catch(console.error);
       });
     });
 
-    this.trackingHub.onclose(() => {
+    this._trackingHub.onclose(() => {
       console.log('TrackingHub disconnected');
     });
 
     try {
-      await this.trackingHub.start();
+      await this._trackingHub.start();
       console.log('TrackingHub Connected');
     } catch (err) {
       console.error('TrackingHub Connection Error:', err);
@@ -225,14 +215,58 @@ class SignalRService {
     }
   }
 
-  // Journey methods
+  // ✅ NEW: Generic event listener methods
+  on(eventName: string, callback: (...args: any[]) => void): void {
+    if (this._journeyHub) {
+      this._journeyHub.on(eventName, callback);
+    }
+    if (this._trackingHub) {
+      this._trackingHub.on(eventName, callback);
+    }
+  }
+
+  off(eventName: string, callback: (...args: any[]) => void): void {
+    if (this._journeyHub) {
+      this._journeyHub.off(eventName, callback);
+    }
+    if (this._trackingHub) {
+      this._trackingHub.off(eventName, callback);
+    }
+  }
+
+  // ✅ NEW: JourneyGroup helper methods
+  async joinJourneyGroup(journeyId: number): Promise<void> {
+    if (!this._journeyHub || this._journeyHub.state !== signalR.HubConnectionState.Connected) {
+      await this.connect();
+    }
+    
+    try {
+      await this._journeyHub?.invoke('JoinJourneyGroup', journeyId);
+      console.log(`Joined journey group: ${journeyId}`);
+    } catch (err) {
+      console.error('Error joining journey group:', err);
+    }
+  }
+
+  async leaveJourneyGroup(journeyId: number): Promise<void> {
+    if (!this._journeyHub || this._journeyHub.state !== signalR.HubConnectionState.Connected) {
+      return;
+    }
+    
+    try {
+      await this._journeyHub.invoke('LeaveJourneyGroup', journeyId);
+      console.log(`Left journey group: ${journeyId}`);
+    } catch (err) {
+      console.error('Error leaving journey group:', err);
+    }
+  }
+
   async joinJourney(journeyId: number, callback: (data: any) => void): Promise<void> {
-    // Wait for connection if not connected
     if (!this.getConnectionStatus()) {
       await this.connect();
     }
 
-    if (!this.journeyHub || this.journeyHub.state !== signalR.HubConnectionState.Connected) {
+    if (!this._journeyHub || this._journeyHub.state !== signalR.HubConnectionState.Connected) {
       console.error('JourneyHub not connected');
       return;
     }
@@ -240,7 +274,7 @@ class SignalRService {
     this.journeyCallbacks.set(journeyId, callback);
     
     try {
-      await this.journeyHub.invoke('JoinJourneyGroup', journeyId);
+      await this._journeyHub.invoke('JoinJourneyGroup', journeyId);
       console.log(`Joined journey group: ${journeyId}`);
     } catch (err) {
       console.error('Error joining journey group:', err);
@@ -249,7 +283,7 @@ class SignalRService {
   }
 
   async leaveJourney(journeyId: number): Promise<void> {
-    if (!this.journeyHub || this.journeyHub.state !== signalR.HubConnectionState.Connected) {
+    if (!this._journeyHub || this._journeyHub.state !== signalR.HubConnectionState.Connected) {
       this.journeyCallbacks.delete(journeyId);
       return;
     }
@@ -257,21 +291,19 @@ class SignalRService {
     this.journeyCallbacks.delete(journeyId);
     
     try {
-      await this.journeyHub.invoke('LeaveJourneyGroup', journeyId);
+      await this._journeyHub.invoke('LeaveJourneyGroup', journeyId);
       console.log(`Left journey group: ${journeyId}`);
     } catch (err) {
       console.error('Error leaving journey group:', err);
     }
   }
 
-  // Vehicle tracking methods
   async joinVehicleTracking(vehicleId: number, callback: (data: any) => void): Promise<void> {
-    // Wait for connection if not connected
     if (!this.getConnectionStatus()) {
       await this.connect();
     }
 
-    if (!this.trackingHub || this.trackingHub.state !== signalR.HubConnectionState.Connected) {
+    if (!this._trackingHub || this._trackingHub.state !== signalR.HubConnectionState.Connected) {
       console.error('TrackingHub not connected');
       return;
     }
@@ -279,7 +311,7 @@ class SignalRService {
     this.vehicleCallbacks.set(vehicleId, callback);
     
     try {
-      await this.trackingHub.invoke('JoinVehicleTracking', vehicleId);
+      await this._trackingHub.invoke('JoinVehicleTracking', vehicleId);
       console.log(`Joined vehicle tracking: ${vehicleId}`);
     } catch (err) {
       console.error('Error joining vehicle tracking:', err);
@@ -288,7 +320,7 @@ class SignalRService {
   }
 
   async leaveVehicleTracking(vehicleId: number): Promise<void> {
-    if (!this.trackingHub || this.trackingHub.state !== signalR.HubConnectionState.Connected) {
+    if (!this._trackingHub || this._trackingHub.state !== signalR.HubConnectionState.Connected) {
       this.vehicleCallbacks.delete(vehicleId);
       return;
     }
@@ -296,21 +328,19 @@ class SignalRService {
     this.vehicleCallbacks.delete(vehicleId);
     
     try {
-      await this.trackingHub.invoke('LeaveVehicleTracking', vehicleId);
+      await this._trackingHub.invoke('LeaveVehicleTracking', vehicleId);
       console.log(`Left vehicle tracking: ${vehicleId}`);
     } catch (err) {
       console.error('Error leaving vehicle tracking:', err);
     }
   }
 
-  // Workspace tracking
   async joinWorkspaceTracking(workspaceId: number, callback: (data: any) => void): Promise<void> {
-    // Wait for connection if not connected
     if (!this.getConnectionStatus()) {
       await this.connect();
     }
 
-    if (!this.trackingHub || this.trackingHub.state !== signalR.HubConnectionState.Connected) {
+    if (!this._trackingHub || this._trackingHub.state !== signalR.HubConnectionState.Connected) {
       console.error('TrackingHub not connected');
       return;
     }
@@ -318,7 +348,7 @@ class SignalRService {
     this.workspaceCallbacks.push(callback);
     
     try {
-      await this.trackingHub.invoke('JoinWorkspaceTracking', workspaceId);
+      await this._trackingHub.invoke('JoinWorkspaceTracking', workspaceId);
       console.log(`Joined workspace tracking: ${workspaceId}`);
     } catch (err) {
       console.error('Error joining workspace tracking:', err);
@@ -327,13 +357,13 @@ class SignalRService {
   }
 
   async leaveWorkspaceTracking(workspaceId: number): Promise<void> {
-    if (!this.trackingHub || this.trackingHub.state !== signalR.HubConnectionState.Connected) {
+    if (!this._trackingHub || this._trackingHub.state !== signalR.HubConnectionState.Connected) {
       this.clearWorkspaceCallbacks();
       return;
     }
 
     try {
-      await this.trackingHub.invoke('LeaveWorkspaceTracking', workspaceId);
+      await this._trackingHub.invoke('LeaveWorkspaceTracking', workspaceId);
       console.log(`Left workspace tracking: ${workspaceId}`);
     } catch (err) {
       console.error('Error leaving workspace tracking:', err);
@@ -342,30 +372,28 @@ class SignalRService {
     this.clearWorkspaceCallbacks();
   }
 
-  // Update vehicle location (for driver apps)
   async updateVehicleLocation(location: UpdateLocationDto): Promise<void> {
-    if (!this.trackingHub || this.trackingHub.state !== signalR.HubConnectionState.Connected) {
+    if (!this._trackingHub || this._trackingHub.state !== signalR.HubConnectionState.Connected) {
       console.error('TrackingHub not connected');
       return;
     }
     
     try {
-      await this.trackingHub.invoke('UpdateVehicleLocation', location);
+      await this._trackingHub.invoke('UpdateVehicleLocation', location);
       console.log('Location updated:', location);
     } catch (err) {
       console.error('Error updating vehicle location:', err);
     }
   }
 
-  // Get active vehicles
   async getActiveVehicles(): Promise<ActiveVehicleDto[]> {
-    if (!this.trackingHub || this.trackingHub.state !== signalR.HubConnectionState.Connected) {
+    if (!this._trackingHub || this._trackingHub.state !== signalR.HubConnectionState.Connected) {
       console.error('TrackingHub not connected');
       return [];
     }
     
     try {
-      const vehicles = await this.trackingHub.invoke<ActiveVehicleDto[]>('GetActiveVehicles');
+      const vehicles = await this._trackingHub.invoke<ActiveVehicleDto[]>('GetActiveVehicles');
       console.log('Active vehicles:', vehicles);
       return vehicles;
     } catch (err) {
@@ -374,27 +402,24 @@ class SignalRService {
     }
   }
 
-  // Send emergency alert
   async sendEmergencyAlert(alert: EmergencyAlertDto): Promise<void> {
-    if (!this.trackingHub || this.trackingHub.state !== signalR.HubConnectionState.Connected) {
+    if (!this._trackingHub || this._trackingHub.state !== signalR.HubConnectionState.Connected) {
       console.error('TrackingHub not connected');
       return;
     }
     
     try {
-      await this.trackingHub.invoke('SendEmergencyAlert', alert);
+      await this._trackingHub.invoke('SendEmergencyAlert', alert);
       console.log('Emergency alert sent:', alert);
     } catch (err) {
       console.error('Error sending emergency alert:', err);
     }
   }
 
-  // Subscribe to emergency alerts
   subscribeToEmergencyAlerts(callback: (data: any) => void): void {
     this.emergencyCallbacks.push(callback);
   }
 
-  // Unsubscribe from emergency alerts
   unsubscribeFromEmergencyAlerts(callback: (data: any) => void): void {
     const index = this.emergencyCallbacks.indexOf(callback);
     if (index > -1) {
@@ -402,34 +427,30 @@ class SignalRService {
     }
   }
 
-  // Clear workspace callbacks
   clearWorkspaceCallbacks(): void {
     this.workspaceCallbacks = [];
   }
 
-  // Connection status - check both hubs
   getConnectionStatus(): boolean {
-    return this.journeyHub?.state === signalR.HubConnectionState.Connected &&
-           this.trackingHub?.state === signalR.HubConnectionState.Connected;
+    return this._journeyHub?.state === signalR.HubConnectionState.Connected &&
+           this._trackingHub?.state === signalR.HubConnectionState.Connected;
   }
 
-  // Check if connecting
   isConnecting(): boolean {
     return this.connectionPromise !== null ||
-           this.journeyHub?.state === signalR.HubConnectionState.Connecting ||
-           this.trackingHub?.state === signalR.HubConnectionState.Connecting;
+           this._journeyHub?.state === signalR.HubConnectionState.Connecting ||
+           this._trackingHub?.state === signalR.HubConnectionState.Connecting;
   }
 
-  // Disconnect from all hubs
   async disconnect(): Promise<void> {
     const disconnectPromises = [];
 
-    if (this.journeyHub) {
-      disconnectPromises.push(this.journeyHub.stop());
+    if (this._journeyHub) {
+      disconnectPromises.push(this._journeyHub.stop());
     }
 
-    if (this.trackingHub) {
-      disconnectPromises.push(this.trackingHub.stop());
+    if (this._trackingHub) {
+      disconnectPromises.push(this._trackingHub.stop());
     }
 
     await Promise.all(disconnectPromises);
@@ -442,7 +463,6 @@ class SignalRService {
     console.log('SignalR disconnected');
   }
 
-  // Reconnect to all hubs
   async reconnect(): Promise<void> {
     await this.disconnect();
     await this.connect();

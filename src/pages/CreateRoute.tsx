@@ -45,7 +45,6 @@ const CreateRoute: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto">
-      {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -63,7 +62,6 @@ const CreateRoute: React.FC = () => {
         </div>
       </div>
 
-      {/* Error Message */}
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start">
           <AlertCircle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0 mt-0.5" />
@@ -73,7 +71,6 @@ const CreateRoute: React.FC = () => {
         </div>
       )}
 
-      {/* Route Form - localStorage desteği RouteForm içinde */}
       <RouteForm
         onSubmit={handleSubmit}
         onSaveAsDraft={handleSaveAsDraft}

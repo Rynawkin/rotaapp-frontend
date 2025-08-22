@@ -7,11 +7,11 @@ export interface User {
   name: string;
   role: 'admin' | 'manager' | 'driver';
   avatar?: string;
-  workspaceId?: string; // Multi-tenant için eklendi
+  workspaceId?: string;
   createdAt: Date;
 }
 
-// Workspace Types - YENİ
+// Workspace Types
 export interface Workspace {
   id: string;
   name: string;
@@ -25,7 +25,6 @@ export interface Workspace {
   maximumDriverCount: number;
   active: boolean;
   createdAt: Date;
-  // Abonelik bilgileri
   subscription?: {
     plan: 'trial' | 'basic' | 'premium' | 'enterprise';
     startDate: Date;
@@ -37,7 +36,7 @@ export interface Workspace {
   };
 }
 
-// Super Admin Types - YENİ
+// Super Admin Types
 export interface WorkspaceStats {
   totalWorkspaces: number;
   activeWorkspaces: number;
@@ -62,7 +61,7 @@ export interface WorkspaceUsage {
 
 // Customer Types
 export interface Customer {
-  id: number;  // string'den number'a değişti
+  id: number;
   code: string;
   name: string;
   address: string;
@@ -71,11 +70,11 @@ export interface Customer {
   latitude: number;
   longitude: number;
   timeWindow?: {
-    start: string; // "09:00"
-    end: string;   // "17:00"
+    start: string;
+    end: string;
   };
   priority: 'high' | 'normal' | 'low';
-  estimatedServiceTime?: number; // Varsayılan servis süresi (dakika)
+  estimatedServiceTime?: number;
   notes?: string;
   tags?: string[];
   createdAt: Date;
@@ -84,12 +83,12 @@ export interface Customer {
 
 // Driver Types
 export interface Driver {
-  id: number; // DÜZELTİLDİ: string -> number
+  id: number;
   name: string;
   phone: string;
   email?: string;
   licenseNumber: string;
-  vehicleId?: number; // DÜZELTİLDİ: string -> number
+  vehicleId?: number;
   status: 'available' | 'busy' | 'offline';
   currentLocation?: {
     latitude: number;
@@ -103,16 +102,16 @@ export interface Driver {
 
 // Vehicle Types
 export interface Vehicle {
-  id: number; // DÜZELTİLDİ: string -> number
+  id: number;
   plateNumber: string;
   type: 'car' | 'van' | 'truck' | 'motorcycle';
   brand: string;
   model: string;
   year: number;
-  capacity: number; // kg
+  capacity: number;
   status: 'active' | 'maintenance' | 'inactive';
   fuelType: 'gasoline' | 'diesel' | 'electric' | 'hybrid';
-  createdAt?: Date; // Optional fields added
+  createdAt?: Date;
   updatedAt?: Date;
 }
 
@@ -128,8 +127,8 @@ export interface Route {
   depotId: string;
   status: 'draft' | 'planned' | 'in_progress' | 'completed' | 'cancelled';
   stops: RouteStop[];
-  totalDistance?: number; // km
-  totalDuration?: number; // minutes
+  totalDistance?: number;
+  totalDuration?: number;
   totalDeliveries: number;
   completedDeliveries: number;
   optimized: boolean;
@@ -148,29 +147,28 @@ export interface RouteStop {
   order: number;
   status: 'pending' | 'arrived' | 'completed' | 'failed';
   
-  // Override fields
   overrideTimeWindow?: {
     start: string;
     end: string;
   };
   overridePriority?: 'high' | 'normal' | 'low';
-  serviceTime?: number; // Bu durak için özel servis süresi (dakika)
+  serviceTime?: number;
   
   estimatedArrival?: Date;
   actualArrival?: Date;
   completedAt?: Date;
-  duration?: number; // minutes
-  distance?: number; // km from previous stop
+  duration?: number;
+  distance?: number;
   deliveryProof?: {
     signature?: string;
     photo?: string;
     notes?: string;
   };
   failureReason?: string;
-  stopNotes?: string; // Bu durak için özel notlar
+  stopNotes?: string;
 }
 
-// Journey Stop Status Enum - YENİ EKLENDİ
+// Journey Stop Status Enum
 export type JourneyStopStatus = 
   | 'Pending'
   | 'InProgress'
@@ -178,17 +176,17 @@ export type JourneyStopStatus =
   | 'Failed'
   | 'Skipped';
 
-// Journey Stop Types - YENİ EKLENDİ
+// Journey Stop Types - DÜZELTİLDİ
 export interface JourneyStop {
   id: string;
   journeyId: string;
   stopId: string;
-  routeStopId: string;  // Backend'de RouteStopId field'ı eklendi
+  routeStopId: string;
   order: number;
-  status: JourneyStopStatus;  // Backend'de Status field'ı eklendi
+  status: JourneyStopStatus;
   
   // Distance and Location
-  distance: number; // km
+  distance: number;
   startAddress: string;
   startLatitude: number;
   startLongitude: number;
@@ -197,31 +195,30 @@ export interface JourneyStop {
   endLongitude: number;
   
   // Time Windows
-  estimatedArrivalTime: string; // TimeSpan backend'den string olarak gelir
+  estimatedArrivalTime: string;
   estimatedDepartureTime?: string;
   arriveBetweenStart?: string;
   arriveBetweenEnd?: string;
   
-  // Actual times
-  actualArrivalTime?: Date;
-  actualDepartureTime?: Date;
-  completedAt?: Date;
+  // ✅ BACKEND'DEN GELEN FIELD'LAR
+  checkInTime?: string;  // ISO string format
+  checkOutTime?: string; // ISO string format
   
   // Relations
   routeStop?: RouteStop;
 }
 
-// Journey Status Type - YENİ EKLENDİ (Backend'deki JourneyStatusType için)
+// Journey Status Type
 export type JourneyStatusType = 
-  | 'InTransit'     // 200 - Yolda
-  | 'Arrived'       // 300 - Varış yapıldı
-  | 'Processing'    // 400 - İşlem yapılıyor
-  | 'Completed'     // 500 - İşlem tamamlandı
-  | 'Delayed'       // 600 - Gecikme var
-  | 'Cancelled'     // 700 - İptal edildi
-  | 'OnHold';       // 800 - Bekletiliyor
+  | 'InTransit'
+  | 'Arrived'
+  | 'Processing'
+  | 'Completed'
+  | 'Delayed'
+  | 'Cancelled'
+  | 'OnHold';
 
-// Journey Status - YENİ EKLENDİ
+// Journey Status
 export interface JourneyStatus {
   id: string;
   journeyId: string;
@@ -232,9 +229,12 @@ export interface JourneyStatus {
   longitude: number;
   additionalValues?: Record<string, string>;
   createdAt: Date;
+  failureReason?: string;
+  signatureUrl?: string;
+  photoUrl?: string;
 }
 
-// Journey (Active Route) Types - GÜNCELLENDİ
+// Journey (Active Route) Types
 export interface Journey {
   id: string;
   routeId: string;
@@ -245,12 +245,12 @@ export interface Journey {
   completedAt?: Date;
   totalDistance: number;
   totalDuration: number;
-  stops?: JourneyStop[];  // YENİ EKLENDİ - Journey stops listesi
-  statuses?: JourneyStatus[];  // YENİ EKLENDİ - Journey status history
-  liveLocation?: LiveLocation;  // GÜNCELLENDİ - LiveLocation type'ı kullanılıyor
+  stops?: JourneyStop[];
+  statuses?: JourneyStatus[];
+  liveLocation?: LiveLocation;
 }
 
-// LiveLocation Type - YENİ EKLENDİ (Backend'deki LiveLocation entity'sine uygun)
+// LiveLocation Type
 export interface LiveLocation {
   latitude: number;
   longitude: number;
@@ -269,7 +269,7 @@ export interface Depot {
   longitude: number;
   isDefault: boolean;
   workingHours?: {
-    [key: string]: { // monday, tuesday, etc.
+    [key: string]: {
       open: string;
       close: string;
     };
@@ -344,7 +344,7 @@ export interface RouteEfficiencyReport {
 }
 
 export interface TimeBasedReport {
-  period: string; // 'hourly' | 'daily' | 'weekly' | 'monthly'
+  period: string;
   deliveries: number;
   distance: number;
   duration: number;

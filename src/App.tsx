@@ -16,6 +16,8 @@ import TestMap from '@/pages/TestMap';
 import Drivers from '@/pages/Drivers';
 import CreateDriver from '@/pages/CreateDriver';
 import EditDriver from '@/pages/EditDriver';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import DriverDetail from '@/pages/DriverDetail';
 import Vehicles from '@/pages/Vehicles';
 import CreateVehicle from '@/pages/CreateVehicle';
@@ -73,7 +75,9 @@ const AppRoutes: React.FC = () => {
       <Route path="/signup" element={<Signup />} />
       <Route path="/onboarding" element={<Onboarding />} />
       <Route path="/test-map" element={<TestMap />} />
-      
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+
       {/* Protected Routes */}
       <Route path="/" element={
         <ProtectedLayout>

@@ -1,4 +1,5 @@
 // src/pages/JourneyDetail.tsx
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
@@ -79,44 +80,78 @@ const JourneyDetail: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ SignalR Real-time Updates
+  // ✅ Helper function - URL'leri tam path'e çevir
+  const getFullImageUrl = (url: string | null | undefined): string => {
+    if (!url) return '';
+    
+    // Eğer zaten tam URL ise (http:// veya https:// ile başlıyorsa) direkt döndür
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    
+    // Relative URL ise base URL ekle
+    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5055';
+    return `${baseUrl}${url}`;
+  };
+
+  // ✅ DÜZELTİLDİ: SignalR bağlantısı ve event listener'ları
   useEffect(() => {
     if (!journeyId) return;
 
-    subscribeToUpdates((data) => {
-      console.log('✅ Real-time update received:', data);
-      
-      switch (data.type) {
-        case 'statusUpdated':
+    let mounted = true;
+
+    const setupSignalR = async () => {
+      try {
+        // SignalR'a bağlan
+        if (!signalRService.getConnectionStatus()) {
+          await signalRService.connect();
+        }
+
+        // Journey group'a katıl
+        await signalRService.joinJourney(journeyId, (data: any) => {
+          if (!mounted) return;
+          
+          console.log('🔄 Journey update received:', data);
+          
+          // Her türlü güncelleme için journey'yi yeniden yükle
           loadJourney();
-          break;
-          
-        case 'stopCompleted':
-          setJourney(prev => {
-            if (!prev) return prev;
-            const updatedStops = prev.stops?.map(s => 
-              s.id === data.stopId ? { ...s, ...data.data } : s
-            );
-            return { ...prev, stops: updatedStops };
-          });
-          break;
-          
-        case 'locationUpdated':
-          setJourney(prev => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              liveLocation: data.location,
-              currentStopIndex: data.currentStopIndex
-            };
-          });
-          break;
-          
-        default:
-          loadJourney();
+        });
+
+        console.log('✅ Joined SignalR journey group:', journeyId);
+
+      } catch (error) {
+        console.error('SignalR setup error:', error);
       }
-    });
-  }, [journeyId, subscribeToUpdates]);
+    };
+
+    setupSignalR();
+
+    // Cleanup
+    return () => {
+      mounted = false;
+      if (journeyId) {
+        signalRService.leaveJourney(journeyId).catch(console.error);
+      }
+    };
+  }, [journeyId]);
+
+  // ✅ DÜZELTİLDİ: Auto-refresh mekanizması
+  useEffect(() => {
+    if (!journey) return;
+    
+    const isActive = journey.status === 'in_progress' || 
+                     journey.status === 'started' || 
+                     journey.status === 'preparing';
+    
+    if (isActive) {
+      const interval = setInterval(() => {
+        console.log('⏱️ Auto-refresh journey detail');
+        loadJourney();
+      }, 5000); // 5 saniyede bir
+
+      return () => clearInterval(interval);
+    }
+  }, [journey?.status, id]);
 
   // Initial load
   useEffect(() => {
@@ -124,18 +159,6 @@ const JourneyDetail: React.FC = () => {
       loadJourney();
     }
   }, [id]);
-
-  // ✅ Fallback polling (only if not connected to SignalR)
-  useEffect(() => {
-    if (!isConnected && journey?.status === 'in_progress') {
-      const interval = setInterval(() => {
-        console.log('⏱️ Polling update (SignalR not connected)');
-        loadJourney();
-      }, 10000);
-
-      return () => clearInterval(interval);
-    }
-  }, [isConnected, journey?.status]);
 
   // Canvas başlangıç ayarları
   useEffect(() => {
@@ -266,7 +289,7 @@ const JourneyDetail: React.FC = () => {
   const handleCheckIn = async () => {
     if (!journey || !selectedStop) return;
     
-    setProcessingStopId(selectedStop.id);
+    setProcessingStopId(parseInt(selectedStop.id));
     try {
       console.log('Check-in başlatılıyor:', selectedStop.id);
       
@@ -277,7 +300,11 @@ const JourneyDetail: React.FC = () => {
         
         const updatedStops = prev.stops?.map(s => 
           s.id === selectedStop.id 
-            ? { ...s, status: 'InProgress' }
+            ? { 
+                ...s, 
+                status: 'InProgress' as any,
+                checkInTime: new Date().toISOString() as any
+              }
             : s
         );
         
@@ -294,6 +321,9 @@ const JourneyDetail: React.FC = () => {
       setSelectedStop(null);
       toast.success('Check-in başarılı');
       
+      // Journey'yi yeniden yükle
+      setTimeout(() => loadJourney(), 1000);
+      
     } catch (error) {
       console.error('Check-in hatası:', error);
       toast.error('Check-in işlemi başarısız!');
@@ -306,10 +336,12 @@ const JourneyDetail: React.FC = () => {
   const handleComplete = async () => {
     if (!journey || !selectedStop) return;
     
-    setProcessingStopId(selectedStop.id);
+    setProcessingStopId(parseInt(selectedStop.id));
     try {
       const formData = new FormData();
-      formData.append('notes', deliveryNotes);
+      if (deliveryNotes) {
+        formData.append('notes', deliveryNotes);
+      }
       
       if (signatureFile) {
         formData.append('signature', signatureFile);
@@ -319,6 +351,7 @@ const JourneyDetail: React.FC = () => {
         formData.append('photo', photoFile);
       }
       
+      // ✅ DÜZELTİLDİ: Direkt FormData gönder
       await journeyService.completeStopWithFiles(journey.id, selectedStop.id, formData);
       
       setJourney(prev => {
@@ -326,7 +359,11 @@ const JourneyDetail: React.FC = () => {
         
         const updatedStops = prev.stops?.map(s => 
           s.id === selectedStop.id 
-            ? { ...s, status: 'Completed' }
+            ? { 
+                ...s, 
+                status: 'Completed' as any,
+                checkOutTime: new Date().toISOString() as any
+              }
             : s
         );
         
@@ -354,6 +391,9 @@ const JourneyDetail: React.FC = () => {
       
       toast.success('Teslimat tamamlandı');
       
+      // Journey'yi yeniden yükle
+      setTimeout(() => loadJourney(), 1000);
+      
     } catch (error) {
       console.error('Error completing stop:', error);
       toast.error('Teslimat tamamlanamadı');
@@ -366,7 +406,7 @@ const JourneyDetail: React.FC = () => {
   const handleFail = async () => {
     if (!journey || !selectedStop || !failureReason) return;
     
-    setProcessingStopId(selectedStop.id);
+    setProcessingStopId(parseInt(selectedStop.id));
     try {
       await journeyService.failStop(journey.id, selectedStop.id, failureReason, failureNotes);
       
@@ -375,7 +415,7 @@ const JourneyDetail: React.FC = () => {
         
         const updatedStops = prev.stops?.map(s => 
           s.id === selectedStop.id 
-            ? { ...s, status: 'Failed' }
+            ? { ...s, status: 'Failed' as any }
             : s
         );
         
@@ -391,6 +431,9 @@ const JourneyDetail: React.FC = () => {
       setFailureNotes('');
       
       toast.success('Durak başarısız olarak işaretlendi');
+      
+      // Journey'yi yeniden yükle
+      setTimeout(() => loadJourney(), 1000);
       
     } catch (error) {
       console.error('Error failing stop:', error);
@@ -416,16 +459,19 @@ const JourneyDetail: React.FC = () => {
     }
   };
 
+  // ✅ DÜZELTİLDİ: Case-insensitive status kontrolü
   const getStopStatusIcon = (status: string) => {
-    switch(status) {
-      case 'Completed':
+    const statusLower = status?.toLowerCase() || 'pending';
+    switch(statusLower) {
+      case 'completed':
         return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'InProgress':
+      case 'inprogress':
+      case 'in_progress':
         return <Clock className="w-5 h-5 text-blue-500 animate-pulse" />;
-      case 'Failed':
-      case 'Skipped':
+      case 'failed':
+      case 'skipped':
         return <XCircle className="w-5 h-5 text-red-500" />;
-      case 'Pending':
+      case 'pending':
       default:
         return <div className="w-5 h-5 rounded-full border-2 border-gray-300" />;
     }
@@ -465,12 +511,33 @@ const JourneyDetail: React.FC = () => {
     );
   }
 
+  // ✅ DÜZELTİLDİ: Progress hesaplaması
   const stops = journey.stops || [];
   const currentStopIndex = journey.currentStopIndex || 0;
   const currentStop = stops[currentStopIndex];
-  const completedStops = stops.filter((s: JourneyStop) => s.status === 'Completed').length;
-  const failedStops = stops.filter((s: JourneyStop) => s.status === 'Failed').length;
-  const progress = stops.length > 0 ? (completedStops / stops.length) * 100 : 0;
+  
+  const completedStops = stops.filter((s: JourneyStop) => 
+    s.status?.toLowerCase() === 'completed'
+  ).length;
+  
+  const failedStops = stops.filter((s: JourneyStop) => 
+    s.status?.toLowerCase() === 'failed'
+  ).length;
+  
+  // Toplam işlenen duraklar (başarılı + başarısız)
+  const totalProcessedStops = completedStops + failedStops;
+  const overallProgress = stops.length > 0 
+    ? (totalProcessedStops / stops.length) * 100 
+    : 0;
+  
+  // Başarı oranları
+  const successRate = stops.length > 0 
+    ? (completedStops / stops.length) * 100 
+    : 0;
+  
+  const failureRate = stops.length > 0 
+    ? (failedStops / stops.length) * 100 
+    : 0;
   
   // Journey durumlarını kontrol et
   const isJourneyStarted = journey.status === 'in_progress' || journey.status === 'started';
@@ -478,8 +545,8 @@ const JourneyDetail: React.FC = () => {
   
   const canCompleteJourney = isJourneyStarted && 
     stops.every((s: JourneyStop) => {
-      const status = s.status;
-      return status === 'Completed' || status === 'Failed' || status === 'Skipped';
+      const statusLower = s.status?.toLowerCase() || 'pending';
+      return statusLower === 'completed' || statusLower === 'failed' || statusLower === 'skipped';
     });
 
   if (stops.length === 0) {
@@ -641,20 +708,41 @@ const JourneyDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* Progress Bar */}
+      {/* Progress Bar - DÜZELTİLDİ: İki renkli */}
       <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-gray-900">İlerleme Durumu</h3>
           <span className="text-sm text-gray-600">
-            {completedStops} tamamlandı, {failedStops} başarısız / {stops.length} toplam durak
+            {completedStops} başarılı, {failedStops} başarısız / {stops.length} toplam durak
           </span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-3">
-          <div 
-            className="h-3 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all"
-            style={{ width: `${progress}%` }}
-          />
+        
+        {/* ✅ YENİ: İki renkli progress bar */}
+        <div className="w-full bg-gray-200 rounded-full h-3 relative overflow-hidden">
+          {/* Başarılı duraklar - Yeşil */}
+          {successRate > 0 && (
+            <div 
+              className="absolute h-full bg-green-500 transition-all"
+              style={{ 
+                width: `${successRate}%`,
+                left: 0
+              }}
+            />
+          )}
+          
+          {/* Başarısız duraklar - Kırmızı */}
+          {failureRate > 0 && (
+            <div 
+              className="absolute h-full bg-red-500 transition-all"
+              style={{ 
+                width: `${failureRate}%`,
+                left: `${successRate}%`
+              }}
+            />
+          )}
         </div>
+        
+        {/* İstatistikler */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
           <div className="text-center">
             <p className="text-2xl font-bold text-gray-900">
@@ -669,19 +757,17 @@ const JourneyDetail: React.FC = () => {
             <p className="text-sm text-gray-600">saat</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-gray-900">{formatTime(journey.startedAt)}</p>
-            <p className="text-sm text-gray-600">Başlangıç</p>
+            <p className="text-2xl font-bold text-green-600">{completedStops}</p>
+            <p className="text-sm text-gray-600">Başarılı</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-gray-900">
-              {currentStop ? currentStop.order : '-'}
-            </p>
-            <p className="text-sm text-gray-600">Mevcut Durak</p>
+            <p className="text-2xl font-bold text-red-600">{failedStops}</p>
+            <p className="text-sm text-gray-600">Başarısız</p>
           </div>
         </div>
       </div>
 
-      {/* Status History */}
+      {/* Status History - ✅ DÜZELTİLDİ */}
       {journey.statuses && journey.statuses.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-100">
           <div className="p-6 border-b">
@@ -728,10 +814,11 @@ const JourneyDetail: React.FC = () => {
                       )}
                       
                       <div className="flex items-center space-x-4 mt-2">
+                        {/* ✅ DÜZELTME: URL'leri tam path'e çevir */}
                         {/* @ts-ignore */}
                         {status.signatureUrl && (
                           <button
-                            onClick={() => setViewSignature(status.signatureUrl)}
+                            onClick={() => setViewSignature(getFullImageUrl(status.signatureUrl))}
                             className="flex items-center text-xs text-blue-600 hover:text-blue-700"
                           >
                             <Edit3 className="w-3 h-3 mr-1" />
@@ -741,11 +828,11 @@ const JourneyDetail: React.FC = () => {
                         {/* @ts-ignore */}
                         {status.photoUrl && (
                           <button
-                            onClick={() => setViewPhoto(status.photoUrl)}
+                            onClick={() => setViewPhoto(getFullImageUrl(status.photoUrl))}
                             className="flex items-center text-xs text-blue-600 hover:text-blue-700"
                           >
                             <Camera className="w-3 h-3 mr-1" />
-                            Fotoğraf görüntüle
+                            Teslimat fotoğrafı
                           </button>
                         )}
                       </div>
@@ -763,142 +850,159 @@ const JourneyDetail: React.FC = () => {
           <h3 className="font-semibold text-gray-900">Duraklar ({stops.length})</h3>
         </div>
         <div className="divide-y">
-          {stops.map((stop: JourneyStop, index: number) => (
-            <div 
-              key={stop.id}
-              className={`p-4 hover:bg-gray-50 transition-colors ${
-                index === currentStopIndex ? 'bg-blue-50' : ''
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start space-x-4">
-                  <div className="flex flex-col items-center">
-                    {getStopStatusIcon(stop.status)}
-                    {index < stops.length - 1 && (
-                      <div className="w-0.5 h-12 bg-gray-300 mt-2" />
-                    )}
+          {stops.map((stop: JourneyStop, index: number) => {
+            const stopStatusLower = stop.status?.toLowerCase() || 'pending';
+            
+            return (
+              <div 
+                key={stop.id}
+                className={`p-4 hover:bg-gray-50 transition-colors ${
+                  index === currentStopIndex ? 'bg-blue-50' : ''
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start space-x-4">
+                    <div className="flex flex-col items-center">
+                      {getStopStatusIcon(stop.status)}
+                      {index < stops.length - 1 && (
+                        <div className="w-0.5 h-12 bg-gray-300 mt-2" />
+                      )}
+                    </div>
+                    
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className="text-xs text-gray-500">#{stop.order}</span>
+                        <h4 className="font-medium text-gray-900">
+                          {stop.routeStop?.customer?.name || 
+                           stop.routeStop?.name || 
+                           `Durak ${stop.order}`}
+                        </h4>
+                        {index === currentStopIndex && isJourneyStarted && (
+                          <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">
+                            Mevcut
+                          </span>
+                        )}
+                        {stopStatusLower === 'completed' && (
+                          <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
+                            Tamamlandı
+                          </span>
+                        )}
+                        {stopStatusLower === 'failed' && (
+                          <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded-full">
+                            Başarısız
+                          </span>
+                        )}
+                      </div>
+                      
+                      <p className="text-sm text-gray-600 mb-2">
+                        {stop.endAddress || 
+                         stop.routeStop?.address || 
+                         stop.routeStop?.customer?.address ||
+                         'Adres bilgisi yok'}
+                      </p>
+                      
+                      <div className="flex items-center space-x-4 text-xs text-gray-500">
+                        {stop.routeStop?.customer?.phone && (
+                          <a 
+                            href={`tel:${stop.routeStop.customer.phone}`} 
+                            className="flex items-center hover:text-blue-600"
+                          >
+                            <Phone className="w-3 h-3 mr-1" />
+                            {stop.routeStop.customer.phone}
+                          </a>
+                        )}
+                        {stop.estimatedArrivalTime && (
+                          <span className="flex items-center">
+                            <Clock className="w-3 h-3 mr-1" />
+                            Tahmini: {formatTimeSpan(stop.estimatedArrivalTime)}
+                          </span>
+                        )}
+                        {/* ✅ Check-in/out zamanlarını göster */}
+                        {stop.checkInTime && (
+                          <span className="flex items-center text-green-600">
+                            <Clock className="w-3 h-3 mr-1" />
+                            Varış: {formatTime(stop.checkInTime)}
+                          </span>
+                        )}
+                        {stop.checkOutTime && (
+                          <span className="flex items-center text-blue-600">
+                            <Clock className="w-3 h-3 mr-1" />
+                            Tamamlanma: {formatTime(stop.checkOutTime)}
+                          </span>
+                        )}
+                        {stop.distance > 0 && (
+                          <span className="flex items-center">
+                            <MapPin className="w-3 h-3 mr-1" />
+                            {stop.distance.toFixed(1)} km
+                          </span>
+                        )}
+                      </div>
+                      
+                      {stop.routeStop?.notes && (
+                        <p className="text-sm text-gray-500 mt-2 italic">
+                          Not: {stop.routeStop.notes}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <span className="text-xs text-gray-500">#{stop.order}</span>
-                      <h4 className="font-medium text-gray-900">
-                        {stop.routeStop?.customer?.name || 
-                         stop.routeStop?.name || 
-                         `Durak ${stop.order}`}
-                      </h4>
-                      {index === currentStopIndex && isJourneyStarted && (
-                        <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">
-                          Mevcut
-                        </span>
+                  {/* Actions - Sadece sefer başlatıldıysa göster */}
+                  {isJourneyStarted && (
+                    <>
+                      {stopStatusLower === 'pending' && index === currentStopIndex && (
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              setSelectedStop(stop);
+                              setShowCheckInModal(true);
+                            }}
+                            disabled={processingStopId === parseInt(stop.id)}
+                            className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                          >
+                            {processingStopId === parseInt(stop.id) ? (
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            ) : (
+                              <CheckSquare className="w-3 h-3 mr-1" />
+                            )}
+                            Check-in
+                          </button>
+                        </div>
                       )}
-                      {stop.status === 'Completed' && (
-                        <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
-                          Tamamlandı
-                        </span>
+                      
+                      {(stopStatusLower === 'inprogress' || stopStatusLower === 'in_progress') && (
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              setSelectedStop(stop);
+                              setShowCompleteModal(true);
+                            }}
+                            disabled={processingStopId === parseInt(stop.id)}
+                            className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {processingStopId === parseInt(stop.id) ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              'Tamamla'
+                            )}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedStop(stop);
+                              setShowFailModal(true);
+                            }}
+                            disabled={processingStopId === parseInt(stop.id)}
+                            className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Başarısız
+                          </button>
+                        </div>
                       )}
-                      {stop.status === 'Failed' && (
-                        <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded-full">
-                          Başarısız
-                        </span>
-                      )}
-                    </div>
-                    
-                    <p className="text-sm text-gray-600 mb-2">
-                      {stop.endAddress || 
-                       stop.routeStop?.address || 
-                       stop.routeStop?.customer?.address ||
-                       'Adres bilgisi yok'}
-                    </p>
-                    
-                    <div className="flex items-center space-x-4 text-xs text-gray-500">
-                      {stop.routeStop?.customer?.phone && (
-                        <a 
-                          href={`tel:${stop.routeStop.customer.phone}`} 
-                          className="flex items-center hover:text-blue-600"
-                        >
-                          <Phone className="w-3 h-3 mr-1" />
-                          {stop.routeStop.customer.phone}
-                        </a>
-                      )}
-                      {stop.estimatedArrivalTime && (
-                        <span className="flex items-center">
-                          <Clock className="w-3 h-3 mr-1" />
-                          Tahmini: {formatTimeSpan(stop.estimatedArrivalTime)}
-                        </span>
-                      )}
-                      {stop.distance > 0 && (
-                        <span className="flex items-center">
-                          <MapPin className="w-3 h-3 mr-1" />
-                          {stop.distance.toFixed(1)} km
-                        </span>
-                      )}
-                    </div>
-                    
-                    {stop.routeStop?.notes && (
-                      <p className="text-sm text-gray-500 mt-2 italic">
-                        Not: {stop.routeStop.notes}
-                      </p>
-                    )}
-                  </div>
+                    </>
+                  )}
                 </div>
-                
-                {/* Actions - Sadece sefer başlatıldıysa göster */}
-                {isJourneyStarted && (
-                  <>
-                    {stop.status === 'Pending' && index === currentStopIndex && (
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => {
-                            setSelectedStop(stop);
-                            setShowCheckInModal(true);
-                          }}
-                          disabled={processingStopId === parseInt(stop.id)}
-                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                        >
-                          {processingStopId === parseInt(stop.id) ? (
-                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                          ) : (
-                            <CheckSquare className="w-3 h-3 mr-1" />
-                          )}
-                          Check-in
-                        </button>
-                      </div>
-                    )}
-                    
-                    {stop.status === 'InProgress' && (
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => {
-                            setSelectedStop(stop);
-                            setShowCompleteModal(true);
-                          }}
-                          disabled={processingStopId === parseInt(stop.id)}
-                          className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {processingStopId === parseInt(stop.id) ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            'Tamamla'
-                          )}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedStop(stop);
-                            setShowFailModal(true);
-                          }}
-                          disabled={processingStopId === parseInt(stop.id)}
-                          className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Başarısız
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -1209,7 +1313,7 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-      {/* Image Viewers */}
+      {/* Image Viewers - ✅ DÜZELTİLDİ */}
       {viewSignature && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-lg">
@@ -1219,6 +1323,10 @@ const JourneyDetail: React.FC = () => {
                 src={viewSignature} 
                 alt="İmza" 
                 className="w-full"
+                onError={(e) => {
+                  console.error('İmza yüklenemedi:', viewSignature);
+                  e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHRleHQtYW5jaG9yPSJtaWRkbGUiIHg9IjEwMCIgeT0iNTAiIGZpbGw9IiM5OTkiIGZvbnQtc2l6ZT0iMTQiPkltemEgeXVrbGVuZW1lZGk8L3RleHQ+PC9zdmc+';
+                }}
               />
             </div>
             <div className="flex justify-end mt-4">
@@ -1242,6 +1350,10 @@ const JourneyDetail: React.FC = () => {
                 src={viewPhoto} 
                 alt="Teslimat Fotoğrafı" 
                 className="w-full"
+                onError={(e) => {
+                  console.error('Fotoğraf yüklenemedi:', viewPhoto);
+                  e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHRleHQtYW5jaG9yPSJtaWRkbGUiIHg9IjEwMCIgeT0iNTAiIGZpbGw9IiM5OTkiIGZvbnQtc2l6ZT0iMTQiPkZvdG/En3JhZiB5w7xrbGVuZW1lZGk8L3RleHQ+PC9zdmc+';
+                }}
               />
             </div>
             <div className="flex justify-end mt-4">

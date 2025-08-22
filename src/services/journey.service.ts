@@ -13,7 +13,7 @@ export enum JourneyStatusType {
   OnHold = 800
 }
 
-// Journey özet bilgisi için yeni tip
+// ✅ GÜNCELLENDİ: failedStops eklendi
 export interface JourneySummary {
   id: number;
   routeId: number;
@@ -32,6 +32,7 @@ export interface JourneySummary {
   // Metrikler
   totalStops: number;
   completedStops: number;
+  failedStops: number; // ✅ EKLENDI
   totalDistance: number;
   totalDuration: number;
   
@@ -71,7 +72,6 @@ export interface CompleteStopDto {
   photoBase64?: string;
 }
 
-// ✅ V38 - FormData için yeni interface'ler
 export interface CompleteStopWithFilesDto {
   notes?: string;
   signatureFile?: File;
@@ -83,7 +83,6 @@ export interface FailStopDto {
   notes?: string;
 }
 
-// Bulk operation result tipi
 export interface BulkOperationResult {
   totalCount: number;
   successCount: number;
@@ -101,10 +100,6 @@ export interface BulkOperationFailedItem {
 class JourneyService {
   private baseUrl = '/workspace/journeys';
 
-  /**
-   * ✅ YENİ - Sadece özet bilgi için (Dashboard, Journeys listesi)
-   * PERFORMANS: 90% daha az veri
-   */
   async getAllSummary(from?: Date, to?: Date): Promise<JourneySummary[]> {
     try {
       const params: any = {};
@@ -120,10 +115,6 @@ class JourneyService {
     }
   }
 
-  /**
-   * ✅ V44 YENİ - LiveTracking için optimize edilmiş endpoint
-   * Sadece aktif journey'leri route detaylarıyla çeker
-   */
   async getActiveJourneys(): Promise<any[]> {
     try {
       const response = await api.get(`${this.baseUrl}/active`);
@@ -135,10 +126,6 @@ class JourneyService {
     }
   }
 
-  /**
-   * ⚠️ DİKKAT: Sadece gerçekten tüm detay gerektiğinde kullan!
-   * Örnek: Journey detay sayfası, export işlemleri
-   */
   async getAll(from?: Date, to?: Date): Promise<Journey[]> {
     try {
       console.warn('⚠️ getAll() tüm detayları çekiyor. Eğer sadece liste için kullanıyorsanız getAllSummary() kullanın!');
@@ -156,9 +143,6 @@ class JourneyService {
     }
   }
 
-  /**
-   * ✅ Tek journey detayı - Detay sayfası için
-   */
   async getById(id: string | number): Promise<Journey> {
     try {
       const response = await api.get(`${this.baseUrl}/${id}`);
@@ -172,11 +156,9 @@ class JourneyService {
 
   async getByRouteId(routeId: string | number): Promise<Journey | null> {
     try {
-      // Önce özet bilgiyle kontrol et
       const summaries = await this.getAllSummary();
       const summary = summaries.find(j => j.routeId === Number(routeId));
       
-      // Eğer bulunduysa, detayını çek
       if (summary) {
         return await this.getById(summary.id);
       }
@@ -198,7 +180,6 @@ class JourneyService {
     }
   }
 
-  // Start journey from route
   async startFromRoute(routeId: string | number, driverId?: number): Promise<Journey> {
     try {
       console.log('Starting journey from route:', routeId, 'with driver:', driverId);
@@ -224,9 +205,11 @@ class JourneyService {
       console.log('Journey created:', assignResponse.data);
       
       if (assignResponse.data && assignResponse.data.id) {
-        console.log('Starting journey:', assignResponse.data.id);
-        const startResponse = await this.start(assignResponse.data.id);
-        return startResponse;
+        console.log('Journey created, NOT auto-starting:', assignResponse.data.id);
+        // Otomatik başlatma KALDIRILDI
+        // const startResponse = await this.start(assignResponse.data.id);
+        // return startResponse;
+        return assignResponse.data;
       }
       
       return assignResponse.data;
@@ -236,7 +219,6 @@ class JourneyService {
     }
   }
 
-  // Start an existing journey
   async start(journeyId: string | number): Promise<Journey> {
     try {
       console.log('Starting journey:', journeyId);
@@ -252,7 +234,6 @@ class JourneyService {
     }
   }
 
-  // Finish journey
   async finish(journeyId: string | number): Promise<Journey> {
     try {
       console.log('Finishing journey:', journeyId);
@@ -267,7 +248,6 @@ class JourneyService {
     }
   }
 
-  // Cancel journey
   async cancel(journeyId: string | number): Promise<Journey> {
     try {
       console.log('Cancelling journey:', journeyId);
@@ -279,12 +259,6 @@ class JourneyService {
     }
   }
 
-  // ============ V38 - YENİ STOP ENDPOINT'LERİ ============
-
-  /**
-   * ✅ V38 - Check-in to a stop
-   * Yeni endpoint kullanıyor: /stops/{stopId}/checkin
-   */
   async checkInStop(journeyId: string | number, stopId: string | number): Promise<boolean> {
     try {
       console.log('Checking in stop:', journeyId, stopId);
@@ -300,34 +274,14 @@ class JourneyService {
     }
   }
 
-  /**
-   * ✅ V38 - Complete a stop with files using FormData
-   * PERFORMANS: FormData kullanarak timeout sorunu çözüldü
-   */
+  // ✅ DÜZELTİLDİ: Direkt FormData alıyor
   async completeStopWithFiles(
     journeyId: string | number,
     stopId: string | number,
-    data: CompleteStopWithFilesDto
+    formData: FormData
   ): Promise<boolean> {
     try {
       console.log('Completing stop with files:', journeyId, stopId);
-      
-      const formData = new FormData();
-      
-      // Notes varsa ekle
-      if (data.notes) {
-        formData.append('notes', data.notes);
-      }
-      
-      // Signature file varsa ekle
-      if (data.signatureFile) {
-        formData.append('signature', data.signatureFile);
-      }
-      
-      // Photo file varsa ekle
-      if (data.photoFile) {
-        formData.append('photo', data.photoFile);
-      }
       
       const response = await api.post(
         `${this.baseUrl}/${journeyId}/stops/${stopId}/complete`,
@@ -348,10 +302,6 @@ class JourneyService {
     }
   }
 
-  /**
-   * ✅ V38 - Fail a stop with reason
-   * Yeni endpoint kullanıyor: /stops/{stopId}/fail
-   */
   async failStop(
     journeyId: string | number,
     stopId: string | number,
@@ -380,12 +330,6 @@ class JourneyService {
     }
   }
 
-  // ============ ESKİ METODLAR (GERİ UYUMLULUK İÇİN) ============
-
-  /**
-   * @deprecated V38'den sonra completeStopWithFiles kullanın
-   * Complete a stop delivery with signature and photo (Base64)
-   */
   async completeStop(
     journeyId: string | number, 
     stopId: string | number, 
@@ -395,7 +339,6 @@ class JourneyService {
       console.warn('⚠️ completeStop() Base64 kullanıyor. Timeout riski var! completeStopWithFiles() kullanın.');
       console.log('Completing stop (legacy):', journeyId, stopId, data);
       
-      // Base64 string'lerden data URL prefix'ini temizle
       const cleanBase64 = (base64String?: string) => {
         if (!base64String) return undefined;
         const base64Prefix = /^data:image\/[a-z]+;base64,/;
@@ -425,7 +368,6 @@ class JourneyService {
     }
   }
 
-  // Add status for a stop (generic)
   async addStopStatus(
     journeyId: string | number, 
     stopId: string | number, 
@@ -457,7 +399,6 @@ class JourneyService {
     }
   }
 
-  // Optimize journey route
   async optimizeRoute(journeyId: string | number): Promise<Journey> {
     try {
       console.log('Optimizing journey:', journeyId);
@@ -469,7 +410,6 @@ class JourneyService {
     }
   }
 
-  // ✅ YENİ - Update journey status (pause/resume için)
   async updateStatus(journeyId: string | number, status: string): Promise<Journey> {
     try {
       console.log('Updating journey status:', journeyId, status);
@@ -481,16 +421,10 @@ class JourneyService {
     }
   }
 
-  // Simulate movement for testing (only for development)
   async simulateMovement(journeyId: string | number): Promise<void> {
     console.warn('simulateMovement is a mock function for testing only');
   }
 
-  // ============ BULK OPERATIONS - YENİ ============
-
-  /**
-   * Toplu iptal işlemi
-   */
   async bulkCancel(journeyIds: number[], reason?: string): Promise<BulkOperationResult> {
     try {
       console.log('Bulk cancelling journeys:', journeyIds);
@@ -506,9 +440,6 @@ class JourneyService {
     }
   }
 
-  /**
-   * Toplu arşivleme işlemi
-   */
   async bulkArchive(journeyIds: number[]): Promise<BulkOperationResult> {
     try {
       console.log('Bulk archiving journeys:', journeyIds);
@@ -523,9 +454,6 @@ class JourneyService {
     }
   }
 
-  /**
-   * Toplu silme işlemi (Kalıcı silme - DİKKAT!)
-   */
   async bulkDelete(journeyIds: number[], forceDelete: boolean = false): Promise<BulkOperationResult> {
     try {
       console.log('Bulk deleting journeys:', journeyIds, 'Force:', forceDelete);
@@ -543,27 +471,17 @@ class JourneyService {
     }
   }
   
-  // ============ HELPER METHODS ============
-  
-  /**
-   * Base64 string'i File objesine çevirir
-   * SignaturePad'den gelen Base64'ü FormData için hazırlar
-   */
   async base64ToFile(base64String: string, filename: string): Promise<File> {
-    // data:image/png;base64, prefix'ini kaldır
     const base64Data = base64String.replace(/^data:image\/\w+;base64,/, '');
     
-    // Base64'ü binary'ye çevir
     const binaryString = atob(base64Data);
     const bytes = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
     
-    // Blob oluştur
     const blob = new Blob([bytes], { type: 'image/png' });
     
-    // File objesine çevir
     return new File([blob], filename, { type: 'image/png' });
   }
 }
