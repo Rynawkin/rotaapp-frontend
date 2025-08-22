@@ -1,6 +1,9 @@
 // frontend/src/services/signalr.service.ts
 import * as signalR from '@microsoft/signalr';
 
+// Production API URL
+const API_BASE_URL = 'https://api.yolpilot.com';
+
 export interface UpdateLocationDto {
   journeyId: number;
   latitude: number;
@@ -104,7 +107,7 @@ class SignalRService {
     }
 
     this._journeyHub = new signalR.HubConnectionBuilder()
-      .withUrl('http://localhost:5055/hubs/journey', {
+      .withUrl(`${API_BASE_URL}/hubs/journey`, {
         accessTokenFactory: () => token,
         skipNegotiation: true,
         transport: signalR.HttpTransportType.WebSockets
@@ -163,7 +166,7 @@ class SignalRService {
     }
 
     this._trackingHub = new signalR.HubConnectionBuilder()
-      .withUrl('http://localhost:5055/hubs/tracking', {
+      .withUrl(`${API_BASE_URL}/hubs/tracking`, {
         accessTokenFactory: () => token,
         skipNegotiation: true,
         transport: signalR.HttpTransportType.WebSockets

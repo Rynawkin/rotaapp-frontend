@@ -271,7 +271,7 @@ const DepotForm: React.FC<DepotFormProps> = ({ depot, onSubmit, onCancel }) => {
               onLoad={onLoad}
               onPlaceChanged={onPlaceChanged}
               options={{
-                types: ['address'],
+                types: ['establishment', 'address', 'geocode'],
                 componentRestrictions: { country: 'tr' }
               }}
             >

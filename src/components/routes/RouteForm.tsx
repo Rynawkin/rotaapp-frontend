@@ -356,88 +356,100 @@ const RouteForm: React.FC<RouteFormProps> = ({
   };
 
   const handleOptimize = async () => {
-    if (stopsData.length < 2) {
-      alert('Optimizasyon için en az 2 durak gerekli!');
-      return;
-    }
+  if (stopsData.length < 2) {
+    alert('Optimizasyon için en az 2 durak gerekli!');
+    return;
+  }
 
-    const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
-    if (!selectedDepot) {
-      alert('Lütfen bir depo seçin!');
-      return;
-    }
+  const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
+  if (!selectedDepot) {
+    alert('Lütfen bir depo seçin!');
+    return;
+  }
 
-    if (!formData.name) {
-      alert('Lütfen rota adı girin!');
-      return;
-    }
+  if (!formData.name) {
+    alert('Lütfen rota adı girin!');
+    return;
+  }
 
-    setOptimizing(true);
+  setOptimizing(true);
+  
+  try {
+    // 1. Önce rotayı kaydet (edit modda değilse)
+    let routeId = initialData?.id;
     
-    try {
-      if (window.google && window.google.maps) {
-        const depotLocation: LatLng = {
-          lat: selectedDepot.latitude,
-          lng: selectedDepot.longitude
-        };
+    if (!routeId) {
+      // Yeni rota ise önce kaydet
+      const stops: RouteStop[] = stopsData.map((stopData, index) => ({
+        id: `${Date.now()}-${index}`,
+        routeId: '',
+        customerId: stopData.customer.id.toString(),
+        customer: stopData.customer,
+        order: index + 1,
+        status: 'pending',
+        serviceTime: stopData.serviceTime,
+        stopNotes: stopData.stopNotes,
+        estimatedArrival: new Date(),
+        distance: 0
+      }));
 
-        const waypointLocations = stopsData.map(stop => ({
-          lat: stop.customer.latitude,
-          lng: stop.customer.longitude
-        }));
+      const routeData: Partial<Route> = {
+        ...formData,
+        stops,
+        totalDeliveries: stops.length,
+        status: 'planned',
+        optimized: false,
+        depot: selectedDepot
+      };
 
-        googleMapsService.initializeServices();
-
-        const directions = await googleMapsService.getDirections(
-          depotLocation,
-          waypointLocations,
-          depotLocation,
-          true
-        );
-
-        if (directions) {
-          setMapDirections(directions);
-          
-          let totalDistance = 0;
-          let totalDuration = 0;
-          
-          directions.routes[0].legs.forEach(leg => {
-            totalDistance += leg.distance?.value || 0;
-            totalDuration += leg.duration?.value || 0;
-          });
-
-          stopsData.forEach(stop => {
-            const serviceMinutes = stop.serviceTime || stop.customer.estimatedServiceTime || 10;
-            totalDuration += serviceMinutes * 60;
-          });
-
-          const waypointOrder = directions.routes[0].waypoint_order;
-          if (waypointOrder && waypointOrder.length > 0) {
-            const newStopsData = waypointOrder.map(index => stopsData[index]);
-            setStopsData(newStopsData);
-            setOptimizedOrder(newStopsData.map((_, i) => i));
-          }
-
-          updateFormData({
-            totalDuration: Math.round(totalDuration / 60),
-            totalDistance: totalDistance / 1000,
-            optimized: true
-          });
-
-          alert(`✅ Rota optimize edildi!\n\n` +
-                `📍 Toplam Mesafe: ${(totalDistance / 1000).toFixed(1)} km\n` +
-                `⏱️ Tahmini Süre: ${formatDuration(Math.round(totalDuration / 60))}\n` +
-                `🗺️ Google Maps ile optimize edildi\n` +
-                `${optimizationMode === 'distance' ? '🎯 En kısa mesafe' : '⚡ En hızlı rota'}`);
-        }
-      }
-    } catch (error: any) {
-      console.error('Optimization error:', error);
-      alert('Optimizasyon sırasında bir hata oluştu.');
-    } finally {
-      setOptimizing(false);
+      const createdRoute = await routeService.create(routeData);
+      routeId = createdRoute.id;
     }
-  };
+
+    // 2. Backend'de optimize et
+    const optimizedRoute = await routeService.optimize(routeId, optimizationMode);
+    
+    // 3. Optimize edilmiş stops'ları güncelle
+    if (optimizedRoute.stops) {
+      const backendOptimizedStops = optimizedRoute.stops
+        .sort((a, b) => a.order - b.order)
+        .map(stop => {
+          const existingStopData = stopsData.find(s => 
+            s.customer.id.toString() === stop.customerId.toString()
+          );
+          return existingStopData || {
+            customer: stop.customer || customers.find(c => c.id.toString() === stop.customerId.toString()),
+            serviceTime: stop.serviceTime,
+            stopNotes: stop.stopNotes
+          };
+        });
+      
+      setStopsData(backendOptimizedStops);
+      setOptimizedOrder(backendOptimizedStops.map((_, i) => i));
+      
+      updateFormData({
+        totalDuration: optimizedRoute.totalDuration,
+        totalDistance: optimizedRoute.totalDistance,
+        optimized: true
+      });
+
+      // 4. Haritayı güncelle
+      await updateMapRoute();
+      
+      alert(`✅ Rota optimize edildi!\n\n` +
+            `📍 Toplam Mesafe: ${optimizedRoute.totalDistance.toFixed(1)} km\n` +
+            `⏱️ Tahmini Süre: ${formatDuration(optimizedRoute.totalDuration)}\n` +
+            `🗺️ Google Maps ile optimize edildi\n` +
+            `${optimizationMode === 'distance' ? '🎯 En kısa mesafe' : '⚡ En hızlı rota'}`);
+    }
+    
+  } catch (error: any) {
+    console.error('Optimization error:', error);
+    alert('Optimizasyon sırasında bir hata oluştu: ' + (error.response?.data?.message || error.message));
+  } finally {
+    setOptimizing(false);
+  }
+};
 
   const calculateTotalDuration = () => {
     let totalMinutes = 0;
