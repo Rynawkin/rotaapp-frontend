@@ -273,7 +273,7 @@ class RouteService {
         Address: this.truncateAddress(depotInfo.address || 'Depo Adresi'),
         Latitude: depotInfo.latitude || 0,
         Longitude: depotInfo.longitude || 0,
-        StartTime: this.getCurrentTimeAsTimeSpan()
+        StartTime: data.startDetails?.startTime || this.getCurrentTimeAsTimeSpan()
       } : null,
       EndDetails: depotInfo ? {
         Name: depotInfo.name || 'Ana Depo',
@@ -385,7 +385,7 @@ class RouteService {
           Address: this.truncateAddress(depotInfo.address || 'Depo Adresi'),
           Latitude: depotInfo.latitude || 0,
           Longitude: depotInfo.longitude || 0,
-          StartTime: this.getCurrentTimeAsTimeSpan()
+          StartTime: data.startDetails?.startTime || this.getCurrentTimeAsTimeSpan()
         } : undefined),
         EndDetails: data.endDetails || (depotInfo ? {
           Name: depotInfo.name || 'Ana Depo',
