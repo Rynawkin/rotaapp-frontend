@@ -154,9 +154,9 @@ export const authService = {
       console.log('Reset password request:', { email, token: '***' });
       
       await api.post('/me/reset-password', { 
-        email, 
-        token, 
-        newPassword 
+        Email: email, 
+        Token: token, 
+        NewPassword: newPassword
       });
       
       console.log('Password reset successfully');
