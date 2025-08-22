@@ -56,6 +56,19 @@ const formatDuration = (totalMinutes: number): string => {
   return `${hours} saat ${minutes} dakika`;
 };
 
+// TimeSpan string'e çevirme helper'ı
+const timeSpanToTimeString = (timeSpan?: string): string => {
+  if (!timeSpan) return '08:00';
+  // TimeSpan formatı: "HH:mm:ss" -> "HH:mm" formatına çevir
+  return timeSpan.substring(0, 5);
+};
+
+// Time string'i TimeSpan'e çevirme helper'ı
+const timeStringToTimeSpan = (timeString: string): string => {
+  // "HH:mm" -> "HH:mm:00" formatına çevir
+  return `${timeString}:00`;
+};
+
 const STORAGE_KEY = 'createRouteFormData';
 
 const RouteForm: React.FC<RouteFormProps> = ({
@@ -100,6 +113,17 @@ const RouteForm: React.FC<RouteFormProps> = ({
     optimized: savedData?.optimized || initialData?.optimized || false
   });
 
+  // StartTime state'i ayrı tutalım
+  const [startTime, setStartTime] = useState<string>(() => {
+    if (initialData?.startDetails?.startTime) {
+      return timeSpanToTimeString(initialData.startDetails.startTime);
+    }
+    if (savedData?.startTime) {
+      return savedData.startTime;
+    }
+    return '08:00'; // Varsayılan sabah 8
+  });
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -135,6 +159,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
       try {
         const toSave = {
           ...data,
+          startTime, // StartTime'ı da kaydet
           stops: stopsData.map((stop, index) => ({
             ...stop,
             order: index + 1,
@@ -148,7 +173,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
         console.error('Error saving to localStorage:', error);
       }
     }
-  }, [isEdit, stopsData]);
+  }, [isEdit, stopsData, startTime]);
 
   const updateFormData = useCallback((updates: Partial<Route>) => {
     setFormData(prev => {
@@ -216,10 +241,10 @@ const RouteForm: React.FC<RouteFormProps> = ({
   }, [stopsData]);
 
   useEffect(() => {
-    if (stopsData.length > 0 || formData.name || formData.driverId || formData.vehicleId) {
+    if (stopsData.length > 0 || formData.name || formData.driverId || formData.vehicleId || startTime !== '08:00') {
       saveToLocalStorage(formData);
     }
-  }, [stopsData, formData, saveToLocalStorage]);
+  }, [stopsData, formData, startTime, saveToLocalStorage]);
 
   const loadLists = async () => {
     setLoadingLists(true);
@@ -247,6 +272,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
         if (!formData.depotId) {
           updateFormData({ depotId: defaultDepot.id.toString() });
         }
+        
+        // Depo çalışma saatini varsayılan olarak ayarla (eğer başka bir değer yoksa)
+        if (!initialData?.startDetails?.startTime && !savedData?.startTime) {
+          const depotStartTime = defaultDepot.startWorkingHours || '08:00:00';
+          setStartTime(timeSpanToTimeString(depotStartTime));
+        }
       }
 
       if (savedData?.stops && savedData.stops.length > 0 && !initialStopsLoadedRef.current) {
@@ -271,6 +302,11 @@ const RouteForm: React.FC<RouteFormProps> = ({
           console.log('Restored stops from localStorage:', savedStops.length);
         }
       }
+      
+      // Saved startTime varsa restore et
+      if (savedData?.startTime) {
+        setStartTime(savedData.startTime);
+      }
     } catch (error) {
       console.error('Error loading lists:', error);
     } finally {
@@ -280,7 +316,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
   const handleAddCustomer = (customer: Customer) => {
     if (typeof customer.id === 'string' && customer.id.startsWith('google-')) {
-      alert('⚠️ Bu müşteri henüz veritabanına kaydedilmemiş. Lütfen önce Müşteriler sayfasından ekleyin.');
+      alert('Bu müşteri henüz veritabanına kaydedilmemiş. Lütfen önce Müşteriler sayfasından ekleyin.');
       return;
     }
     
@@ -356,100 +392,107 @@ const RouteForm: React.FC<RouteFormProps> = ({
   };
 
   const handleOptimize = async () => {
-  if (stopsData.length < 2) {
-    alert('Optimizasyon için en az 2 durak gerekli!');
-    return;
-  }
-
-  const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
-  if (!selectedDepot) {
-    alert('Lütfen bir depo seçin!');
-    return;
-  }
-
-  if (!formData.name) {
-    alert('Lütfen rota adı girin!');
-    return;
-  }
-
-  setOptimizing(true);
-  
-  try {
-    // 1. Önce rotayı kaydet (edit modda değilse)
-    let routeId = initialData?.id;
-    
-    if (!routeId) {
-      // Yeni rota ise önce kaydet
-      const stops: RouteStop[] = stopsData.map((stopData, index) => ({
-        id: `${Date.now()}-${index}`,
-        routeId: '',
-        customerId: stopData.customer.id.toString(),
-        customer: stopData.customer,
-        order: index + 1,
-        status: 'pending',
-        serviceTime: stopData.serviceTime,
-        stopNotes: stopData.stopNotes,
-        estimatedArrival: new Date(),
-        distance: 0
-      }));
-
-      const routeData: Partial<Route> = {
-        ...formData,
-        stops,
-        totalDeliveries: stops.length,
-        status: 'planned',
-        optimized: false,
-        depot: selectedDepot
-      };
-
-      const createdRoute = await routeService.create(routeData);
-      routeId = createdRoute.id;
+    if (stopsData.length < 2) {
+      alert('Optimizasyon için en az 2 durak gerekli!');
+      return;
     }
 
-    // 2. Backend'de optimize et
-    const optimizedRoute = await routeService.optimize(routeId, optimizationMode);
+    const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
+    if (!selectedDepot) {
+      alert('Lütfen bir depo seçin!');
+      return;
+    }
+
+    if (!formData.name) {
+      alert('Lütfen rota adı girin!');
+      return;
+    }
+
+    setOptimizing(true);
     
-    // 3. Optimize edilmiş stops'ları güncelle
-    if (optimizedRoute.stops) {
-      const backendOptimizedStops = optimizedRoute.stops
-        .sort((a, b) => a.order - b.order)
-        .map(stop => {
-          const existingStopData = stopsData.find(s => 
-            s.customer.id.toString() === stop.customerId.toString()
-          );
-          return existingStopData || {
-            customer: stop.customer || customers.find(c => c.id.toString() === stop.customerId.toString()),
-            serviceTime: stop.serviceTime,
-            stopNotes: stop.stopNotes
-          };
+    try {
+      // 1. Önce rotayı kaydet (edit modda değilse)
+      let routeId = initialData?.id;
+      
+      if (!routeId) {
+        // Yeni rota ise önce kaydet
+        const stops: RouteStop[] = stopsData.map((stopData, index) => ({
+          id: `${Date.now()}-${index}`,
+          routeId: '',
+          customerId: stopData.customer.id.toString(),
+          customer: stopData.customer,
+          order: index + 1,
+          status: 'pending',
+          serviceTime: stopData.serviceTime,
+          stopNotes: stopData.stopNotes,
+          estimatedArrival: new Date(),
+          distance: 0
+        }));
+
+        const routeData: Partial<Route> = {
+          ...formData,
+          stops,
+          totalDeliveries: stops.length,
+          status: 'planned',
+          optimized: false,
+          depot: selectedDepot,
+          startDetails: {
+            startTime: timeStringToTimeSpan(startTime),
+            name: selectedDepot.name,
+            address: selectedDepot.address,
+            latitude: selectedDepot.latitude,
+            longitude: selectedDepot.longitude
+          }
+        };
+
+        const createdRoute = await routeService.create(routeData);
+        routeId = createdRoute.id;
+      }
+
+      // 2. Backend'de optimize et
+      const optimizedRoute = await routeService.optimize(routeId, optimizationMode);
+      
+      // 3. Optimize edilmiş stops'ları güncelle
+      if (optimizedRoute.stops) {
+        const backendOptimizedStops = optimizedRoute.stops
+          .sort((a, b) => a.order - b.order)
+          .map(stop => {
+            const existingStopData = stopsData.find(s => 
+              s.customer.id.toString() === stop.customerId.toString()
+            );
+            return existingStopData || {
+              customer: stop.customer || customers.find(c => c.id.toString() === stop.customerId.toString()),
+              serviceTime: stop.serviceTime,
+              stopNotes: stop.stopNotes
+            };
+          });
+        
+        setStopsData(backendOptimizedStops);
+        setOptimizedOrder(backendOptimizedStops.map((_, i) => i));
+        
+        updateFormData({
+          totalDuration: optimizedRoute.totalDuration,
+          totalDistance: optimizedRoute.totalDistance,
+          optimized: true
         });
-      
-      setStopsData(backendOptimizedStops);
-      setOptimizedOrder(backendOptimizedStops.map((_, i) => i));
-      
-      updateFormData({
-        totalDuration: optimizedRoute.totalDuration,
-        totalDistance: optimizedRoute.totalDistance,
-        optimized: true
-      });
 
-      // 4. Haritayı güncelle
-      await updateMapRoute();
+        // 4. Haritayı güncelle
+        await updateMapRoute();
+        
+        alert(`Rota optimize edildi!\n\n` +
+              `Toplam Mesafe: ${optimizedRoute.totalDistance.toFixed(1)} km\n` +
+              `Tahmini Süre: ${formatDuration(optimizedRoute.totalDuration)}\n` +
+              `Google Maps ile optimize edildi\n` +
+              `${optimizationMode === 'distance' ? 'En kısa mesafe' : 'En hızlı rota'}`);
+      }
       
-      alert(`✅ Rota optimize edildi!\n\n` +
-            `📍 Toplam Mesafe: ${optimizedRoute.totalDistance.toFixed(1)} km\n` +
-            `⏱️ Tahmini Süre: ${formatDuration(optimizedRoute.totalDuration)}\n` +
-            `🗺️ Google Maps ile optimize edildi\n` +
-            `${optimizationMode === 'distance' ? '🎯 En kısa mesafe' : '⚡ En hızlı rota'}`);
+    } catch (error: any) {
+      console.error('Optimization error:', error);
+      alert('Optimizasyon sırasında bir hata oluştu: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setOptimizing(false);
     }
-    
-  } catch (error: any) {
-    console.error('Optimization error:', error);
-    alert('Optimizasyon sırasında bir hata oluştu: ' + (error.response?.data?.message || error.message));
-  } finally {
-    setOptimizing(false);
-  }
-};
+  };
 
   const calculateTotalDuration = () => {
     let totalMinutes = 0;
@@ -469,13 +512,13 @@ const RouteForm: React.FC<RouteFormProps> = ({
     e.preventDefault();
     
     if (!formData.driverId || !formData.vehicleId) {
-      alert('⚠️ Lütfen sürücü ve araç ataması yapın!');
+      alert('Lütfen sürücü ve araç ataması yapın!');
       return;
     }
     
     const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
     if (!selectedDepot) {
-      alert('⚠️ Lütfen bir depo seçin!');
+      alert('Lütfen bir depo seçin!');
       return;
     }
     
@@ -525,7 +568,14 @@ const RouteForm: React.FC<RouteFormProps> = ({
       optimized: formData.optimized || false,
       driver: drivers.find(d => d.id.toString() === formData.driverId?.toString()),
       vehicle: vehicles.find(v => v.id.toString() === formData.vehicleId?.toString()),
-      depot: selectedDepot
+      depot: selectedDepot,
+      startDetails: {
+        startTime: timeStringToTimeSpan(startTime),
+        name: selectedDepot.name,
+        address: selectedDepot.address,
+        latitude: selectedDepot.latitude,
+        longitude: selectedDepot.longitude
+      }
     };
     
     if (!isEdit) {
@@ -584,7 +634,14 @@ const RouteForm: React.FC<RouteFormProps> = ({
       optimized: formData.optimized || false,
       driver: drivers.find(d => d.id.toString() === formData.driverId?.toString()),
       vehicle: vehicles.find(v => v.id.toString() === formData.vehicleId?.toString()),
-      depot: selectedDepot
+      depot: selectedDepot,
+      startDetails: {
+        startTime: timeStringToTimeSpan(startTime),
+        name: selectedDepot?.name || '',
+        address: selectedDepot?.address || '',
+        latitude: selectedDepot?.latitude || 0,
+        longitude: selectedDepot?.longitude || 0
+      }
     };
 
     if (!isEdit) {
@@ -672,6 +729,45 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
+              Başlangıç Saati <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Rotanın planlanan başlangıç saati</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Depo <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <select
+                value={formData.depotId}
+                onChange={(e) => updateFormData({ depotId: e.target.value })}
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                required
+              >
+                <option value="">Depo Seçin</option>
+                {depots.map(depot => (
+                  <option key={depot.id} value={depot.id}>
+                    {depot.name} {depot.isDefault && '(Varsayılan)'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Sürücü <span className="text-red-500">*</span>
             </label>
             <div className="relative">
@@ -714,29 +810,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Depo <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <select
-                value={formData.depotId}
-                onChange={(e) => updateFormData({ depotId: e.target.value })}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
-                required
-              >
-                <option value="">Depo Seçin</option>
-                {depots.map(depot => (
-                  <option key={depot.id} value={depot.id}>
-                    {depot.name} {depot.isDefault && '(Varsayılan)'}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
+          <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Notlar
             </label>
@@ -847,7 +921,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
                 <Navigation className="w-4 h-4 mr-2" />
                 <strong>Rota Bilgisi:</strong> 
                 <span className="ml-1">
-                  {formData.optimized ? '✅ Rota optimize edildi' : 'Optimize Et butonuna basarak rotanızı optimize edebilirsiniz'}
+                  {formData.optimized ? 'Rota optimize edildi' : 'Optimize Et butonuna basarak rotanızı optimize edebilirsiniz'}
                 </span>
               </p>
             </div>
