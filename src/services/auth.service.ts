@@ -131,23 +131,23 @@ export const authService = {
       console.log('Forgot password request:', { email });
       
       await api.post('/me/forgot-password', { 
-        email 
+          Email: email  // ✅ Büyük E ile
       });
-      
-      console.log('Forgot password email sent successfully');
+        
+        console.log('Forgot password email sent successfully');
     } catch (error: any) {
       console.error('Forgot password error:', error);
       
       if (error.response) {
-        const message = error.response.data?.message || 'Şifre sıfırlama bağlantısı gönderilemedi';
-        throw new Error(message);
+          const message = error.response.data?.message || 'Şifre sıfırlama bağlantısı gönderilemedi';
+          throw new Error(message);
       } else if (error.request) {
-        throw new Error('Sunucuya bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin.');
+          throw new Error('Sunucuya bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin.');
       } else {
-        throw new Error(error.message || 'Şifre sıfırlama işlemi sırasında bir hata oluştu');
+          throw new Error(error.message || 'Şifre sıfırlama işlemi sırasında bir hata oluştu');
       }
     }
-  },
+},
 
   async resetPassword(email: string, token: string, newPassword: string): Promise<void> {
     try {
