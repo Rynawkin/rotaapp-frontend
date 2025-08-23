@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useJsApiLoader } from '@react-google-maps/api';
-import { 
-  ArrowLeft, 
-  Edit, 
-  Trash2, 
-  MapPin, 
-  Clock, 
+import {
+  ArrowLeft,
+  Edit,
+  Trash2,
+  MapPin,
+  Clock,
   Calendar,
   User,
   Truck,
@@ -28,7 +28,8 @@ import {
   FileText,
   Download,
   Eye,
-  Share2
+  Share2,
+  ArrowRight
 } from 'lucide-react';
 import MapComponent from '@/components/maps/MapComponent';
 import LeafletMapComponent from '@/components/maps/LeafletMapComponent';
@@ -55,6 +56,13 @@ const formatDuration = (totalMinutes: number): string => {
     return `${hours} saat`;
   }
   return `${hours} saat ${minutes} dakika`;
+};
+
+// ETA formatını düzelt (HH:mm:ss veya HH:mm formatında göster)
+const formatETA = (etaString?: string): string => {
+  if (!etaString) return '';
+  // Backend'den HH:mm:ss formatında geliyor, sadece HH:mm göster
+  return etaString.substring(0, 5);
 };
 
 const RouteDetail: React.FC = () => {
@@ -86,7 +94,7 @@ const RouteDetail: React.FC = () => {
     if (route && route.stops && customers.length > 0) {
       const markers = generateMapMarkers();
       setMapMarkers(markers);
-      
+
       // Google Maps yüklendiyse ve rota optimize edildiyse directions'ı yükle
       if (isGoogleMapsLoaded && route.optimized && depot) {
         loadRouteOnMap(route);
@@ -96,15 +104,15 @@ const RouteDetail: React.FC = () => {
 
   const loadData = async () => {
     if (!id) return;
-    
+
     setLoading(true);
     try {
       // Backend'den customer bilgileriyle birlikte route'u al
       const routeData = await routeService.getById(id);
-      
+
       // Customer listesini de al (backup için)
       const customersData = await customerService.getAll();
-      
+
       // Depot bilgisini al
       let depotData = null;
       if (routeData.depotId) {
@@ -114,7 +122,7 @@ const RouteDetail: React.FC = () => {
           console.warn('Depot yüklenemedi, varsayılan kullanılacak:', error);
         }
       }
-      
+
       // Eğer backend'den customer gelmemişse, customerId ile eşleştir
       if (routeData && routeData.stops) {
         routeData.stops = routeData.stops.map(stop => {
@@ -129,7 +137,7 @@ const RouteDetail: React.FC = () => {
           return stop;
         });
       }
-      
+
       setRoute(routeData);
       setCustomers(customersData);
       setDepot(depotData || routeData.depot);
@@ -144,21 +152,21 @@ const RouteDetail: React.FC = () => {
     if (!route || !route.stops || route.stops.length === 0) {
       return [];
     }
-    
+
     const markers = route.stops.map((stop) => {
       const customer = stop.customer || customers.find(c => c.id === stop.customerId);
-      
+
       if (!customer) {
         console.warn(`Customer not found for stop ${stop.order}, customerId: ${stop.customerId}`);
         return null;
       }
-      
+
       // Koordinatları kontrol et
       if (!customer.latitude || !customer.longitude) {
         console.warn(`No coordinates for customer ${customer.name}`);
         return null;
       }
-      
+
       const marker = {
         position: {
           lat: customer.latitude,
@@ -170,10 +178,10 @@ const RouteDetail: React.FC = () => {
         customerId: stop.customerId,
         order: stop.order
       };
-      
+
       return marker;
     }).filter(Boolean) as MarkerData[];
-    
+
     return markers;
   };
 
@@ -183,11 +191,11 @@ const RouteDetail: React.FC = () => {
     if (!isGoogleMapsLoaded) return;
     if (!depot) return;
 
-    const depotLocation = { 
-      lat: depot.latitude || 40.9913, 
-      lng: depot.longitude || 29.0236 
+    const depotLocation = {
+      lat: depot.latitude || 40.9913,
+      lng: depot.longitude || 29.0236
     };
-    
+
     const waypoints = routeData.stops.map(stop => {
       const customer = stop.customer || customers.find(c => c.id === stop.customerId);
       return {
@@ -198,13 +206,13 @@ const RouteDetail: React.FC = () => {
 
     try {
       googleMapsService.initializeServices();
-      
+
       const directions = await googleMapsService.getDirections(
         depotLocation,
         waypoints,
         depotLocation
       );
-      
+
       if (directions) {
         setMapDirections(directions);
       }
@@ -215,7 +223,7 @@ const RouteDetail: React.FC = () => {
 
   const handleDelete = async () => {
     if (!id || !window.confirm('Bu rotayı silmek istediğinizden emin misiniz?')) return;
-    
+
     try {
       await routeService.delete(id);
       navigate('/routes');
@@ -226,7 +234,7 @@ const RouteDetail: React.FC = () => {
 
   const handleDuplicate = async () => {
     if (!route) return;
-    
+
     try {
       // Stop'ları temizle ve sıfırla
       const cleanStops = route.stops.map((stop, index) => ({
@@ -240,7 +248,7 @@ const RouteDetail: React.FC = () => {
         failureReason: undefined,
         order: index + 1
       }));
-      
+
       // Yeni rota oluştur
       const newRoute: Partial<Route> = {
         name: `${route.name} (Kopya)`,
@@ -260,14 +268,14 @@ const RouteDetail: React.FC = () => {
         vehicle: route.vehicle,
         depot: depot
       };
-      
+
       console.log('Creating duplicate route:', newRoute);
-      
+
       // Yeni rotayı oluştur
       const created = await routeService.create(newRoute);
-      
+
       console.log('Created route:', created);
-      
+
       if (created && created.id) {
         alert(`✅ Rota başarıyla kopyalandı!\n\nYeni rota: ${created.name}`);
         navigate('/routes');
@@ -289,29 +297,29 @@ const RouteDetail: React.FC = () => {
 
   const handleStartJourney = async () => {
     if (!route) return;
-    
+
     // Sürücü ve araç kontrolü
     if (!route.driverId || !route.vehicleId) {
       alert('⚠️ Sefer başlatmak için önce sürücü ve araç ataması yapmalısınız!');
       navigate(`/routes/${route.id}/edit`);
       return;
     }
-    
+
     // Durak kontrolü
     if (!route.stops || route.stops.length === 0) {
       alert('⚠️ Sefer başlatmak için en az bir durak eklemelisiniz!');
       return;
     }
-    
+
     setStartingJourney(true);
-    
+
     try {
       // Sefer başlat
       const journey = await journeyService.startFromRoute(route.id);
-      
+
       if (journey) {
         alert('✅ Sefer başarıyla başlatıldı! Sizi sefer detay sayfasına yönlendiriyoruz...');
-        
+
         // Journeys sayfasına yönlendir
         setTimeout(() => {
           navigate(`/journeys/${journey.id}`);
@@ -327,9 +335,9 @@ const RouteDetail: React.FC = () => {
 
   const handleExport = () => {
     if (!route) return;
-    
+
     const csvContent = [
-      ['Sıra', 'Müşteri', 'Adres', 'Telefon', 'Durum', 'Mesafe', 'Süre'],
+      ['Sıra', 'Müşteri', 'Adres', 'Telefon', 'Durum', 'Mesafe', 'Süre', 'Tahmini Varış', 'Tahmini Ayrılış'],
       ...route.stops.map(stop => [
         stop.order,
         stop.customer?.name || '',
@@ -337,7 +345,9 @@ const RouteDetail: React.FC = () => {
         stop.customer?.phone || '',
         stop.status,
         stop.distance ? `${stop.distance} km` : '',
-        stop.duration ? `${stop.duration} dk` : ''
+        stop.duration ? `${stop.duration} dk` : '',
+        formatETA(stop.estimatedArrivalTime),
+        formatETA(stop.estimatedDepartureTime)
       ])
     ].map(row => row.join(',')).join('\n');
 
@@ -355,7 +365,7 @@ const RouteDetail: React.FC = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    switch(status) {
+    switch (status) {
       case 'draft':
         return (
           <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
@@ -397,7 +407,7 @@ const RouteDetail: React.FC = () => {
   };
 
   const getStopStatusBadge = (status: string) => {
-    switch(status) {
+    switch (status) {
       case 'pending':
         return <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">Bekliyor</span>;
       case 'arrived':
@@ -418,9 +428,9 @@ const RouteDetail: React.FC = () => {
 
   const getDepotLocation = (): LatLng | undefined => {
     if (depot) {
-      return { 
-        lat: depot.latitude, 
-        lng: depot.longitude 
+      return {
+        lat: depot.latitude,
+        lng: depot.longitude
       };
     }
     // Eğer depot yoksa ve route'da depot bilgisi varsa onu kullan
@@ -465,7 +475,7 @@ const RouteDetail: React.FC = () => {
           </div>
         );
       }
-      
+
       console.warn('Google Maps yüklenemedi, LeafletMapComponent kullanılıyor:', googleMapsLoadError);
       const depotLoc = getDepotLocation();
       return (
@@ -589,7 +599,7 @@ const RouteDetail: React.FC = () => {
               </div>
             </div>
           </div>
-          
+
           {/* Action Buttons */}
           <div className="flex items-center space-x-2">
             {/* Sefer Başlat Butonu - draft, planned durumlarında göster */}
@@ -597,11 +607,10 @@ const RouteDetail: React.FC = () => {
               <button
                 onClick={handleStartJourney}
                 disabled={startingJourney}
-                className={`px-4 py-2 ${
-                  startingJourney 
-                    ? 'bg-gray-400 cursor-not-allowed' 
+                className={`px-4 py-2 ${startingJourney
+                    ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-green-600 hover:bg-green-700'
-                } text-white rounded-lg transition-colors flex items-center`}
+                  } text-white rounded-lg transition-colors flex items-center`}
               >
                 {startingJourney ? (
                   <>
@@ -616,7 +625,7 @@ const RouteDetail: React.FC = () => {
                 )}
               </button>
             )}
-            
+
             {/* Devam Ediyor ise Sefere Git */}
             {route.status === 'in_progress' && (
               <button
@@ -632,7 +641,7 @@ const RouteDetail: React.FC = () => {
                 Sefere Git
               </button>
             )}
-            
+
             <button
               onClick={handleExport}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -640,7 +649,7 @@ const RouteDetail: React.FC = () => {
             >
               <Download className="w-5 h-5 text-gray-600" />
             </button>
-            
+
             <button
               onClick={handleCopyRouteLink}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -648,7 +657,7 @@ const RouteDetail: React.FC = () => {
             >
               <Share2 className="w-5 h-5 text-gray-600" />
             </button>
-            
+
             <button
               onClick={handleDuplicate}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -656,7 +665,7 @@ const RouteDetail: React.FC = () => {
             >
               <Copy className="w-5 h-5 text-gray-600" />
             </button>
-            
+
             <Link
               to={`/routes/${route.id}/edit`}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -664,7 +673,7 @@ const RouteDetail: React.FC = () => {
             >
               <Edit className="w-5 h-5 text-gray-600" />
             </Link>
-            
+
             <button
               onClick={handleDelete}
               className="p-2 hover:bg-red-100 rounded-lg transition-colors"
@@ -685,7 +694,7 @@ const RouteDetail: React.FC = () => {
               </span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
+              <div
                 className="bg-green-500 h-2 rounded-full transition-all"
                 style={{ width: `${calculateProgress()}%` }}
               />
@@ -705,7 +714,7 @@ const RouteDetail: React.FC = () => {
             <MapPin className="w-8 h-8 text-blue-600 opacity-20" />
           </div>
         </div>
-        
+
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
@@ -715,7 +724,7 @@ const RouteDetail: React.FC = () => {
             <CheckCircle className="w-8 h-8 text-green-600 opacity-20" />
           </div>
         </div>
-        
+
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
@@ -727,7 +736,7 @@ const RouteDetail: React.FC = () => {
             <Navigation className="w-8 h-8 text-purple-600 opacity-20" />
           </div>
         </div>
-        
+
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
@@ -739,7 +748,7 @@ const RouteDetail: React.FC = () => {
             <Clock className="w-8 h-8 text-orange-600 opacity-20" />
           </div>
         </div>
-        
+
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
@@ -791,7 +800,7 @@ const RouteDetail: React.FC = () => {
               Duraklar ({route.stops.length})
             </h2>
           </div>
-          
+
           <div className="max-h-[650px] overflow-y-auto">
             {route.stops.length === 0 ? (
               <div className="p-6 text-center text-gray-500">
@@ -800,13 +809,12 @@ const RouteDetail: React.FC = () => {
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
-                {route.stops.map((stop) => (
-                  <div 
+                {route.stops.map((stop, index) => (
+                  <div
                     key={stop.id}
                     onClick={() => handleStopClick(stop.id)}
-                    className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
-                      selectedStopId === stop.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
-                    }`}
+                    className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${selectedStopId === stop.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                      }`}
                   >
                     <div className="flex items-start">
                       <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-semibold text-sm mr-3 flex-shrink-0">
@@ -819,11 +827,11 @@ const RouteDetail: React.FC = () => {
                           </h4>
                           {getStopStatusBadge(stop.status)}
                         </div>
-                        
+
                         <p className="text-xs text-gray-600 truncate mb-2">
                           {stop.customer?.address || stop.address}
                         </p>
-                        
+
                         <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
                           {(stop.customer?.phone || stop.contactPhone) && (
                             <span className="flex items-center">
@@ -831,14 +839,14 @@ const RouteDetail: React.FC = () => {
                               {stop.customer?.phone || stop.contactPhone}
                             </span>
                           )}
-                          
+
                           {(stop.serviceTime || stop.customer?.estimatedServiceTime) && (
                             <span className="flex items-center">
                               <Timer className="w-3 h-3 mr-0.5" />
                               {stop.serviceTime || stop.customer?.estimatedServiceTime}dk
                             </span>
                           )}
-                          
+
                           {stop.distance && (
                             <span className="flex items-center">
                               <Navigation className="w-3 h-3 mr-0.5" />
@@ -847,10 +855,48 @@ const RouteDetail: React.FC = () => {
                           )}
                         </div>
 
+                        {/* ETA Bilgileri - YENİ EKLENEN KISIM */}
+                        {route.optimized && (stop.estimatedArrivalTime || stop.estimatedDepartureTime) && (
+                          <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                            <div className="text-xs font-medium text-blue-700 mb-1">
+                              Tahmini Varış Saatleri
+                            </div>
+                            <div className="space-y-1 text-xs">
+                              {stop.estimatedArrivalTime && (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-gray-600">Varış:</span>
+                                  <span className="font-semibold text-blue-900">
+                                    {formatETA(stop.estimatedArrivalTime)}
+                                  </span>
+                                </div>
+                              )}
+                              {stop.estimatedDepartureTime && (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-gray-600">Ayrılış:</span>
+                                  <span className="font-semibold text-blue-900">
+                                    {formatETA(stop.estimatedDepartureTime)}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            {/* İlerleme göstergesi */}
+                            {index > 0 && route.stops[index - 1].estimatedDepartureTime && (
+                              <div className="mt-1 pt-1 border-t border-blue-200">
+                                <div className="flex items-center text-xs text-blue-600">
+                                  <ArrowRight className="w-3 h-3 mr-0.5" />
+                                  <span className="text-xs">
+                                    #{index} duraktan {formatETA(route.stops[index - 1].estimatedDepartureTime)}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {stop.customer?.timeWindow && (
                           <div className="mt-2 flex items-center text-xs text-gray-600">
                             <Clock className="w-3 h-3 mr-1" />
-                            {stop.overrideTimeWindow?.start || stop.customer.timeWindow.start} - 
+                            {stop.overrideTimeWindow?.start || stop.customer.timeWindow.start} -
                             {stop.overrideTimeWindow?.end || stop.customer.timeWindow.end}
                           </div>
                         )}
@@ -890,7 +936,7 @@ const RouteDetail: React.FC = () => {
                 )}
               </div>
             </div>
-            
+
             <div className="flex items-start space-x-3">
               <Truck className="w-5 h-5 text-gray-400 mt-0.5" />
               <div className="flex-1">
@@ -900,7 +946,7 @@ const RouteDetail: React.FC = () => {
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-start space-x-3">
               <Home className="w-5 h-5 text-gray-400 mt-0.5" />
               <div className="flex-1">
@@ -908,7 +954,7 @@ const RouteDetail: React.FC = () => {
                 <p className="font-medium">{depot?.name || route.depot?.name || 'Depo bilgisi yok'}</p>
               </div>
             </div>
-            
+
             <div className="flex items-start space-x-3">
               <Calendar className="w-5 h-5 text-gray-400 mt-0.5" />
               <div className="flex-1">
@@ -919,8 +965,8 @@ const RouteDetail: React.FC = () => {
                     // UTC offset'i al (Türkiye için +3)
                     const offset = 3; // Türkiye UTC+3
                     date.setHours(date.getHours() + offset);
-                    
-                    return date.toLocaleString('tr-TR', { 
+
+                    return date.toLocaleString('tr-TR', {
                       day: '2-digit',
                       month: '2-digit',
                       year: 'numeric',
@@ -932,7 +978,7 @@ const RouteDetail: React.FC = () => {
               </div>
             </div>
           </div>
-          
+
           {route.notes && (
             <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
               <p className="text-sm text-yellow-800">
