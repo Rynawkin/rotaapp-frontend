@@ -274,8 +274,12 @@ class RouteService {
             Type: 10,
             OrderType: 20,
             ProofOfDeliveryRequired: false,
-            ArriveBetweenStart: stop.overrideTimeWindow?.start ? `${stop.overrideTimeWindow.start}:00` : null,
-            ArriveBetweenEnd: stop.overrideTimeWindow?.end ? `${stop.overrideTimeWindow.end}:00` : null,
+            ArriveBetweenStart: stop.arriveBetweenStart ? 
+              (stop.arriveBetweenStart.includes(':') ? `${stop.arriveBetweenStart}:00` : stop.arriveBetweenStart) : 
+              (stop.overrideTimeWindow?.start ? `${stop.overrideTimeWindow.start}:00` : null),
+            ArriveBetweenEnd: stop.arriveBetweenEnd ? 
+              (stop.arriveBetweenEnd.includes(':') ? `${stop.arriveBetweenEnd}:00` : stop.arriveBetweenEnd) : 
+              (stop.overrideTimeWindow?.end ? `${stop.overrideTimeWindow.end}:00` : null),
             ServiceTime: serviceTimeSpan,
             EstimatedArrivalTime: stop.estimatedArrivalTime || null,
             EstimatedDepartureTime: stop.estimatedDepartureTime || null
@@ -393,8 +397,12 @@ class RouteService {
             Type: 10,
             OrderType: 20,
             ProofOfDeliveryRequired: false,
-            ArriveBetweenStart: stop.overrideTimeWindow?.start ? `${stop.overrideTimeWindow.start}:00` : null,
-            ArriveBetweenEnd: stop.overrideTimeWindow?.end ? `${stop.overrideTimeWindow.end}:00` : null,
+            ArriveBetweenStart: stop.arriveBetweenStart ? 
+              (stop.arriveBetweenStart.includes(':') ? `${stop.arriveBetweenStart}:00` : stop.arriveBetweenStart) : 
+              (stop.overrideTimeWindow?.start ? `${stop.overrideTimeWindow.start}:00` : null),
+            ArriveBetweenEnd: stop.arriveBetweenEnd ? 
+              (stop.arriveBetweenEnd.includes(':') ? `${stop.arriveBetweenEnd}:00` : stop.arriveBetweenEnd) : 
+              (stop.overrideTimeWindow?.end ? `${stop.overrideTimeWindow.end}:00` : null),
             ServiceTime: this.minutesToTimeSpan(stop.serviceTime),
             EstimatedArrivalTime: stop.estimatedArrivalTime || null,
             EstimatedDepartureTime: stop.estimatedDepartureTime || null
