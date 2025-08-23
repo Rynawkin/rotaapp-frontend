@@ -649,7 +649,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
         serviceTime: stopData.serviceTime,
         stopNotes: stopData.stopNotes,
         estimatedArrival: new Date(),
-        distance: 0
+        distance: 0,
         estimatedArrivalTime: stopData.estimatedArrivalTime,
         estimatedDepartureTime: stopData.estimatedDepartureTime
       };
