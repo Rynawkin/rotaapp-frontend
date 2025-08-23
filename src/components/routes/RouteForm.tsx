@@ -33,6 +33,8 @@ interface StopData {
   overridePriority?: 'high' | 'normal' | 'low';
   serviceTime?: number;
   stopNotes?: string;
+  estimatedArrivalTime?: string;
+  estimatedDepartureTime?: string;
 }
 
 interface RouteFormProps {
@@ -412,7 +414,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
     
     try {
       // 1. Önce rotayı kaydet (edit modda değilse)
-      let routeId = initialData?.id || formData.id;
+      let routeId = initialData?.id;
       
       if (!routeId) {
         // Yeni rota ise önce kaydet
@@ -456,29 +458,36 @@ const RouteForm: React.FC<RouteFormProps> = ({
       if (optimizedRoute.stops) {
         const backendOptimizedStops = optimizedRoute.stops
           .sort((a, b) => a.order - b.order)
-          .map(stop => ({
-            customer: stop.customer || customers.find(c => c.id.toString() === stop.customerId.toString()),
-            serviceTime: stop.serviceTime,
-            stopNotes: stop.stopNotes,
-            overrideTimeWindow: stop.overrideTimeWindow,
-            overridePriority: stop.overridePriority
-          }));
+          .map(stop => {
+            const existingStopData = stopsData.find(s => 
+              s.customer.id.toString() === stop.customerId.toString()
+            );
+            return {
+              customer: stop.customer || customers.find(c => c.id.toString() === stop.customerId.toString()),
+              serviceTime: stop.serviceTime,
+              stopNotes: stop.stopNotes || existingStopData?.stopNotes,
+              overrideTimeWindow: existingStopData?.overrideTimeWindow,
+              overridePriority: existingStopData?.overridePriority,
+              estimatedArrivalTime: stop.estimatedArrivalTime,
+              estimatedDepartureTime: stop.estimatedDepartureTime
+            };
+          });
         
         setStopsData(backendOptimizedStops);
         setOptimizedOrder(backendOptimizedStops.map((_, i) => i));
         
-        // ÖNEMLİ: Route ID'yi formData'ya ekle
+        // ÖNEMLİ: initialData'yı güncelle ki submit tekrar create etmesin
+        if (!isEdit) {
+          initialData = optimizedRoute;
+        }
+        
+        // Form data'ya ID ve optimize bilgilerini ekle
         updateFormData({
+          ...formData,
           id: routeId,
           totalDuration: optimizedRoute.totalDuration,
           totalDistance: optimizedRoute.totalDistance,
-          optimized: true,
-          stops: backendOptimizedStops.map((stopData, index) => ({
-            ...stopData,
-            order: index + 1,
-            customerId: stopData.customer.id,
-            customer: stopData.customer
-          }))
+          optimized: true
         });
 
         // 4. Haritayı güncelle
@@ -516,30 +525,19 @@ const RouteForm: React.FC<RouteFormProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Optimize edilmiş route varsa ve sürücü/araç seçilmişse sadece update yap
-    if (formData.id && formData.optimized && !isEdit) {
-      if (!formData.driverId || !formData.vehicleId) {
-        alert('Lütfen sürücü ve araç ataması yapın!');
-        return;
-      }
-      
-      // Route zaten oluşturulmuş ve optimize edilmiş
-      // Sadece eksik alanları güncelle
+    // Optimize edilmiş route varsa sadece update yap
+    if (formData.id && formData.optimized) {
+      // Route zaten oluşturulmuş, sadece sürücü/araç ataması yap
       const updateData: Partial<Route> = {
-        ...formData,
         id: formData.id,
         driverId: formData.driverId,
-        vehicleId: formData.vehicleId,
-        driver: drivers.find(d => d.id.toString() === formData.driverId?.toString()),
-        vehicle: vehicles.find(v => v.id.toString() === formData.vehicleId?.toString())
+        vehicleId: formData.vehicleId
       };
       
-      localStorage.removeItem(STORAGE_KEY);
       onSubmit(updateData);
       return;
     }
     
-    // Normal create/update flow
     if (!formData.driverId || !formData.vehicleId) {
       alert('Lütfen sürücü ve araç ataması yapın!');
       return;
@@ -583,7 +581,9 @@ const RouteForm: React.FC<RouteFormProps> = ({
         serviceTime: stopData.serviceTime,
         stopNotes: stopData.stopNotes,
         estimatedArrival: new Date(),
-        distance: 0
+        distance: 0,
+        estimatedArrivalTime: stopData.estimatedArrivalTime,
+        estimatedDepartureTime: stopData.estimatedDepartureTime
       };
     });
 
@@ -650,6 +650,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
         stopNotes: stopData.stopNotes,
         estimatedArrival: new Date(),
         distance: 0
+        estimatedArrivalTime: stopData.estimatedArrivalTime,
+        estimatedDepartureTime: stopData.estimatedDepartureTime
       };
     });
 
