@@ -11,7 +11,9 @@ import {
   XCircle,
   AlertCircle,
   Timer,
-  CheckCircle
+  CheckCircle,
+  ArrowRight,
+  Calendar
 } from 'lucide-react';
 import { Customer } from '@/types';
 
@@ -21,6 +23,8 @@ interface StopData {
   overridePriority?: 'high' | 'normal' | 'low';
   serviceTime?: number;
   stopNotes?: string;
+  estimatedArrivalTime?: string;
+  estimatedDepartureTime?: string;
 }
 
 interface StopsListProps {
@@ -34,8 +38,8 @@ interface StopsListProps {
   onRemove: (customerId: string) => void;
   onReorder: (stops: StopData[]) => void;
   onUpdateStop: (index: number, updates: Partial<StopData>) => void;
-  onExcludedStopEdit?: (customerId: string) => void;  // Optional yapıldı
-  onMoveExcludedToStops?: (excluded: any) => void;     // Yeni eklendi
+  onExcludedStopEdit?: (customerId: string) => void;
+  onMoveExcludedToStops?: (excluded: any) => void;
 }
 
 const StopsList: React.FC<StopsListProps> = ({ 
@@ -46,7 +50,7 @@ const StopsList: React.FC<StopsListProps> = ({
   onReorder,
   onUpdateStop,
   onExcludedStopEdit,
-  onMoveExcludedToStops  // Yeni eklendi
+  onMoveExcludedToStops
 }) => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -146,6 +150,13 @@ const StopsList: React.FC<StopsListProps> = ({
       default:
         return 'text-gray-600 bg-gray-50';
     }
+  };
+
+  // ETA formatını düzelt (HH:mm:ss veya HH:mm formatında göster)
+  const formatETA = (etaString?: string): string => {
+    if (!etaString) return '';
+    // Backend'den HH:mm:ss formatında geliyor, sadece HH:mm göster
+    return etaString.substring(0, 5);
   };
 
   return (
@@ -260,6 +271,47 @@ const StopsList: React.FC<StopsListProps> = ({
                                 )}
                               </span>
                             </div>
+
+                            {/* ETA Bilgileri - YENİ EKLENEN KISIM */}
+                            {optimizationStatus !== 'none' && (stop.estimatedArrivalTime || stop.estimatedDepartureTime) && (
+                              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                                <div className="flex items-center justify-between text-sm">
+                                  <div className="flex items-center text-blue-700">
+                                    <Calendar className="w-4 h-4 mr-1.5" />
+                                    <span className="font-medium">Tahmini Varış Saatleri:</span>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 mt-2 text-sm">
+                                  {stop.estimatedArrivalTime && (
+                                    <div className="flex items-center">
+                                      <span className="text-gray-600">Varış:</span>
+                                      <span className="ml-1.5 font-semibold text-blue-900">
+                                        {formatETA(stop.estimatedArrivalTime)}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {stop.estimatedDepartureTime && (
+                                    <div className="flex items-center">
+                                      <span className="text-gray-600">Ayrılış:</span>
+                                      <span className="ml-1.5 font-semibold text-blue-900">
+                                        {formatETA(stop.estimatedDepartureTime)}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                {/* İlerleme göstergesi - isteğe bağlı */}
+                                {index > 0 && stops[index - 1].estimatedDepartureTime && (
+                                  <div className="mt-2 pt-2 border-t border-blue-200">
+                                    <div className="flex items-center text-xs text-blue-600">
+                                      <ArrowRight className="w-3 h-3 mr-1" />
+                                      <span>
+                                        Önceki duraktan {formatETA(stops[index - 1].estimatedDepartureTime)} ayrılış
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
                             <div className="flex items-center gap-2 mt-2">
                               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(effectivePriority)}`}>
