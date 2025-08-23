@@ -15,11 +15,24 @@ const CreateRoute: React.FC = () => {
     setError(null);
     
     try {
-      const newRoute = await routeService.create(formData);
-      navigate(`/routes/${newRoute.id}`);
+      let route;
+      
+      if (formData.id) {
+        // Route zaten optimize edilmiş, sadece update et
+        route = await routeService.update(formData.id, {
+          driverId: formData.driverId,
+          vehicleId: formData.vehicleId,
+          notes: formData.notes
+        });
+      } else {
+        // Yeni route oluştur
+        route = await routeService.create(formData);
+      }
+      
+      navigate(`/routes/${route.id || formData.id}`);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Rota oluşturulurken bir hata oluştu.');
-      console.error('Error creating route:', err);
+      setError(err.response?.data?.message || 'Rota işleminde bir hata oluştu.');
+      console.error('Error processing route:', err);
     } finally {
       setLoading(false);
     }
