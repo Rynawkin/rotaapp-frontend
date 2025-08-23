@@ -66,6 +66,8 @@ export interface UpdateRouteDto {
     arriveBetweenStart?: string | null;
     arriveBetweenEnd?: string | null;
     serviceTime?: string | null;
+    estimatedArrivalTime?: string | null;
+    estimatedDepartureTime?: string | null;
   }>;
   startDetails?: {
     startTime: string;
@@ -341,6 +343,9 @@ class RouteService {
         DepotId: data.depotId ? Number(data.depotId) : undefined,
         DriverId: data.driverId ? Number(data.driverId) : undefined,
         VehicleId: data.vehicleId ? Number(data.vehicleId) : undefined,
+        Optimized: data.optimized,
+        TotalDistance: data.totalDistance,
+        TotalDuration: data.totalDuration,
         Stops: data.stops?.map((stop, index) => {
           let customerId: number;
           
@@ -377,7 +382,9 @@ class RouteService {
             ProofOfDeliveryRequired: false,
             ArriveBetweenStart: stop.overrideTimeWindow?.start ? `${stop.overrideTimeWindow.start}:00` : null,
             ArriveBetweenEnd: stop.overrideTimeWindow?.end ? `${stop.overrideTimeWindow.end}:00` : null,
-            ServiceTime: this.minutesToTimeSpan(stop.serviceTime)
+            ServiceTime: this.minutesToTimeSpan(stop.serviceTime),
+            EstimatedArrivalTime: stop.estimatedArrivalTime || null,
+            EstimatedDepartureTime: stop.estimatedDepartureTime || null
           };
         }),
         StartDetails: data.startDetails || (depotInfo ? {
