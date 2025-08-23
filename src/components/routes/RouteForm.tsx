@@ -14,7 +14,8 @@ import {
   Map,
   Navigation,
   Zap,
-  XCircle
+  XCircle,
+  RefreshCw
 } from 'lucide-react';
 import CustomerSelector from './CustomerSelector';
 import StopsList from './StopsList';
@@ -597,6 +598,23 @@ const RouteForm: React.FC<RouteFormProps> = ({
     }
   };
 
+  const handleReset = () => {
+    setFormData({
+      name: '',
+      date: new Date(),
+      depotId: '',
+      driverId: '',
+      vehicleId: '',
+      notes: '',
+      optimized: false
+    });
+    setStopsData([]);
+    setOptimizationStatus('none');
+    setExcludedStops([]);
+    setOptimizedOrder([]);
+    setStartTime('08:00');
+  };
+  
   const calculateTotalDuration = () => {
     let totalMinutes = 0;
     
@@ -1001,6 +1019,17 @@ const RouteForm: React.FC<RouteFormProps> = ({
                 </>
               )}
             </button>
+
+            {optimizationStatus !== 'none' && (
+              <button
+                type="button"
+                onClick={handleReset}
+                className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center text-sm"
+              >
+                <RefreshCw className="w-4 h-4 mr-1.5" />
+                Formu Temizle
+              </button>
+            )}
           </div>
         </div>
 
