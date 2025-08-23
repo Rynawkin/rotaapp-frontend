@@ -456,16 +456,13 @@ const RouteForm: React.FC<RouteFormProps> = ({
       if (optimizedRoute.stops) {
         const backendOptimizedStops = optimizedRoute.stops
           .sort((a, b) => a.order - b.order)
-          .map(stop => {
-            const existingStopData = stopsData.find(s => 
-              s.customer.id.toString() === stop.customerId.toString()
-            );
-            return existingStopData || {
-              customer: stop.customer || customers.find(c => c.id.toString() === stop.customerId.toString()),
-              serviceTime: stop.serviceTime,
-              stopNotes: stop.stopNotes
-            };
-          });
+          .map(stop => ({
+            customer: stop.customer || customers.find(c => c.id.toString() === stop.customerId.toString()),
+            serviceTime: stop.serviceTime,
+            stopNotes: stop.stopNotes,
+            overrideTimeWindow: stop.overrideTimeWindow,
+            overridePriority: stop.overridePriority
+          }));
         
         setStopsData(backendOptimizedStops);
         setOptimizedOrder(backendOptimizedStops.map((_, i) => i));
@@ -475,7 +472,13 @@ const RouteForm: React.FC<RouteFormProps> = ({
           id: routeId,
           totalDuration: optimizedRoute.totalDuration,
           totalDistance: optimizedRoute.totalDistance,
-          optimized: true
+          optimized: true,
+          stops: backendOptimizedStops.map((stopData, index) => ({
+            ...stopData,
+            order: index + 1,
+            customerId: stopData.customer.id,
+            customer: stopData.customer
+          }))
         });
 
         // 4. Haritayı güncelle

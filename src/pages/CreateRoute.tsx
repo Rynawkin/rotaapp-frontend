@@ -18,12 +18,8 @@ const CreateRoute: React.FC = () => {
       let route;
       
       if (formData.id) {
-        // Route zaten optimize edilmiş, sadece update et
-        route = await routeService.update(formData.id, {
-          driverId: formData.driverId,
-          vehicleId: formData.vehicleId,
-          notes: formData.notes
-        });
+        // Route zaten var, update et
+        route = await routeService.update(formData.id, formData);
       } else {
         // Yeni route oluştur
         route = await routeService.create(formData);
