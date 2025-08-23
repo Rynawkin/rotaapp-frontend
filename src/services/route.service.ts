@@ -28,6 +28,8 @@ export interface CreateRouteDto {
     arriveBetweenStart?: string | null;
     arriveBetweenEnd?: string | null;
     serviceTime?: string | null;
+    estimatedArrivalTime?: string | null;
+    estimatedDepartureTime?: string | null;
   }>;
   startDetails?: {
     startTime: string;
@@ -50,6 +52,9 @@ export interface UpdateRouteDto {
   depotId?: number;
   driverId?: number;
   vehicleId?: number;
+  optimized?: boolean;
+  totalDistance?: number;
+  totalDuration?: number;
   stops?: Array<{
     customerId: number;
     name: string;
@@ -168,6 +173,8 @@ class RouteService {
           return {
             ...stop,
             serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+            estimatedArrivalTime: stop.estimatedArrivalTime,
+            estimatedDepartureTime: stop.estimatedDepartureTime,
             customer: customer || undefined
           };
         }) || [],
@@ -198,6 +205,8 @@ class RouteService {
           return {
             ...stop,
             serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+            estimatedArrivalTime: stop.estimatedArrivalTime,
+            estimatedDepartureTime: stop.estimatedDepartureTime,
             customer: customer || undefined
           };
         }) || [],
@@ -216,120 +225,124 @@ class RouteService {
   }
 
   async create(data: Partial<Route>): Promise<Route> {
-  try {
-    const originalCustomers = data.stops?.map(s => s.customer) || [];
-    let depotInfo = data.depot;
-    
-    const createDto: any = {
-      Name: data.name || `Rota ${new Date().toLocaleDateString('tr-TR')}`,
-      Date: data.date ? new Date(data.date).toISOString() : new Date().toISOString(),
-      DepotId: data.depotId ? Number(data.depotId) : 0,
-      DriverId: data.driverId ? Number(data.driverId) : undefined,
-      VehicleId: data.vehicleId ? Number(data.vehicleId) : undefined,
-      Optimized: data.optimized || false,
-      TotalDistance: data.totalDistance || 0,
-      TotalDuration: data.totalDuration || 0,
-      Notes: data.notes || '',
-      Stops: data.stops?.map((stop, index) => {
-        let customerId: number;
-        
-        if (stop.customer && typeof stop.customer.id === 'number') {
-          customerId = stop.customer.id;
-        } else if (stop.customer && typeof stop.customer.id === 'string' && !stop.customer.id.startsWith('google-')) {
-          customerId = parseInt(stop.customer.id);
-        } else if (typeof stop.customerId === 'string' && !stop.customerId.startsWith('google-')) {
-          customerId = parseInt(stop.customerId);
-        } else if (typeof stop.customerId === 'number') {
-          customerId = stop.customerId;
-        } else {
-          throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
-        }
-        
-        if (isNaN(customerId) || customerId <= 0) {
-          throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
-        }
-        
-        const customer = stop.customer || originalCustomers[index];
-        const serviceTimeSpan = this.minutesToTimeSpan(stop.serviceTime);
-        
-        return {
-          CustomerId: customerId,
-          Name: customer?.name || '',
-          Address: this.truncateAddress(customer?.address || ''),
-          Latitude: customer?.latitude || 0,
-          Longitude: customer?.longitude || 0,
-          Notes: stop.stopNotes || '',
-          ContactFullName: customer?.name || '',
-          ContactPhone: customer?.phone || '',
-          ContactEmail: customer?.email || '',
-          Type: 10,
-          OrderType: 20,
-          ProofOfDeliveryRequired: false,
-          ArriveBetweenStart: stop.overrideTimeWindow?.start ? `${stop.overrideTimeWindow.start}:00` : null,
-          ArriveBetweenEnd: stop.overrideTimeWindow?.end ? `${stop.overrideTimeWindow.end}:00` : null,
-          ServiceTime: serviceTimeSpan
-        };
-      }) || [],
-      StartDetails: depotInfo ? {
-        Name: depotInfo.name || 'Ana Depo',
-        Address: this.truncateAddress(depotInfo.address || 'Depo Adresi'),
-        Latitude: depotInfo.latitude || 0,
-        Longitude: depotInfo.longitude || 0,
-        StartTime: data.startDetails?.startTime || this.getCurrentTimeAsTimeSpan()
-      } : null,
-      EndDetails: depotInfo ? {
-        Name: depotInfo.name || 'Ana Depo',
-        Address: this.truncateAddress(depotInfo.address || 'Depo Adresi'),
-        Latitude: depotInfo.latitude || 0,
-        Longitude: depotInfo.longitude || 0
-      } : null
-    };
+    try {
+      const originalCustomers = data.stops?.map(s => s.customer) || [];
+      let depotInfo = data.depot;
+      
+      const createDto: any = {
+        Name: data.name || `Rota ${new Date().toLocaleDateString('tr-TR')}`,
+        Date: data.date ? new Date(data.date).toISOString() : new Date().toISOString(),
+        DepotId: data.depotId ? Number(data.depotId) : 0,
+        DriverId: data.driverId ? Number(data.driverId) : undefined,
+        VehicleId: data.vehicleId ? Number(data.vehicleId) : undefined,
+        Optimized: data.optimized || false,
+        TotalDistance: data.totalDistance || 0,
+        TotalDuration: data.totalDuration || 0,
+        Notes: data.notes || '',
+        Stops: data.stops?.map((stop, index) => {
+          let customerId: number;
+          
+          if (stop.customer && typeof stop.customer.id === 'number') {
+            customerId = stop.customer.id;
+          } else if (stop.customer && typeof stop.customer.id === 'string' && !stop.customer.id.startsWith('google-')) {
+            customerId = parseInt(stop.customer.id);
+          } else if (typeof stop.customerId === 'string' && !stop.customerId.startsWith('google-')) {
+            customerId = parseInt(stop.customerId);
+          } else if (typeof stop.customerId === 'number') {
+            customerId = stop.customerId;
+          } else {
+            throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
+          }
+          
+          if (isNaN(customerId) || customerId <= 0) {
+            throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
+          }
+          
+          const customer = stop.customer || originalCustomers[index];
+          const serviceTimeSpan = this.minutesToTimeSpan(stop.serviceTime);
+          
+          return {
+            CustomerId: customerId,
+            Name: customer?.name || '',
+            Address: this.truncateAddress(customer?.address || ''),
+            Latitude: customer?.latitude || 0,
+            Longitude: customer?.longitude || 0,
+            Notes: stop.stopNotes || '',
+            ContactFullName: customer?.name || '',
+            ContactPhone: customer?.phone || '',
+            ContactEmail: customer?.email || '',
+            Type: 10,
+            OrderType: 20,
+            ProofOfDeliveryRequired: false,
+            ArriveBetweenStart: stop.overrideTimeWindow?.start ? `${stop.overrideTimeWindow.start}:00` : null,
+            ArriveBetweenEnd: stop.overrideTimeWindow?.end ? `${stop.overrideTimeWindow.end}:00` : null,
+            ServiceTime: serviceTimeSpan,
+            EstimatedArrivalTime: stop.estimatedArrivalTime || null,
+            EstimatedDepartureTime: stop.estimatedDepartureTime || null
+          };
+        }) || [],
+        StartDetails: depotInfo ? {
+          Name: depotInfo.name || 'Ana Depo',
+          Address: this.truncateAddress(depotInfo.address || 'Depo Adresi'),
+          Latitude: depotInfo.latitude || 0,
+          Longitude: depotInfo.longitude || 0,
+          StartTime: data.startDetails?.startTime || this.getCurrentTimeAsTimeSpan()
+        } : null,
+        EndDetails: depotInfo ? {
+          Name: depotInfo.name || 'Ana Depo',
+          Address: this.truncateAddress(depotInfo.address || 'Depo Adresi'),
+          Latitude: depotInfo.latitude || 0,
+          Longitude: depotInfo.longitude || 0
+        } : null
+      };
 
-    if (!createDto.DepotId || createDto.DepotId === 0) {
-      throw new Error('Depo seçimi zorunludur!');
-    }
+      if (!createDto.DepotId || createDto.DepotId === 0) {
+        throw new Error('Depo seçimi zorunludur!');
+      }
 
-    if (!createDto.Name) {
-      throw new Error('Rota adı zorunludur!');
-    }
+      if (!createDto.Name) {
+        throw new Error('Rota adı zorunludur!');
+      }
 
-    if (isNaN(createDto.DepotId)) {
-      throw new Error('Geçersiz depo ID!');
-    }
+      if (isNaN(createDto.DepotId)) {
+        throw new Error('Geçersiz depo ID!');
+      }
 
-    if (createDto.DriverId && isNaN(createDto.DriverId)) {
-      throw new Error('Geçersiz sürücü ID!');
-    }
+      if (createDto.DriverId && isNaN(createDto.DriverId)) {
+        throw new Error('Geçersiz sürücü ID!');
+      }
 
-    if (createDto.VehicleId && isNaN(createDto.VehicleId)) {
-      throw new Error('Geçersiz araç ID!');
+      if (createDto.VehicleId && isNaN(createDto.VehicleId)) {
+        throw new Error('Geçersiz araç ID!');
+      }
+      
+      console.log('Sending to backend:', JSON.stringify(createDto, null, 2));
+      
+      const response = await api.post(this.baseUrl, createDto);
+      
+      const createdRoute = {
+        ...response.data,
+        stops: response.data.stops?.map((stop: any, index: number) => ({
+          ...stop,
+          serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+          estimatedArrivalTime: stop.estimatedArrivalTime,
+          estimatedDepartureTime: stop.estimatedDepartureTime,
+          customer: originalCustomers[index] || undefined
+        })) || [],
+        totalDistance: response.data.totalDistance || data.totalDistance || 0,
+        totalDuration: response.data.totalDuration || data.totalDuration || 0,
+        completedDeliveries: response.data.completedDeliveries || 0,
+        totalDeliveries: response.data.totalDeliveries || response.data.stops?.length || 0,
+        optimized: response.data.optimized || data.optimized || false
+      };
+      
+      return createdRoute;
+    } catch (error: any) {
+      console.error('Error creating route:', error);
+      console.error('Error response:', error.response?.data);
+      throw error;
     }
-    
-    console.log('Sending to backend:', JSON.stringify(createDto, null, 2));
-    
-    const response = await api.post(this.baseUrl, createDto);
-    
-    const createdRoute = {
-      ...response.data,
-      stops: response.data.stops?.map((stop: any, index: number) => ({
-        ...stop,
-        serviceTime: this.timeSpanToMinutes(stop.serviceTime),
-        customer: originalCustomers[index] || undefined
-      })) || [],
-      totalDistance: response.data.totalDistance || data.totalDistance || 0,
-      totalDuration: response.data.totalDuration || data.totalDuration || 0,
-      completedDeliveries: response.data.completedDeliveries || 0,
-      totalDeliveries: response.data.totalDeliveries || response.data.stops?.length || 0,
-      optimized: response.data.optimized || data.optimized || false
-    };
-    
-    return createdRoute;
-  } catch (error: any) {
-    console.error('Error creating route:', error);
-    console.error('Error response:', error.response?.data);
-    throw error;
   }
-}
 
   async update(id: string | number, data: Partial<Route>): Promise<Route> {
     try {
@@ -409,6 +422,8 @@ class RouteService {
         stops: response.data.stops?.map((stop: any, index: number) => ({
           ...stop,
           serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+          estimatedArrivalTime: stop.estimatedArrivalTime,
+          estimatedDepartureTime: stop.estimatedDepartureTime,
           customer: originalCustomers[index] || undefined
         })) || [],
         totalDistance: response.data.totalDistance || data.totalDistance || 0,
@@ -456,6 +471,8 @@ class RouteService {
           return {
             ...stop,
             serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+            estimatedArrivalTime: stop.estimatedArrivalTime,
+            estimatedDepartureTime: stop.estimatedDepartureTime,
             customer: customer || undefined
           };
         }) || [],
@@ -500,6 +517,8 @@ class RouteService {
           return {
             ...stop,
             serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+            estimatedArrivalTime: stop.estimatedArrivalTime,
+            estimatedDepartureTime: stop.estimatedDepartureTime,
             customer: customer || undefined
           };
         }) || [],
@@ -528,6 +547,8 @@ class RouteService {
           return {
             ...stop,
             serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+            estimatedArrivalTime: stop.estimatedArrivalTime,
+            estimatedDepartureTime: stop.estimatedDepartureTime,
             customer: customer || undefined
           };
         }) || [],
@@ -561,6 +582,8 @@ class RouteService {
           return {
             ...stop,
             serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+            estimatedArrivalTime: stop.estimatedArrivalTime,
+            estimatedDepartureTime: stop.estimatedDepartureTime,
             customer: customer || undefined
           };
         }) || [],
