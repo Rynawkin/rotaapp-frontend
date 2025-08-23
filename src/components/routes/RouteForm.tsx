@@ -13,7 +13,8 @@ import {
   Loader2,
   Map,
   Navigation,
-  Zap
+  Zap,
+  XCircle
 } from 'lucide-react';
 import CustomerSelector from './CustomerSelector';
 import StopsList from './StopsList';
@@ -27,6 +28,8 @@ import { depotService } from '@/services/depot.service';
 import { routeService } from '@/services/route.service';
 import { googleMapsService } from '@/services/googleMapsService';
 
+type OptimizationStatus = 'none' | 'success' | 'partial';
+
 interface StopData {
   customer: Customer;
   overrideTimeWindow?: { start: string; end: string };
@@ -35,6 +38,12 @@ interface StopData {
   stopNotes?: string;
   estimatedArrivalTime?: string;
   estimatedDepartureTime?: string;
+}
+
+interface ExcludedStop {
+  stopData: StopData;
+  reason: string;
+  timeWindowConflict?: string;
 }
 
 interface RouteFormProps {
@@ -58,16 +67,12 @@ const formatDuration = (totalMinutes: number): string => {
   return `${hours} saat ${minutes} dakika`;
 };
 
-// TimeSpan string'e çevirme helper'ı
 const timeSpanToTimeString = (timeSpan?: string): string => {
   if (!timeSpan) return '08:00';
-  // TimeSpan formatı: "HH:mm:ss" -> "HH:mm" formatına çevir
   return timeSpan.substring(0, 5);
 };
 
-// Time string'i TimeSpan'e çevirme helper'ı
 const timeStringToTimeSpan = (timeString: string): string => {
-  // "HH:mm" -> "HH:mm:00" formatına çevir
   return `${timeString}:00`;
 };
 
@@ -115,7 +120,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
     optimized: savedData?.optimized || initialData?.optimized || false
   });
 
-  // StartTime state'i ayrı tutalım
   const [startTime, setStartTime] = useState<string>(() => {
     if (initialData?.startDetails?.startTime) {
       return timeSpanToTimeString(initialData.startDetails.startTime);
@@ -123,7 +127,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
     if (savedData?.startTime) {
       return savedData.startTime;
     }
-    return '08:00'; // Varsayılan sabah 8
+    return '08:00';
   });
 
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -156,12 +160,23 @@ const RouteForm: React.FC<RouteFormProps> = ({
       savedData.stops.map((_: any, index: number) => index) : [];
   });
 
+  // Yeni state'ler
+  const [optimizationStatus, setOptimizationStatus] = useState<OptimizationStatus>('none');
+  const [excludedStops, setExcludedStops] = useState<ExcludedStop[]>([]);
+
+  const resetOptimization = useCallback(() => {
+    setOptimizationStatus('none');
+    setExcludedStops([]);
+    setOptimizedOrder([]);
+    updateFormData({ optimized: false });
+  }, []);
+
   const saveToLocalStorage = useCallback((data: Partial<Route>) => {
     if (!isEdit) {
       try {
         const toSave = {
           ...data,
-          startTime, // StartTime'ı da kaydet
+          startTime,
           stops: stopsData.map((stop, index) => ({
             ...stop,
             order: index + 1,
@@ -230,6 +245,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
       
       if (initialData.optimized) {
         setOptimizedOrder(initialStops.map((_, index) => index));
+        setOptimizationStatus('success');
         updateFormData({ optimized: true });
       }
     }
@@ -275,7 +291,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
           updateFormData({ depotId: defaultDepot.id.toString() });
         }
         
-        // Depo çalışma saatini varsayılan olarak ayarla (eğer başka bir değer yoksa)
         if (!initialData?.startDetails?.startTime && !savedData?.startTime) {
           const depotStartTime = defaultDepot.startWorkingHours || '08:00:00';
           setStartTime(timeSpanToTimeString(depotStartTime));
@@ -305,7 +320,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
         }
       }
       
-      // Saved startTime varsa restore et
       if (savedData?.startTime) {
         setStartTime(savedData.startTime);
       }
@@ -328,6 +342,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
         serviceTime: customer.estimatedServiceTime || 10
       }];
       setStopsData(newStopsData);
+      resetOptimization();
       saveToLocalStorage(formData);
     }
   };
@@ -335,8 +350,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
   const handleRemoveCustomer = (customerId: string | number) => {
     const newStopsData = stopsData.filter(s => s.customer.id.toString() !== customerId.toString());
     setStopsData(newStopsData);
-    setOptimizedOrder([]);
-    updateFormData({ optimized: false });
+    resetOptimization();
     if (newStopsData.length <= 1) {
       setMapDirections(null);
     }
@@ -344,15 +358,21 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
   const handleReorderStops = (reorderedStops: StopData[]) => {
     setStopsData(reorderedStops);
-    setOptimizedOrder([]);
+    resetOptimization();
     setMapDirections(null);
-    updateFormData({ optimized: false });
   };
 
   const handleUpdateStop = (index: number, updates: Partial<StopData>) => {
     const newStops = [...stopsData];
     newStops[index] = { ...newStops[index], ...updates };
     setStopsData(newStops);
+    resetOptimization();
+  };
+
+  const handleMoveExcludedToStops = (excludedStop: ExcludedStop) => {
+    setStopsData([...stopsData, excludedStop.stopData]);
+    setExcludedStops(excludedStops.filter(s => s.stopData.customer.id !== excludedStop.stopData.customer.id));
+    resetOptimization();
   };
 
   const updateMapRoute = async () => {
@@ -413,11 +433,9 @@ const RouteForm: React.FC<RouteFormProps> = ({
     setOptimizing(true);
     
     try {
-      // 1. Önce rotayı kaydet (edit modda değilse)
       let routeId = initialData?.id;
       
       if (!routeId) {
-        // Yeni rota ise önce kaydet
         const stops: RouteStop[] = stopsData.map((stopData, index) => ({
           id: `${Date.now()}-${index}`,
           routeId: '',
@@ -427,7 +445,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
           status: 'pending',
           serviceTime: stopData.serviceTime,
           stopNotes: stopData.stopNotes,
-          // Override time window'ları backend'in beklediği formatta gönder
           arriveBetweenStart: stopData.overrideTimeWindow?.start,
           arriveBetweenEnd: stopData.overrideTimeWindow?.end,
           estimatedArrival: new Date(),
@@ -454,11 +471,83 @@ const RouteForm: React.FC<RouteFormProps> = ({
         routeId = createdRoute.id;
       }
 
-      // 2. Backend'de optimize et
       const optimizedRoute = await routeService.optimize(routeId, optimizationMode);
-      
-      // 3. Optimize edilmiş stops'ları güncelle
-      if (optimizedRoute.stops) {
+
+      // Backend'den gelen response'a göre excluded stops kontrolü
+      if (optimizedRoute.hasExclusions && optimizedRoute.excludedStops && optimizedRoute.excludedStops.length > 0) {
+        setOptimizationStatus('partial');
+        
+        const excluded: ExcludedStop[] = optimizedRoute.excludedStops.map((ex: any) => {
+          const stopData = stopsData.find(s => 
+            s.customer.id.toString() === ex.stop.customerId.toString()
+          );
+          
+          // Eğer mevcut stopData bulunamazsa, backend'den gelen veriyi kullan
+          const fallbackStopData: StopData = {
+            customer: ex.stop.customer,
+            serviceTime: ex.stop.serviceTime,
+            stopNotes: ex.stop.stopNotes,
+            overrideTimeWindow: ex.stop.arriveBetweenStart ? {
+              start: ex.stop.arriveBetweenStart,
+              end: ex.stop.arriveBetweenEnd
+            } : undefined
+          };
+          
+          return {
+            stopData: stopData || fallbackStopData,
+            reason: ex.reason || 'Belirtilen zaman aralığında teslimat yapılamıyor',
+            timeWindowConflict: ex.timeWindowConflict
+          };
+        });
+        
+        setExcludedStops(excluded);
+        
+        // Sadece optimize edilmiş durakları tut
+        const optimizedStopsData = optimizedRoute.optimizedStops?.map((stop: any) => {
+          const existingStopData = stopsData.find(s => 
+            s.customer.id.toString() === stop.customerId.toString()
+          );
+          return {
+            customer: stop.customer || customers.find(c => c.id.toString() === stop.customerId.toString()),
+            serviceTime: stop.serviceTime,
+            stopNotes: stop.stopNotes || existingStopData?.stopNotes,
+            overrideTimeWindow: existingStopData?.overrideTimeWindow,
+            overridePriority: existingStopData?.overridePriority,
+            estimatedArrivalTime: stop.estimatedArrivalTime,
+            estimatedDepartureTime: stop.estimatedDepartureTime
+          };
+        }).filter(Boolean) || [];  // filter(Boolean) eklendi - null/undefined olanları çıkar
+        
+        setStopsData(optimizedStopsData);
+        
+      } else if (optimizedRoute.optimizedStops && optimizedRoute.optimizedStops.length > 0) {
+        // Exclusion yok ama optimizedStops var
+        setOptimizationStatus('success');
+        setExcludedStops([]);
+        
+        const optimizedStopsData = optimizedRoute.optimizedStops.map((stop: any) => {
+          const existingStopData = stopsData.find(s => 
+            s.customer.id.toString() === stop.customerId.toString()
+          );
+          return {
+            customer: stop.customer || customers.find(c => c.id.toString() === stop.customerId.toString()),
+            serviceTime: stop.serviceTime,
+            stopNotes: stop.stopNotes || existingStopData?.stopNotes,
+            overrideTimeWindow: existingStopData?.overrideTimeWindow,
+            overridePriority: existingStopData?.overridePriority,
+            estimatedArrivalTime: stop.estimatedArrivalTime,
+            estimatedDepartureTime: stop.estimatedDepartureTime
+          };
+        }).filter(Boolean);
+        
+        setStopsData(optimizedStopsData);
+        setOptimizedOrder(optimizedStopsData.map((_, i) => i));
+        
+      } else if (optimizedRoute.stops) {
+        // Eski format (backward compatibility)
+        setOptimizationStatus('success');
+        setExcludedStops([]);
+        
         const backendOptimizedStops = optimizedRoute.stops
           .sort((a, b) => a.order - b.order)
           .map(stop => {
@@ -478,30 +567,27 @@ const RouteForm: React.FC<RouteFormProps> = ({
         
         setStopsData(backendOptimizedStops);
         setOptimizedOrder(backendOptimizedStops.map((_, i) => i));
-        
-        // ÖNEMLİ: initialData'yı güncelle ki submit tekrar create etmesin
-        if (!isEdit) {
-          initialData = optimizedRoute;
-        }
-        
-        // Form data'ya ID ve optimize bilgilerini ekle
-        updateFormData({
-          ...formData,
-          id: routeId,
-          totalDuration: optimizedRoute.totalDuration,
-          totalDistance: optimizedRoute.totalDistance,
-          optimized: true
-        });
-
-        // 4. Haritayı güncelle
-        await updateMapRoute();
-        
-        alert(`Rota optimize edildi!\n\n` +
-              `Toplam Mesafe: ${optimizedRoute.totalDistance.toFixed(1)} km\n` +
-              `Tahmini Süre: ${formatDuration(optimizedRoute.totalDuration)}\n` +
-              `Google Maps ile optimize edildi\n` +
-              `${optimizationMode === 'distance' ? 'En kısa mesafe' : 'En hızlı rota'}`);
       }
+      
+      if (!isEdit) {
+        initialData = optimizedRoute;
+      }
+      
+      updateFormData({
+        ...formData,
+        id: routeId,
+        totalDuration: optimizedRoute.totalDuration,
+        totalDistance: optimizedRoute.totalDistance,
+        optimized: true
+      });
+
+      await updateMapRoute();
+      
+      const message = optimizationStatus === 'partial' 
+        ? `Rota optimize edildi!\n${excludedStops.length} durak zaman uyumsuzluğu nedeniyle dahil edilemedi.`
+        : `Rota optimize edildi!\n\nToplam Mesafe: ${optimizedRoute.totalDistance.toFixed(1)} km\nTahmini Süre: ${formatDuration(optimizedRoute.totalDuration)}`;
+      
+      alert(message);
       
     } catch (error: any) {
       console.error('Optimization error:', error);
@@ -528,9 +614,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Optimize edilmiş route varsa sadece update yap
+    if (optimizationStatus === 'none') {
+      alert('Lütfen önce rotayı optimize edin!');
+      return;
+    }
+    
     if (formData.id && formData.optimized) {
-      // Route zaten oluşturulmuş, sadece sürücü/araç ataması yap
       const updateData: Partial<Route> = {
         id: formData.id,
         driverId: formData.driverId,
@@ -579,7 +668,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
         customer: customer,
         order: index + 1,
         status: 'pending',
-        // Backend'in beklediği field adlarını kullan
         arriveBetweenStart: stopData.overrideTimeWindow?.start,
         arriveBetweenEnd: stopData.overrideTimeWindow?.end,
         overridePriority: stopData.overridePriority,
@@ -649,7 +737,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
         customer: customer,
         order: index + 1,
         status: 'pending',
-        // Backend'in beklediği field adlarını kullan
         arriveBetweenStart: stopData.overrideTimeWindow?.start,
         arriveBetweenEnd: stopData.overrideTimeWindow?.end,
         overridePriority: stopData.overridePriority,
@@ -899,7 +986,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
             <button
               type="button"
               onClick={handleOptimize}
-              disabled={stopsData.length < 2 || optimizing}
+              disabled={stopsData.length < 2 || optimizing || optimizationStatus !== 'none'}
               className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center text-sm"
             >
               {optimizing ? (
@@ -959,7 +1046,11 @@ const RouteForm: React.FC<RouteFormProps> = ({
                 <Navigation className="w-4 h-4 mr-2" />
                 <strong>Rota Bilgisi:</strong> 
                 <span className="ml-1">
-                  {formData.optimized ? 'Rota optimize edildi' : 'Optimize Et butonuna basarak rotanızı optimize edebilirsiniz'}
+                  {optimizationStatus === 'success' 
+                    ? 'Rota başarıyla optimize edildi' 
+                    : optimizationStatus === 'partial'
+                    ? 'Bazı duraklar zaman uyumsuzluğu nedeniyle dahil edilemedi'
+                    : 'Optimize Et butonuna basarak rotanızı optimize edebilirsiniz'}
                 </span>
               </p>
             </div>
@@ -971,13 +1062,16 @@ const RouteForm: React.FC<RouteFormProps> = ({
             Duraklar {stopsData.length > 0 && `(${stopsData.length})`}
           </h2>
           
-          {stopsData.length > 0 ? (
+          {stopsData.length > 0 || excludedStops.length > 0 ? (
             <div className="max-h-[600px] overflow-y-auto pr-2">
               <StopsList
                 stops={stopsData}
+                excludedStops={excludedStops}
+                optimizationStatus={optimizationStatus}
                 onRemove={handleRemoveCustomer}
                 onReorder={handleReorderStops}
                 onUpdateStop={handleUpdateStop}
+                onMoveExcludedToStops={handleMoveExcludedToStops}
               />
             </div>
           ) : (
@@ -1007,7 +1101,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
         
         <button
           type="submit"
-          disabled={loading || stopsData.length === 0}
+          disabled={loading || stopsData.length === 0 || optimizationStatus === 'none'}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center"
         >
           {loading ? (

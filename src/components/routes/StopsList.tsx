@@ -10,7 +10,8 @@ import {
   Save,
   XCircle,
   AlertCircle,
-  Timer
+  Timer,
+  CheckCircle
 } from 'lucide-react';
 import { Customer } from '@/types';
 
@@ -24,16 +25,28 @@ interface StopData {
 
 interface StopsListProps {
   stops: StopData[];
+  excludedStops?: Array<{
+    stopData: StopData;
+    reason: string;
+    timeWindowConflict: string;
+  }>;
+  optimizationStatus: 'none' | 'success' | 'partial';
   onRemove: (customerId: string) => void;
   onReorder: (stops: StopData[]) => void;
   onUpdateStop: (index: number, updates: Partial<StopData>) => void;
+  onExcludedStopEdit?: (customerId: string) => void;  // Optional yapıldı
+  onMoveExcludedToStops?: (excluded: any) => void;     // Yeni eklendi
 }
 
 const StopsList: React.FC<StopsListProps> = ({ 
   stops, 
+  excludedStops = [],
+  optimizationStatus,
   onRemove, 
   onReorder,
-  onUpdateStop 
+  onUpdateStop,
+  onExcludedStopEdit,
+  onMoveExcludedToStops  // Yeni eklendi
 }) => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -136,302 +149,330 @@ const StopsList: React.FC<StopsListProps> = ({
   };
 
   return (
-    <div className="space-y-2">
-      {stops.map((stop, index) => {
-        const isEditing = editingIndex === index;
-        const effectivePriority = stop.overridePriority || stop.customer.priority;
-        const effectiveTimeWindow = stop.overrideTimeWindow || stop.customer.timeWindow;
-        const effectiveServiceTime = stop.serviceTime || stop.customer.estimatedServiceTime || 10;
-        
-        // Değişiklik kontrolü
-        const isTimeWindowOverridden = stop.overrideTimeWindow && 
-          (stop.overrideTimeWindow.start !== stop.customer.timeWindow?.start || 
-           stop.overrideTimeWindow.end !== stop.customer.timeWindow?.end);
-        
-        const isServiceTimeOverridden = stop.serviceTime && 
-          stop.serviceTime !== (stop.customer.estimatedServiceTime || 10);
-        
-        const isPriorityOverridden = stop.overridePriority && 
-          stop.overridePriority !== stop.customer.priority;
+    <div className="space-y-4">
+      {/* Optimize edilmiş duraklar başlığı */}
+      {stops.length > 0 && (
+        <div className={`flex items-center justify-between p-3 rounded-lg ${
+          optimizationStatus === 'success' ? 'bg-green-50 border border-green-200' :
+          optimizationStatus === 'partial' ? 'bg-green-50 border border-green-200' :
+          'bg-gray-50 border border-gray-200'
+        }`}>
+          <h3 className={`font-medium flex items-center ${
+            optimizationStatus === 'success' ? 'text-green-700' :
+            optimizationStatus === 'partial' ? 'text-green-700' :
+            'text-gray-700'
+          }`}>
+            {optimizationStatus !== 'none' && (
+              <CheckCircle className="w-5 h-5 mr-2" />
+            )}
+            {optimizationStatus === 'none' ? 'Duraklar' : 'Optimize Edilmiş Duraklar'}
+          </h3>
+          {optimizationStatus !== 'none' && (
+            <span className="text-xs text-green-600 font-medium">
+              {stops.length} durak başarıyla optimize edildi
+            </span>
+          )}
+        </div>
+      )}
 
-        return (
-          <div
-            key={stop.customer.id}
-            draggable={!isEditing}
-            onDragStart={(e) => handleDragStart(e, index)}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, index)}
-            className={`bg-gray-50 rounded-lg p-4 cursor-move hover:bg-gray-100 transition-colors ${
-              draggedIndex === index ? 'opacity-50' : ''
-            }`}
-          >
-            <div className="flex items-start">
-              {/* Drag Handle */}
-              <div className="mr-3">
-                <GripVertical className="w-5 h-5 text-gray-400" />
-              </div>
+      {/* Mevcut stops listesi */}
+      <div className="space-y-2">
+        {stops.map((stop, index) => {
+          const isEditing = editingIndex === index;
+          const effectivePriority = stop.overridePriority || stop.customer.priority;
+          const effectiveTimeWindow = stop.overrideTimeWindow || stop.customer.timeWindow;
+          const effectiveServiceTime = stop.serviceTime || stop.customer.estimatedServiceTime || 10;
+          
+          // Değişiklik kontrolü
+          const isTimeWindowOverridden = stop.overrideTimeWindow && 
+            (stop.overrideTimeWindow.start !== stop.customer.timeWindow?.start || 
+             stop.overrideTimeWindow.end !== stop.customer.timeWindow?.end);
+          
+          const isServiceTimeOverridden = stop.serviceTime && 
+            stop.serviceTime !== (stop.customer.estimatedServiceTime || 10);
+          
+          const isPriorityOverridden = stop.overridePriority && 
+            stop.overridePriority !== stop.customer.priority;
 
-              {/* Order Number */}
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-semibold text-sm mr-3">
-                {index + 1}
-              </div>
+          return (
+            <div
+              key={stop.customer.id}
+              draggable={!isEditing}
+              onDragStart={(e) => handleDragStart(e, index)}
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, index)}
+              className={`bg-gray-50 rounded-lg p-4 cursor-move hover:bg-gray-100 transition-colors ${
+                draggedIndex === index ? 'opacity-50' : ''
+              }`}
+            >
+              <div className="flex items-start">
+                {/* Drag Handle */}
+                <div className="mr-3">
+                  <GripVertical className="w-5 h-5 text-gray-400" />
+                </div>
 
-              {/* Content */}
-              <div className="flex-1">
-                {!isEditing ? (
-                  // View Mode
-                  <>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h4 className="font-medium text-gray-900">
-                          {stop.customer.name}
-                          <span className="ml-2 text-xs text-gray-500">
-                            ({stop.customer.code})
-                          </span>
-                        </h4>
-                        
-                        <div className="mt-1 space-y-1">
-                          <p className="text-sm text-gray-600 flex items-start">
-                            <MapPin className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" />
-                            {stop.customer.address}
-                          </p>
-                          
-                          <div className="flex flex-wrap items-center gap-3 text-sm">
-                            <span className="flex items-center text-gray-500">
-                              <Phone className="w-4 h-4 mr-1" />
-                              {stop.customer.phone}
+                {/* Order Number */}
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-semibold text-sm mr-3">
+                  {index + 1}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1">
+                  {!isEditing ? (
+                    // View Mode
+                    <>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900">
+                            {stop.customer.name}
+                            <span className="ml-2 text-xs text-gray-500">
+                              ({stop.customer.code})
                             </span>
+                          </h4>
+                          
+                          <div className="mt-1 space-y-1">
+                            <p className="text-sm text-gray-600 flex items-start">
+                              <MapPin className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" />
+                              {stop.customer.address}
+                            </p>
                             
-                            {effectiveTimeWindow && (
+                            <div className="flex flex-wrap items-center gap-3 text-sm">
                               <span className="flex items-center text-gray-500">
-                                <Clock className="w-4 h-4 mr-1" />
-                                {effectiveTimeWindow.start} - {effectiveTimeWindow.end}
-                                {isTimeWindowOverridden && (
+                                <Phone className="w-4 h-4 mr-1" />
+                                {stop.customer.phone}
+                              </span>
+                              
+                              {effectiveTimeWindow && (
+                                <span className="flex items-center text-gray-500">
+                                  <Clock className="w-4 h-4 mr-1" />
+                                  {effectiveTimeWindow.start} - {effectiveTimeWindow.end}
+                                  {isTimeWindowOverridden && (
+                                    <span className="ml-1 text-xs text-orange-600">(düzenlenmiş)</span>
+                                  )}
+                                </span>
+                              )}
+                              
+                              <span className="flex items-center text-gray-500">
+                                <Timer className="w-4 h-4 mr-1" />
+                                {effectiveServiceTime} dk
+                                {isServiceTimeOverridden && (
                                   <span className="ml-1 text-xs text-orange-600">(düzenlenmiş)</span>
                                 )}
                               </span>
-                            )}
-                            
-                            <span className="flex items-center text-gray-500">
-                              <Timer className="w-4 h-4 mr-1" />
-                              {effectiveServiceTime} dk
-                              {isServiceTimeOverridden && (
-                                <span className="ml-1 text-xs text-orange-600">(düzenlenmiş)</span>
-                              )}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-2 mt-2">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(effectivePriority)}`}>
-                              {effectivePriority === 'high' && <Star className="w-3 h-3 mr-1" />}
-                              {effectivePriority === 'high' ? 'Yüksek' : effectivePriority === 'normal' ? 'Normal' : 'Düşük'}
-                              {isPriorityOverridden && (
-                                <span className="ml-1">(düzenlenmiş)</span>
-                              )}
-                            </span>
-                          </div>
-
-                          {(stop.customer.notes || stop.stopNotes) && (
-                            <div className="mt-2 p-2 bg-yellow-50 rounded text-xs text-yellow-800">
-                              {stop.stopNotes && (
-                                <div>
-                                  <strong>Durak Notu:</strong> {stop.stopNotes}
-                                </div>
-                              )}
-                              {stop.customer.notes && (
-                                <div className={stop.stopNotes ? 'mt-1' : ''}>
-                                  <strong>Müşteri Notu:</strong> {stop.customer.notes}
-                                </div>
-                              )}
                             </div>
-                          )}
+
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(effectivePriority)}`}>
+                                {effectivePriority === 'high' && <Star className="w-3 h-3 mr-1" />}
+                                {effectivePriority === 'high' ? 'Yüksek' : effectivePriority === 'normal' ? 'Normal' : 'Düşük'}
+                                {isPriorityOverridden && (
+                                  <span className="ml-1">(düzenlenmiş)</span>
+                                )}
+                              </span>
+                            </div>
+
+                            {(stop.customer.notes || stop.stopNotes) && (
+                              <div className="mt-2 p-2 bg-yellow-50 rounded text-xs text-yellow-800">
+                                {stop.stopNotes && (
+                                  <div>
+                                    <strong>Durak Notu:</strong> {stop.stopNotes}
+                                  </div>
+                                )}
+                                {stop.customer.notes && (
+                                  <div className={stop.stopNotes ? 'mt-1' : ''}>
+                                    <strong>Müşteri Notu:</strong> {stop.customer.notes}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="ml-3 flex items-start space-x-1">
+                          <button
+                            onClick={() => startEdit(index)}
+                            className="p-1.5 hover:bg-gray-200 rounded transition-colors"
+                            title="Düzenle"
+                          >
+                            <Edit2 className="w-4 h-4 text-gray-600" />
+                          </button>
+                          <button
+                            onClick={() => onRemove(stop.customer.id)}
+                            className="p-1.5 hover:bg-red-100 rounded transition-colors"
+                            title="Kaldır"
+                          >
+                            <X className="w-4 h-4 text-red-600" />
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    // Edit Mode
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-gray-900">
+                          {stop.customer.name} - Düzenleniyor
+                        </h4>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={saveEdit}
+                            className="p-1.5 bg-green-600 text-white rounded hover:bg-green-700"
+                            title="Kaydet"
+                          >
+                            <Save className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="p-1.5 bg-gray-600 text-white rounded hover:bg-gray-700"
+                            title="İptal"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
 
-                      {/* Actions */}
-                      <div className="ml-3 flex items-start space-x-1">
-                        <button
-                          onClick={() => startEdit(index)}
-                          className="p-1.5 hover:bg-gray-200 rounded transition-colors"
-                          title="Düzenle"
-                        >
-                          <Edit2 className="w-4 h-4 text-gray-600" />
-                        </button>
-                        <button
-                          onClick={() => onRemove(stop.customer.id)}
-                          className="p-1.5 hover:bg-red-100 rounded transition-colors"
-                          title="Kaldır"
-                        >
-                          <X className="w-4 h-4 text-red-600" />
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  // Edit Mode
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-medium text-gray-900">
-                        {stop.customer.name} - Düzenleniyor
-                      </h4>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={saveEdit}
-                          className="p-1.5 bg-green-600 text-white rounded hover:bg-green-700"
-                          title="Kaydet"
-                        >
-                          <Save className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          className="p-1.5 bg-gray-600 text-white rounded hover:bg-gray-700"
-                          title="İptal"
-                        >
-                          <XCircle className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/* Priority Override */}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Öncelik
+                          </label>
+                          <select
+                            value={editData.overridePriority || stop.customer.priority}
+                            onChange={(e) => setEditData({
+                              ...editData,
+                              overridePriority: e.target.value as 'high' | 'normal' | 'low'
+                            })}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="low">Düşük</option>
+                            <option value="normal">Normal</option>
+                            <option value="high">Yüksek</option>
+                          </select>
+                        </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {/* Priority Override */}
+                        {/* Service Time */}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Servis Süresi (dk)
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={editData.serviceTime || stop.customer.estimatedServiceTime || 10}
+                            onChange={(e) => setEditData({
+                              ...editData,
+                              serviceTime: parseInt(e.target.value)
+                            })}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Time Window Override Checkbox */}
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Öncelik
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={hasTimeWindowOverride}
+                            onChange={(e) => {
+                              setHasTimeWindowOverride(e.target.checked);
+                              if (!e.target.checked) {
+                                setEditData({
+                                  ...editData,
+                                  overrideTimeWindow: undefined
+                                });
+                              } else {
+                                setEditData({
+                                  ...editData,
+                                  overrideTimeWindow: {
+                                    start: stop.customer.timeWindow?.start || '',
+                                    end: stop.customer.timeWindow?.end || ''
+                                  }
+                                });
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">
+                            Bu durak için özel zaman penceresi tanımla
+                          </span>
                         </label>
-                        <select
-                          value={editData.overridePriority || stop.customer.priority}
-                          onChange={(e) => setEditData({
-                            ...editData,
-                            overridePriority: e.target.value as 'high' | 'normal' | 'low'
-                          })}
-                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="low">Düşük</option>
-                          <option value="normal">Normal</option>
-                          <option value="high">Yüksek</option>
-                        </select>
+                        {stop.customer.timeWindow && (
+                          <p className="text-xs text-gray-500 mt-1 ml-6">
+                            Müşteri varsayılanı: {stop.customer.timeWindow.start} - {stop.customer.timeWindow.end}
+                          </p>
+                        )}
                       </div>
 
-                      {/* Service Time */}
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Servis Süresi (dk)
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={editData.serviceTime || stop.customer.estimatedServiceTime || 10}
-                          onChange={(e) => setEditData({
-                            ...editData,
-                            serviceTime: parseInt(e.target.value)
-                          })}
-                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Time Window Override Checkbox */}
-                    <div>
-                      <label className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={hasTimeWindowOverride}
-                          onChange={(e) => {
-                            setHasTimeWindowOverride(e.target.checked);
-                            if (!e.target.checked) {
-                              setEditData({
-                                ...editData,
-                                overrideTimeWindow: undefined
-                              });
-                            } else {
-                              setEditData({
+                      {/* Time Window Override Fields */}
+                      {hasTimeWindowOverride && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-gray-50 rounded">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              Başlangıç Saati
+                            </label>
+                            <input
+                              type="time"
+                              value={editData.overrideTimeWindow?.start || ''}
+                              onChange={(e) => setEditData({
                                 ...editData,
                                 overrideTimeWindow: {
-                                  start: stop.customer.timeWindow?.start || '',
-                                  end: stop.customer.timeWindow?.end || ''
+                                  start: e.target.value,
+                                  end: editData.overrideTimeWindow?.end || ''
                                 }
-                              });
-                            }
-                          }}
-                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">
-                          Bu durak için özel zaman penceresi tanımla
-                        </span>
-                      </label>
-                      {stop.customer.timeWindow && (
-                        <p className="text-xs text-gray-500 mt-1 ml-6">
-                          Müşteri varsayılanı: {stop.customer.timeWindow.start} - {stop.customer.timeWindow.end}
-                        </p>
+                              })}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              Bitiş Saati
+                            </label>
+                            <input
+                              type="time"
+                              value={editData.overrideTimeWindow?.end || ''}
+                              onChange={(e) => setEditData({
+                                ...editData,
+                                overrideTimeWindow: {
+                                  start: editData.overrideTimeWindow?.start || '',
+                                  end: e.target.value
+                                }
+                              })}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                        </div>
                       )}
-                    </div>
 
-                    {/* Time Window Override Fields */}
-                    {hasTimeWindowOverride && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-gray-50 rounded">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Başlangıç Saati
-                          </label>
-                          <input
-                            type="time"
-                            value={editData.overrideTimeWindow?.start || ''}
-                            onChange={(e) => setEditData({
-                              ...editData,
-                              overrideTimeWindow: {
-                                start: e.target.value,
-                                end: editData.overrideTimeWindow?.end || ''
-                              }
-                            })}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Bitiş Saati
-                          </label>
-                          <input
-                            type="time"
-                            value={editData.overrideTimeWindow?.end || ''}
-                            onChange={(e) => setEditData({
-                              ...editData,
-                              overrideTimeWindow: {
-                                start: editData.overrideTimeWindow?.start || '',
-                                end: e.target.value
-                              }
-                            })}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
+                      {/* Stop Notes */}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Bu Durak İçin Özel Not
+                        </label>
+                        <textarea
+                          value={editData.stopNotes || ''}
+                          onChange={(e) => setEditData({
+                            ...editData,
+                            stopNotes: e.target.value
+                          })}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          rows={2}
+                          placeholder="Bu teslimat için özel notlar..."
+                        />
                       </div>
-                    )}
-
-                    {/* Stop Notes */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Bu Durak İçin Özel Not
-                      </label>
-                      <textarea
-                        value={editData.stopNotes || ''}
-                        onChange={(e) => setEditData({
-                          ...editData,
-                          stopNotes: e.target.value
-                        })}
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        rows={2}
-                        placeholder="Bu teslimat için özel notlar..."
-                      />
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
 
-      {stops.length === 0 && (
+      {stops.length === 0 && excludedStops.length === 0 && (
         <div className="text-center py-8 text-gray-500">
           <MapPin className="w-12 h-12 mx-auto text-gray-300 mb-3" />
           <p>Henüz durak eklenmedi</p>
@@ -439,10 +480,74 @@ const StopsList: React.FC<StopsListProps> = ({
         </div>
       )}
 
-      {stops.length > 0 && (
-        <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+      {/* Dahil edilemeyen duraklar */}
+      {excludedStops && excludedStops.length > 0 && (
+        <>
+          <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
+            <h3 className="font-medium text-red-700 flex items-center">
+              <AlertCircle className="w-5 h-5 mr-2" />
+              Zaman Uyumsuzluğu Nedeniyle Dahil Edilemeyen Duraklar
+            </h3>
+            <p className="text-xs text-red-600 mt-1">
+              Aşağıdaki duraklar belirlenen zaman aralıklarında teslim edilemiyor
+            </p>
+          </div>
+          
+          <div className="space-y-2">
+            {excludedStops.map((excluded) => (
+              <div
+                key={excluded.stopData.customer.id}
+                className="bg-red-50 border-2 border-red-200 rounded-lg p-4"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h4 className="font-medium text-gray-900">
+                      {excluded.stopData.customer.name}
+                      <span className="ml-2 text-xs text-gray-500">
+                        ({excluded.stopData.customer.code})
+                      </span>
+                    </h4>
+                    
+                    <p className="text-sm text-gray-600 mt-1">
+                      <MapPin className="w-4 h-4 inline mr-1" />
+                      {excluded.stopData.customer.address}
+                    </p>
+                    
+                    <div className="mt-2 p-2 bg-white rounded">
+                      <p className="text-sm text-red-600 font-medium">
+                        <AlertCircle className="w-4 h-4 inline mr-1" />
+                        {excluded.reason}
+                      </p>
+                      <p className="text-xs text-red-500 mt-1">
+                        {excluded.timeWindowConflict}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={() => {
+                      if (onMoveExcludedToStops) {
+                        onMoveExcludedToStops(excluded);
+                      } else if (onExcludedStopEdit) {
+                        onExcludedStopEdit(excluded.stopData.customer.id.toString());
+                      }
+                    }}
+                    className="p-1.5 hover:bg-red-100 rounded transition-colors ml-3"
+                    title="Zaman Penceresini Düzenle"
+                  >
+                    <Edit2 className="w-4 h-4 text-red-600" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {stops.length > 0 && optimizationStatus === 'none' && (
+        <div className="mt-4 p-3 bg-yellow-50 rounded-lg text-sm text-yellow-700 border border-yellow-200">
           <AlertCircle className="w-4 h-4 inline mr-1" />
-          <strong>İpucu:</strong> Durakları sürükleyerek sırayı değiştirebilir, düzenle butonuna tıklayarak her durak için özel ayarlar yapabilirsiniz.
+          <strong>Uyarı:</strong> Rotayı oluşturmadan önce durakları optimize etmeniz gerekmektedir.
         </div>
       )}
     </div>

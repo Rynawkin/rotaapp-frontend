@@ -1,5 +1,6 @@
 import { api } from './api';
-import { Route, RouteStop } from '@/types';
+import { Route, OptimizationResponse } from '@/types';
+
 
 export interface CreateRouteDto {
   name: string;
@@ -457,7 +458,7 @@ class RouteService {
     }
   }
 
-  async optimize(routeId: string | number, mode: 'distance' | 'duration' = 'distance'): Promise<Route> {
+  async optimize(routeId: string | number, mode: 'distance' | 'duration' = 'distance'): Promise<OptimizationResponse> {
     try {
       console.log('=== OPTIMIZE ROUTE (Backend) ===');
       console.log('1. Optimizing route ID:', routeId);
@@ -471,29 +472,43 @@ class RouteService {
       
       const customers = await this.loadCustomersSafely();
       
-      const optimizedRoute = {
-        ...response.data,
-        stops: response.data.stops?.map((stop: any) => {
-          const customer = customers.find(c => c.id.toString() === stop.customerId.toString());
-          
-          return {
-            ...stop,
-            serviceTime: this.timeSpanToMinutes(stop.serviceTime),
-            estimatedArrivalTime: stop.estimatedArrivalTime,
-            estimatedDepartureTime: stop.estimatedDepartureTime,
-            customer: customer || undefined
-          };
-        }) || [],
+      // Map optimized stops
+      const optimizedStops = response.data.optimizedStops?.map((stop: any) => {
+        const customer = customers.find(c => c.id.toString() === stop.customerId.toString());
+        
+        return {
+          ...stop,
+          serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+          estimatedArrivalTime: stop.estimatedArrivalTime,
+          estimatedDepartureTime: stop.estimatedDepartureTime,
+          customer: customer || undefined
+        };
+      }) || [];
+      
+      // Map excluded stops
+      const excludedStops = response.data.excludedStops?.map((excluded: any) => ({
+        stop: {
+          ...excluded.stop,
+          serviceTime: this.timeSpanToMinutes(excluded.stop.serviceTime),
+          customer: customers.find(c => c.id.toString() === excluded.stop.customerId.toString())
+        },
+        reason: excluded.reason,
+        timeWindowConflict: excluded.timeWindowConflict
+      })) || [];
+      
+      const optimizationResponse: OptimizationResponse = {
+        success: response.data.success,
+        message: response.data.message || '',
+        optimizedStops: optimizedStops,
+        excludedStops: excludedStops,
         totalDistance: response.data.totalDistance || 0,
         totalDuration: response.data.totalDuration || 0,
-        completedDeliveries: response.data.completedDeliveries || 0,
-        totalDeliveries: response.data.totalDeliveries || response.data.stops?.length || 0,
-        optimized: true
+        hasExclusions: response.data.hasExclusions || false
       };
       
-      console.log('4. Final optimized route:', optimizedRoute);
+      console.log('4. Final optimization response:', optimizationResponse);
       
-      return optimizedRoute;
+      return optimizationResponse;
     } catch (error) {
       console.error('Error optimizing route:', error);
       throw error;

@@ -390,3 +390,33 @@ export interface KPIMetric {
   description?: string;
   lastUpdated?: Date;
 }
+
+export interface OptimizationResponse {
+  success: boolean;
+  message: string;
+  optimizedStops: RouteStop[];
+  excludedStops: ExcludedStop[];
+  totalDistance: number;
+  totalDuration: number;
+  hasExclusions: boolean;
+}
+
+export interface ExcludedStop {
+  stop: RouteStop;
+  customer?: Customer;
+  reason: string;
+  timeWindowConflict?: string;
+}
+
+export type OptimizationStatus = 'none' | 'success' | 'partial';
+
+// Route Form Types
+export interface StopData {
+  customer: Customer;
+  overrideTimeWindow?: { start: string; end: string };
+  overridePriority?: 'high' | 'normal' | 'low';
+  serviceTime?: number;
+  stopNotes?: string;
+  estimatedArrivalTime?: string;
+  estimatedDepartureTime?: string;
+}
