@@ -77,7 +77,7 @@ const StopsList: React.FC<StopsListProps> = ({
     const stop = stops[index];
     setEditingIndex(index);
     setEditData({
-      overrideTimeWindow: stop.overrideTimeWindow || stop.customer.timeWindow,
+      overrideTimeWindow: stop.overrideTimeWindow, // Sadece override varsa kullan
       overridePriority: stop.overridePriority || stop.customer.priority,
       serviceTime: stop.serviceTime || stop.customer.estimatedServiceTime || 10,
       stopNotes: stop.stopNotes || ''
@@ -86,7 +86,14 @@ const StopsList: React.FC<StopsListProps> = ({
 
   const saveEdit = () => {
     if (editingIndex !== null) {
-      onUpdateStop(editingIndex, editData);
+      // Boş time window'ları temizle
+      const updates = { ...editData };
+      if (updates.overrideTimeWindow) {
+        if (!updates.overrideTimeWindow.start && !updates.overrideTimeWindow.end) {
+          delete updates.overrideTimeWindow;
+        }
+      }
+      onUpdateStop(editingIndex, updates);
       setEditingIndex(null);
       setEditData({});
     }
@@ -308,37 +315,53 @@ const StopsList: React.FC<StopsListProps> = ({
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                           Başlangıç Saati
+                          {!stop.customer.timeWindow && (
+                            <span className="text-gray-500 ml-1">(Bu durak için özel)</span>
+                          )}
                         </label>
                         <input
                           type="time"
-                          value={editData.overrideTimeWindow?.start || stop.customer.timeWindow?.start || '09:00'}
+                          value={editData.overrideTimeWindow?.start || ''}
                           onChange={(e) => setEditData({
                             ...editData,
                             overrideTimeWindow: {
                               start: e.target.value,
-                              end: editData.overrideTimeWindow?.end || stop.customer.timeWindow?.end || '17:00'
+                              end: editData.overrideTimeWindow?.end || ''
                             }
                           })}
                           className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
+                        {stop.customer.timeWindow?.start && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Müşteri varsayılanı: {stop.customer.timeWindow.start}
+                          </p>
+                        )}
                       </div>
 
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                           Bitiş Saati
+                          {!stop.customer.timeWindow && (
+                            <span className="text-gray-500 ml-1">(Bu durak için özel)</span>
+                          )}
                         </label>
                         <input
                           type="time"
-                          value={editData.overrideTimeWindow?.end || stop.customer.timeWindow?.end || '17:00'}
+                          value={editData.overrideTimeWindow?.end || ''}
                           onChange={(e) => setEditData({
                             ...editData,
                             overrideTimeWindow: {
-                              start: editData.overrideTimeWindow?.start || stop.customer.timeWindow?.start || '09:00',
+                              start: editData.overrideTimeWindow?.start || '',
                               end: e.target.value
                             }
                           })}
                           className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
+                        {stop.customer.timeWindow?.end && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Müşteri varsayılanı: {stop.customer.timeWindow.end}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -358,6 +381,13 @@ const StopsList: React.FC<StopsListProps> = ({
                         placeholder="Bu teslimat için özel notlar..."
                       />
                     </div>
+
+                    {stop.customer.timeWindow && (
+                      <div className="col-span-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
+                        <AlertCircle className="w-3 h-3 inline mr-1" />
+                        Müşterinin varsayılan zaman penceresi: {stop.customer.timeWindow.start} - {stop.customer.timeWindow.end}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
