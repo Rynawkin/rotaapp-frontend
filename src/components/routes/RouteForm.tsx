@@ -427,6 +427,9 @@ const RouteForm: React.FC<RouteFormProps> = ({
           status: 'pending',
           serviceTime: stopData.serviceTime,
           stopNotes: stopData.stopNotes,
+          // Override time window'ları backend'in beklediği formatta gönder
+          arriveBetweenStart: stopData.overrideTimeWindow?.start,
+          arriveBetweenEnd: stopData.overrideTimeWindow?.end,
           estimatedArrival: new Date(),
           distance: 0
         }));
@@ -576,7 +579,9 @@ const RouteForm: React.FC<RouteFormProps> = ({
         customer: customer,
         order: index + 1,
         status: 'pending',
-        overrideTimeWindow: stopData.overrideTimeWindow,
+        // Backend'in beklediği field adlarını kullan
+        arriveBetweenStart: stopData.overrideTimeWindow?.start,
+        arriveBetweenEnd: stopData.overrideTimeWindow?.end,
         overridePriority: stopData.overridePriority,
         serviceTime: stopData.serviceTime,
         stopNotes: stopData.stopNotes,
@@ -644,7 +649,9 @@ const RouteForm: React.FC<RouteFormProps> = ({
         customer: customer,
         order: index + 1,
         status: 'pending',
-        overrideTimeWindow: stopData.overrideTimeWindow,
+        // Backend'in beklediği field adlarını kullan
+        arriveBetweenStart: stopData.overrideTimeWindow?.start,
+        arriveBetweenEnd: stopData.overrideTimeWindow?.end,
         overridePriority: stopData.overridePriority,
         serviceTime: stopData.serviceTime,
         stopNotes: stopData.stopNotes,

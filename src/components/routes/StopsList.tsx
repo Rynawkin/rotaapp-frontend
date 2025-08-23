@@ -38,6 +38,7 @@ const StopsList: React.FC<StopsListProps> = ({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editData, setEditData] = useState<Partial<StopData>>({});
+  const [hasTimeWindowOverride, setHasTimeWindowOverride] = useState(false);
 
   // Drag handlers
   const handleDragStart = (e: React.DragEvent, index: number) => {
@@ -76,8 +77,13 @@ const StopsList: React.FC<StopsListProps> = ({
   const startEdit = (index: number) => {
     const stop = stops[index];
     setEditingIndex(index);
+    
+    // Override varsa göster, yoksa boş başlat
+    const hasOverride = !!(stop.overrideTimeWindow?.start || stop.overrideTimeWindow?.end);
+    setHasTimeWindowOverride(hasOverride);
+    
     setEditData({
-      overrideTimeWindow: stop.overrideTimeWindow, // Sadece override varsa kullan
+      overrideTimeWindow: hasOverride ? stop.overrideTimeWindow : undefined,
       overridePriority: stop.overridePriority || stop.customer.priority,
       serviceTime: stop.serviceTime || stop.customer.estimatedServiceTime || 10,
       stopNotes: stop.stopNotes || ''
@@ -86,22 +92,34 @@ const StopsList: React.FC<StopsListProps> = ({
 
   const saveEdit = () => {
     if (editingIndex !== null) {
-      // Boş time window'ları temizle
       const updates = { ...editData };
+      
+      // Time window override kontrolü
+      if (!hasTimeWindowOverride || 
+          (!updates.overrideTimeWindow?.start && !updates.overrideTimeWindow?.end)) {
+        delete updates.overrideTimeWindow;
+      }
+      
+      // Müşteri varsayılanı ile aynıysa override'ı kaldır
+      const stop = stops[editingIndex];
       if (updates.overrideTimeWindow) {
-        if (!updates.overrideTimeWindow.start && !updates.overrideTimeWindow.end) {
+        if (updates.overrideTimeWindow.start === stop.customer.timeWindow?.start &&
+            updates.overrideTimeWindow.end === stop.customer.timeWindow?.end) {
           delete updates.overrideTimeWindow;
         }
       }
+      
       onUpdateStop(editingIndex, updates);
       setEditingIndex(null);
       setEditData({});
+      setHasTimeWindowOverride(false);
     }
   };
 
   const cancelEdit = () => {
     setEditingIndex(null);
     setEditData({});
+    setHasTimeWindowOverride(false);
   };
 
   const getPriorityColor = (priority: string) => {
@@ -310,60 +328,84 @@ const StopsList: React.FC<StopsListProps> = ({
                           className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
-
-                      {/* Time Window Override */}
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Başlangıç Saati
-                          {!stop.customer.timeWindow && (
-                            <span className="text-gray-500 ml-1">(Bu durak için özel)</span>
-                          )}
-                        </label>
-                        <input
-                          type="time"
-                          value={editData.overrideTimeWindow?.start || ''}
-                          onChange={(e) => setEditData({
-                            ...editData,
-                            overrideTimeWindow: {
-                              start: e.target.value,
-                              end: editData.overrideTimeWindow?.end || ''
-                            }
-                          })}
-                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        {stop.customer.timeWindow?.start && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Müşteri varsayılanı: {stop.customer.timeWindow.start}
-                          </p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Bitiş Saati
-                          {!stop.customer.timeWindow && (
-                            <span className="text-gray-500 ml-1">(Bu durak için özel)</span>
-                          )}
-                        </label>
-                        <input
-                          type="time"
-                          value={editData.overrideTimeWindow?.end || ''}
-                          onChange={(e) => setEditData({
-                            ...editData,
-                            overrideTimeWindow: {
-                              start: editData.overrideTimeWindow?.start || '',
-                              end: e.target.value
-                            }
-                          })}
-                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        {stop.customer.timeWindow?.end && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Müşteri varsayılanı: {stop.customer.timeWindow.end}
-                          </p>
-                        )}
-                      </div>
                     </div>
+
+                    {/* Time Window Override Checkbox */}
+                    <div>
+                      <label className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={hasTimeWindowOverride}
+                          onChange={(e) => {
+                            setHasTimeWindowOverride(e.target.checked);
+                            if (!e.target.checked) {
+                              setEditData({
+                                ...editData,
+                                overrideTimeWindow: undefined
+                              });
+                            } else {
+                              setEditData({
+                                ...editData,
+                                overrideTimeWindow: {
+                                  start: stop.customer.timeWindow?.start || '',
+                                  end: stop.customer.timeWindow?.end || ''
+                                }
+                              });
+                            }
+                          }}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-sm text-gray-700">
+                          Bu durak için özel zaman penceresi tanımla
+                        </span>
+                      </label>
+                      {stop.customer.timeWindow && (
+                        <p className="text-xs text-gray-500 mt-1 ml-6">
+                          Müşteri varsayılanı: {stop.customer.timeWindow.start} - {stop.customer.timeWindow.end}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Time Window Override Fields */}
+                    {hasTimeWindowOverride && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-gray-50 rounded">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Başlangıç Saati
+                          </label>
+                          <input
+                            type="time"
+                            value={editData.overrideTimeWindow?.start || ''}
+                            onChange={(e) => setEditData({
+                              ...editData,
+                              overrideTimeWindow: {
+                                start: e.target.value,
+                                end: editData.overrideTimeWindow?.end || ''
+                              }
+                            })}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Bitiş Saati
+                          </label>
+                          <input
+                            type="time"
+                            value={editData.overrideTimeWindow?.end || ''}
+                            onChange={(e) => setEditData({
+                              ...editData,
+                              overrideTimeWindow: {
+                                start: editData.overrideTimeWindow?.start || '',
+                                end: e.target.value
+                              }
+                            })}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {/* Stop Notes */}
                     <div>
@@ -381,13 +423,6 @@ const StopsList: React.FC<StopsListProps> = ({
                         placeholder="Bu teslimat için özel notlar..."
                       />
                     </div>
-
-                    {stop.customer.timeWindow && (
-                      <div className="col-span-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
-                        <AlertCircle className="w-3 h-3 inline mr-1" />
-                        Müşterinin varsayılan zaman penceresi: {stop.customer.timeWindow.start} - {stop.customer.timeWindow.end}
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
