@@ -1,0 +1,53 @@
+import { api } from './api';
+
+export const adminService = {
+  async getWorkspaceStats() {
+    const response = await api.get('/admin/workspaces/stats');
+    return response.data;
+  },
+
+  async getWorkspaceUsage() {
+    const response = await api.get('/admin/workspaces/usage');
+    return response.data;
+  },
+
+  async getAllWorkspaces() {
+    const response = await api.get('/admin/workspaces');
+    return response.data;
+  },
+
+  async getWorkspaceById(id: string) {
+    const response = await api.get(`/admin/workspaces/${id}`);
+    return response.data;
+  },
+
+  async updateWorkspaceStatus(id: string, active: boolean) {
+    const response = await api.patch(`/admin/workspaces/${id}/status`, { active });
+    return response.data;
+  },
+
+  async deleteWorkspace(id: string) {
+    const response = await api.delete(`/admin/workspaces/${id}`);
+    return response.data;
+  },
+
+  async getWorkspaceSubscription(id: string) {
+    const response = await api.get(`/admin/workspaces/${id}/subscription`);
+    return response.data;
+  },
+  
+  async updateWorkspacePlan(id: string, planType: string) {
+    const response = await api.put(`/admin/workspaces/${id}/plan`, { planType });
+    return response.data;
+  },
+  
+  async resetWorkspaceUsage(id: string) {
+    const response = await api.post(`/admin/workspaces/${id}/reset-usage`);
+    return response.data;
+  },
+  
+  async getAvailablePlans() {
+    const response = await api.get('/admin/plans');
+    return response.data;
+  }
+};
