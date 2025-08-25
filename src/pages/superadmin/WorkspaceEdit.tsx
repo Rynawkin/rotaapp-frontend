@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Workspace } from '@/types';
 import { workspaceService } from '@/services/workspace.service';
+import { adminService } from '@/services/admin.service';
 
 const WorkspaceEdit: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -166,13 +167,26 @@ const WorkspaceEdit: React.FC = () => {
               </label>
               <select
                 value={formData.plan}
-                onChange={(e) => setFormData({...formData, plan: e.target.value})}
+                onChange={async (e) => {
+                  const newPlan = parseInt(e.target.value);
+                  setFormData({...formData, plan: e.target.value});
+                  
+                  // Plan değişikliğini backend'e kaydet
+                  if (id) {
+                    try {
+                      await adminService.updateWorkspacePlan(id, newPlan);
+                      navigate(`/super-admin/workspace/${id}`);
+                    } catch (error) {
+                      console.error('Plan değiştirme hatası:', error);
+                    }
+                  }
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="trial">Trial</option>
-                <option value="basic">Basic</option>
-                <option value="premium">Premium</option>
-                <option value="enterprise">Enterprise</option>
+                <option value="1">Starter</option>
+                <option value="2">Growth</option>
+                <option value="3">Professional</option>
+                <option value="4">Business</option>
               </select>
             </div>
             

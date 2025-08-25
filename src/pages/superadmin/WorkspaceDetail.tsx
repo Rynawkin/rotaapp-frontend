@@ -158,25 +158,25 @@ const WorkspaceDetail: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {availablePlans.map((plan) => (
                 <div
-                  key={plan.planType}
+                  key={plan.planTypeValue}
                   className={`border rounded-lg p-4 cursor-pointer ${
-                    selectedPlan === plan.planType ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                    selectedPlan == plan.planTypeValue ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
                   }`}
-                  onClick={() => setSelectedPlan(plan.planType)}
+                  onClick={() => setSelectedPlan(plan.planTypeValue)}
                 >
                   <div className="flex justify-between items-start mb-2">
                     <h4 className="font-semibold">{plan.planType}</h4>
-                    <span className="text-lg font-bold">₺{plan.monthlyPrice}</span>
+                    <span className="text-lg font-bold">₺{plan.limits?.monthlyPrice || 0}</span>
                   </div>
                   
                   <div className="space-y-1 text-sm text-gray-600">
-                    <div>• {plan.includedMonthlyStops} durak/ay</div>
-                    <div>• Ek durak: ₺{plan.additionalStopPrice}</div>
-                    {plan.hasTimeWindows && <div>✓ Zaman aralıklı teslimat</div>}
-                    {plan.hasCustomerWhatsAppNotifications && (
-                      <div>✓ WhatsApp ({plan.includedWhatsAppMessages} mesaj)</div>
+                    <div>• {plan.limits?.includedMonthlyStops || 0} durak/ay</div>
+                    <div>• Ek durak: ₺{plan.limits?.additionalStopPrice || 0}</div>
+                    {plan.limits?.hasTimeWindows && <div>✓ Zaman aralıklı teslimat</div>}
+                    {plan.limits?.hasCustomerWhatsAppNotifications && (
+                      <div>✓ WhatsApp ({plan.limits?.includedWhatsAppMessages || 0} mesaj)</div>
                     )}
-                    <div>• Arşiv: {plan.proofArchiveDays} gün</div>
+                    <div>• Arşiv: {plan.limits?.proofArchiveDays || 0} gün</div>
                   </div>
                 </div>
               ))}
