@@ -23,7 +23,8 @@ import {
   Eye,
   CheckSquare,
   Wifi,
-  WifiOff
+  WifiOff,
+  AlertTriangle
 } from 'lucide-react';
 import { Journey, JourneyStop, JourneyStatus } from '@/types';
 import { journeyService, CompleteStopDto } from '@/services/journey.service';
@@ -511,32 +512,36 @@ const JourneyDetail: React.FC = () => {
     );
   }
 
-  // ✅ DÜZELTİLDİ: Progress hesaplaması
-  const stops = journey.stops || [];
-  const currentStopIndex = journey.currentStopIndex || 0;
-  const currentStop = stops[currentStopIndex];
+  // ✅ YENİ: Stops'ları normal ve excluded olarak ayır
+  const allStops = journey.stops || [];
+  const normalStops = allStops.filter((s: JourneyStop) => s.order > 0);
+  const excludedStops = allStops.filter((s: JourneyStop) => s.order === 0 || s.isExcluded);
   
-  const completedStops = stops.filter((s: JourneyStop) => 
+  const currentStopIndex = journey.currentStopIndex || 0;
+  const currentStop = normalStops[currentStopIndex];
+  
+  // Progress hesaplaması - sadece normal stops için
+  const completedStops = normalStops.filter((s: JourneyStop) => 
     s.status?.toLowerCase() === 'completed'
   ).length;
   
-  const failedStops = stops.filter((s: JourneyStop) => 
+  const failedStops = normalStops.filter((s: JourneyStop) => 
     s.status?.toLowerCase() === 'failed'
   ).length;
   
   // Toplam işlenen duraklar (başarılı + başarısız)
   const totalProcessedStops = completedStops + failedStops;
-  const overallProgress = stops.length > 0 
-    ? (totalProcessedStops / stops.length) * 100 
+  const overallProgress = normalStops.length > 0 
+    ? (totalProcessedStops / normalStops.length) * 100 
     : 0;
   
   // Başarı oranları
-  const successRate = stops.length > 0 
-    ? (completedStops / stops.length) * 100 
+  const successRate = normalStops.length > 0 
+    ? (completedStops / normalStops.length) * 100 
     : 0;
   
-  const failureRate = stops.length > 0 
-    ? (failedStops / stops.length) * 100 
+  const failureRate = normalStops.length > 0 
+    ? (failedStops / normalStops.length) * 100 
     : 0;
   
   // Journey durumlarını kontrol et
@@ -544,12 +549,12 @@ const JourneyDetail: React.FC = () => {
   const isJourneyPlanned = journey.status === 'planned' || journey.status === 'preparing';
   
   const canCompleteJourney = isJourneyStarted && 
-    stops.every((s: JourneyStop) => {
+    normalStops.every((s: JourneyStop) => {
       const statusLower = s.status?.toLowerCase() || 'pending';
       return statusLower === 'completed' || statusLower === 'failed' || statusLower === 'skipped';
     });
 
-  if (stops.length === 0) {
+  if (normalStops.length === 0 && excludedStops.length === 0) {
     return (
       <div className="space-y-6">
         <div className="flex items-center space-x-4">
@@ -713,7 +718,8 @@ const JourneyDetail: React.FC = () => {
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-gray-900">İlerleme Durumu</h3>
           <span className="text-sm text-gray-600">
-            {completedStops} başarılı, {failedStops} başarısız / {stops.length} toplam durak
+            {completedStops} başarılı, {failedStops} başarısız / {normalStops.length} aktif durak
+            {excludedStops.length > 0 && ` (${excludedStops.length} kaldırıldı)`}
           </span>
         </div>
         
@@ -766,6 +772,55 @@ const JourneyDetail: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* ✅ YENİ: Excluded Stops Section */}
+      {excludedStops.length > 0 && (
+        <div className="bg-red-50 rounded-lg shadow-sm border border-red-200">
+          <div className="p-6 border-b border-red-200">
+            <div className="flex items-center">
+              <AlertTriangle className="w-5 h-5 text-red-600 mr-2" />
+              <h3 className="font-semibold text-red-900">
+                Teslimat Saatine Uyum Sağlamadığı İçin Kaldırılan Duraklar ({excludedStops.length})
+              </h3>
+            </div>
+            <p className="text-sm text-red-700 mt-2">
+              Bu duraklar zaman penceresi kısıtlamaları nedeniyle rotadan çıkarılmıştır
+            </p>
+          </div>
+          <div className="divide-y divide-red-200">
+            {excludedStops.map((stop: JourneyStop) => (
+              <div key={stop.id} className="p-4 hover:bg-red-100 transition-colors">
+                <div className="flex items-start space-x-4">
+                  <XCircle className="w-5 h-5 text-red-500 mt-1" />
+                  <div className="flex-1">
+                    <h4 className="font-medium text-gray-900">
+                      {stop.routeStop?.customer?.name || 
+                       stop.routeStop?.name || 
+                       'Müşteri'}
+                    </h4>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {stop.endAddress || 
+                       stop.routeStop?.address || 
+                       stop.routeStop?.customer?.address ||
+                       'Adres bilgisi yok'}
+                    </p>
+                    {stop.routeStop?.customer?.timeWindowStart && (
+                      <p className="text-xs text-red-600 mt-2">
+                        Teslimat penceresi: {stop.routeStop.customer.timeWindowStart} - {stop.routeStop.customer.timeWindowEnd}
+                      </p>
+                    )}
+                    {stop.notes && (
+                      <p className="text-sm text-red-700 mt-1 italic">
+                        Kaldırılma nedeni: {stop.notes}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Status History - ✅ DÜZELTİLDİ */}
       {journey.statuses && journey.statuses.length > 0 && (
@@ -844,13 +899,13 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-      {/* Stops List */}
+      {/* Stops List - Sadece normal stops */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-100">
         <div className="p-6 border-b">
-          <h3 className="font-semibold text-gray-900">Duraklar ({stops.length})</h3>
+          <h3 className="font-semibold text-gray-900">Aktif Duraklar ({normalStops.length})</h3>
         </div>
         <div className="divide-y">
-          {stops.map((stop: JourneyStop, index: number) => {
+          {normalStops.map((stop: JourneyStop, index: number) => {
             const stopStatusLower = stop.status?.toLowerCase() || 'pending';
             
             return (
@@ -864,7 +919,7 @@ const JourneyDetail: React.FC = () => {
                   <div className="flex items-start space-x-4">
                     <div className="flex flex-col items-center">
                       {getStopStatusIcon(stop.status)}
-                      {index < stops.length - 1 && (
+                      {index < normalStops.length - 1 && (
                         <div className="w-0.5 h-12 bg-gray-300 mt-2" />
                       )}
                     </div>
