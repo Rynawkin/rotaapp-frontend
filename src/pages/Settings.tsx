@@ -246,19 +246,19 @@ const Settings: React.FC = () => {
       }
 
       if (notifications) {
-        setNotificationSettings({
-          emailNotifications: notifications.emailNotifications,
-          smsNotifications: notifications.smsNotifications,
-          notificationEmail: notifications.notificationEmail || '',
-          notificationPhone: notifications.notificationPhone || '',
-          whatsAppSettings: notifications.whatsAppSettings || notificationSettings.whatsAppSettings,
-          events: notifications.events || notificationSettings.events
-        });
-        
-        // WhatsApp Mode'u ayarla
-        if (notifications.whatsAppSettings?.mode) {
-          setWhatsAppMode(notifications.whatsAppSettings.mode);
-        }
+          setNotificationSettings({
+              emailNotifications: notifications.emailNotifications,
+              smsNotifications: notifications.smsNotifications,
+              notificationEmail: notifications.notificationEmail || '',
+              notificationPhone: notifications.notificationPhone || '',
+              whatsAppSettings: notifications.whatsAppSettings || notificationSettings.whatsAppSettings,
+              events: notifications.events || notificationSettings.events
+          });
+          
+          // WhatsApp Mode'u ayarla
+          if (notifications.whatsAppSettings?.mode) {
+              setWhatsAppMode(notifications.whatsAppSettings.mode as any);
+          }
       }
 
       const savedSettings = localStorage.getItem('appSettings');
