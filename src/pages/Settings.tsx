@@ -88,7 +88,7 @@ const Settings: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [connectingWhatsApp, setConnectingWhatsApp] = useState(false);
   const [disconnectingWhatsApp, setDisconnectingWhatsApp] = useState(false);
-  const [twilioStatus, setTwilioStatus] = useState<any>(null);
+  const [whatsAppMode, setWhatsAppMode] = useState<'disabled' | 'shared' | 'custom'>('disabled');
 
   // Company Settings
   const [companySettings, setCompanySettings] = useState({
@@ -253,6 +253,11 @@ const Settings: React.FC = () => {
           whatsAppSettings: notifications.whatsAppSettings || notificationSettings.whatsAppSettings,
           events: notifications.events || notificationSettings.events
         });
+        
+        // WhatsApp Mode'u ayarla
+        if (notifications.whatsAppSettings?.mode) {
+          setWhatsAppMode(notifications.whatsAppSettings.mode);
+        }
       }
 
       const savedSettings = localStorage.getItem('appSettings');
@@ -373,7 +378,13 @@ const Settings: React.FC = () => {
       
       if (canAccessDispatcherFeatures() && availableTabs.includes('notifications')) {
         promises.push(
-          settingsService.updateNotificationSettings(notificationSettings)
+          settingsService.updateNotificationSettings({
+            ...notificationSettings,
+            whatsAppSettings: {
+              ...notificationSettings.whatsAppSettings,
+              mode: whatsAppMode
+            }
+          })
         );
       }
       
@@ -1196,92 +1207,165 @@ const Settings: React.FC = () => {
                   </div>
                 </div>
 
-                {/* WhatsApp Business Connect - MULTI-TENANT */}
+                {/* WhatsApp Business Connect - HYBRID MODE */}
                 <div className="border-t pt-6">
                   <h3 className="text-base font-medium text-gray-900 mb-4 flex items-center">
                     <Phone className="w-5 h-5 mr-2 text-green-600" />
-                    WhatsApp Business Bağlantısı
+                    WhatsApp Bildirimleri
                   </h3>
                   
-                  {!companySettings.twilioConnected ? (
-                    <div className="space-y-4">
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                        <h4 className="font-medium text-yellow-900 mb-2">WhatsApp Business'ı Bağlayın</h4>
-                        <p className="text-sm text-yellow-800 mb-3">
-                          Müşterilerinize WhatsApp üzerinden bildirim göndermek için kendi WhatsApp Business hesabınızı bağlayın.
-                        </p>
-                        <ul className="text-sm text-yellow-800 space-y-1 mb-4">
-                          <li>• Kendi WhatsApp Business numaranızdan gönderim</li>
-                          <li>• Müşteri onayı ile otomatik bildirimler</li>
-                          <li>• Teslimat takibi ve durum güncellemeleri</li>
-                        </ul>
-                        <button
-                          onClick={handleConnectWhatsApp}
-                          disabled={connectingWhatsApp}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50"
-                        >
-                          {connectingWhatsApp ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                              Bağlanıyor...
-                            </>
-                          ) : (
-                            <>
-                              <Link className="w-4 h-4" />
-                              WhatsApp Business'ı Bağla
-                              <ExternalLink className="w-3 h-3" />
-                            </>
-                          )}
-                        </button>
-                      </div>
+                  {/* WhatsApp Mode Selector */}
+                  <div className="mb-6 p-4 bg-white rounded-lg border">
+                    <h4 className="font-medium text-gray-900 mb-3">WhatsApp Gönderim Modu</h4>
+                    
+                    <div className="space-y-3">
+                      <label className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                        <input
+                          type="radio"
+                          value="disabled"
+                          checked={whatsAppMode === 'disabled'}
+                          onChange={(e) => {
+                            setWhatsAppMode(e.target.value as any);
+                            setHasChanges(true);
+                          }}
+                          className="mt-1"
+                        />
+                        <div>
+                          <div className="font-medium">WhatsApp Kullanma</div>
+                          <div className="text-sm text-gray-600">Sadece email bildirimi gönder</div>
+                        </div>
+                      </label>
+                      
+                      <label className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                        <input
+                          type="radio"
+                          value="shared"
+                          checked={whatsAppMode === 'shared'}
+                          onChange={(e) => {
+                            setWhatsAppMode(e.target.value as any);
+                            setHasChanges(true);
+                          }}
+                          className="mt-1"
+                        />
+                        <div>
+                          <div className="font-medium">YolPilot Numarasını Kullan</div>
+                          <div className="text-sm text-gray-600">Hemen başlayın, kurulum gerektirmez</div>
+                          <div className="text-xs text-green-600 mt-1">₺0.50/mesaj • Şirket adınız mesajda görünür</div>
+                        </div>
+                      </label>
+                      
+                      <label className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                        <input
+                          type="radio"
+                          value="custom"
+                          checked={whatsAppMode === 'custom'}
+                          onChange={(e) => {
+                            setWhatsAppMode(e.target.value as any);
+                            setHasChanges(true);
+                          }}
+                          className="mt-1"
+                        />
+                        <div>
+                          <div className="font-medium">Kendi Numaramı Kullan (Enterprise)</div>
+                          <div className="text-sm text-gray-600">Kendi WhatsApp Business hesabınızı bağlayın</div>
+                          <div className="text-xs text-blue-600 mt-1">Twilio hesabı gerektirir</div>
+                        </div>
+                      </label>
                     </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {/* WhatsApp Connected */}
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="font-medium text-green-900 mb-2 flex items-center gap-2">
-                              <Check className="w-5 h-5" />
-                              WhatsApp Business Bağlı
-                            </h4>
-                            <div className="text-sm text-green-800 space-y-1">
-                              <p><strong>Numara:</strong> {companySettings.twilioWhatsAppNumber}</p>
-                              {companySettings.twilioConnectedAt && (
-                                <p><strong>Bağlantı Tarihi:</strong> {new Date(companySettings.twilioConnectedAt).toLocaleDateString('tr-TR')}</p>
+                  </div>
+
+                  {/* Custom mode seçiliyse mevcut Twilio bağlama UI'ını göster */}
+                  {whatsAppMode === 'custom' && (
+                    <>
+                      {!companySettings.twilioConnected ? (
+                        <div className="space-y-4">
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            <h4 className="font-medium text-yellow-900 mb-2">WhatsApp Business'ı Bağlayın</h4>
+                            <p className="text-sm text-yellow-800 mb-3">
+                              Kendi WhatsApp Business hesabınızı bağlamak için Twilio entegrasyonu gereklidir.
+                            </p>
+                            <button
+                              onClick={handleConnectWhatsApp}
+                              disabled={connectingWhatsApp}
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                            >
+                              {connectingWhatsApp ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  Bağlanıyor...
+                                </>
+                              ) : (
+                                <>
+                                  <Link className="w-4 h-4" />
+                                  WhatsApp Business'ı Bağla
+                                  <ExternalLink className="w-3 h-3" />
+                                </>
                               )}
-                              {companySettings.twilioVerified && (
-                                <p className="flex items-center gap-1">
-                                  <Check className="w-4 h-4" />
-                                  Doğrulanmış Hesap
-                                </p>
-                              )}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {/* Mevcut bağlı durum UI'ı */}
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <h4 className="font-medium text-green-900 mb-2 flex items-center gap-2">
+                                  <Check className="w-5 h-5" />
+                                  WhatsApp Business Bağlı
+                                </h4>
+                                <div className="text-sm text-green-800 space-y-1">
+                                  <p><strong>Numara:</strong> {companySettings.twilioWhatsAppNumber}</p>
+                                  {companySettings.twilioConnectedAt && (
+                                    <p><strong>Bağlantı Tarihi:</strong> {new Date(companySettings.twilioConnectedAt).toLocaleDateString('tr-TR')}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                onClick={handleDisconnectWhatsApp}
+                                disabled={disconnectingWhatsApp}
+                                className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+                              >
+                                {disconnectingWhatsApp ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                    Kaldırılıyor...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Unlink className="w-3 h-3" />
+                                    Bağlantıyı Kaldır
+                                  </>
+                                )}
+                              </button>
                             </div>
                           </div>
-                          <button
-                            onClick={handleDisconnectWhatsApp}
-                            disabled={disconnectingWhatsApp}
-                            className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1 disabled:opacity-50"
-                          >
-                            {disconnectingWhatsApp ? (
-                              <>
-                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                                Kaldırılıyor...
-                              </>
-                            ) : (
-                              <>
-                                <Unlink className="w-3 h-3" />
-                                Bağlantıyı Kaldır
-                              </>
-                            )}
-                          </button>
                         </div>
-                      </div>
+                      )}
+                    </>
+                  )}
 
-                      {/* WhatsApp Event Settings */}
-                      <div className="space-y-3">
+                  {/* Shared mode seçiliyse bilgi mesajı göster */}
+                  {whatsAppMode === 'shared' && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <h4 className="font-medium text-green-900 mb-2 flex items-center gap-2">
+                        <Check className="w-5 h-5" />
+                        YolPilot WhatsApp Servisi Aktif
+                      </h4>
+                      <p className="text-sm text-green-800">
+                        Müşterilerinize YolPilot'un resmi WhatsApp numarasından bildirim gönderilecek.
+                        Mesajların başında şirket adınız görünecektir.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* WhatsApp Event Settings - Her modda göster (disabled hariç) */}
+                  {whatsAppMode !== 'disabled' && (
+                    <>
+                      <div className="space-y-3 mt-4">
                         <h4 className="text-sm font-medium text-gray-700">Hangi durumlarda WhatsApp gönderilsin?</h4>
                         
+                        {/* Mevcut checkbox'lar aynı kalacak */}
                         <label className="flex items-center gap-3 p-3 bg-white rounded-lg border hover:bg-gray-50">
                           <input
                             type="checkbox"
@@ -1299,80 +1383,93 @@ const Settings: React.FC = () => {
                             className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
                           />
                           <span className="text-gray-700">Sefer başladığında (Teslimatınız yola çıktı)</span>
-                        </label>
+                          </label>
 
-                        <label className="flex items-center gap-3 p-3 bg-white rounded-lg border hover:bg-gray-50">
-                          <input
-                            type="checkbox"
-                            checked={notificationSettings.whatsAppSettings.enableWhatsAppForCheckIn}
-                            onChange={(e) => {
-                              setNotificationSettings({
-                                ...notificationSettings,
-                                whatsAppSettings: {
-                                  ...notificationSettings.whatsAppSettings,
-                                  enableWhatsAppForCheckIn: e.target.checked
-                                }
-                              });
-                              setHasChanges(true);
-                            }}
-                            className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
-                          />
-                          <span className="text-gray-700">Teslimat yaklaştığında (30 dakika önce)</span>
-                        </label>
+                          <label className="flex items-center gap-3 p-3 bg-white rounded-lg border hover:bg-gray-50">
+                            <input
+                              type="checkbox"
+                              checked={notificationSettings.whatsAppSettings.enableWhatsAppForCheckIn}
+                              onChange={(e) => {
+                                setNotificationSettings({
+                                  ...notificationSettings,
+                                  whatsAppSettings: {
+                                    ...notificationSettings.whatsAppSettings,
+                                    enableWhatsAppForCheckIn: e.target.checked
+                                  }
+                                });
+                                setHasChanges(true);
+                              }}
+                              className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                            />
+                            <span className="text-gray-700">Teslimat yaklaştığında (30 dakika önce)</span>
+                          </label>
 
-                        <label className="flex items-center gap-3 p-3 bg-white rounded-lg border hover:bg-gray-50">
-                          <input
-                            type="checkbox"
-                            checked={notificationSettings.whatsAppSettings.enableWhatsAppForCompletion}
-                            onChange={(e) => {
-                              setNotificationSettings({
-                                ...notificationSettings,
-                                whatsAppSettings: {
-                                  ...notificationSettings.whatsAppSettings,
-                                  enableWhatsAppForCompletion: e.target.checked
-                                }
-                              });
-                              setHasChanges(true);
-                            }}
-                            className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
-                          />
-                          <span className="text-gray-700">Teslimat tamamlandığında</span>
-                        </label>
+                          <label className="flex items-center gap-3 p-3 bg-white rounded-lg border hover:bg-gray-50">
+                            <input
+                              type="checkbox"
+                              checked={notificationSettings.whatsAppSettings.enableWhatsAppForCompletion}
+                              onChange={(e) => {
+                                setNotificationSettings({
+                                  ...notificationSettings,
+                                  whatsAppSettings: {
+                                    ...notificationSettings.whatsAppSettings,
+                                    enableWhatsAppForCompletion: e.target.checked
+                                  }
+                                });
+                                setHasChanges(true);
+                              }}
+                              className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                            />
+                            <span className="text-gray-700">Teslimat tamamlandığında</span>
+                          </label>
 
-                        <label className="flex items-center gap-3 p-3 bg-white rounded-lg border hover:bg-gray-50">
-                          <input
-                            type="checkbox"
-                            checked={notificationSettings.whatsAppSettings.enableWhatsAppForFailure}
-                            onChange={(e) => {
-                              setNotificationSettings({
-                                ...notificationSettings,
-                                whatsAppSettings: {
-                                  ...notificationSettings.whatsAppSettings,
-                                  enableWhatsAppForFailure: e.target.checked
-                                }
-                              });
-                              setHasChanges(true);
-                            }}
-                            className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
-                          />
-                          <span className="text-gray-700">Teslimat başarısız olduğunda</span>
-                        </label>
+                          <label className="flex items-center gap-3 p-3 bg-white rounded-lg border hover:bg-gray-50">
+                            <input
+                              type="checkbox"
+                              checked={notificationSettings.whatsAppSettings.enableWhatsAppForFailure}
+                              onChange={(e) => {
+                                setNotificationSettings({
+                                  ...notificationSettings,
+                                  whatsAppSettings: {
+                                    ...notificationSettings.whatsAppSettings,
+                                    enableWhatsAppForFailure: e.target.checked
+                                  }
+                                });
+                                setHasChanges(true);
+                              }}
+                              className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                            />
+                            <span className="text-gray-700">Teslimat başarısız olduğunda</span>
+                          </label>
+                        
+                        {/* Diğer checkbox'lar aynı şekilde devam edecek */}
                       </div>
 
                       {/* WhatsApp Usage Info */}
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3 mt-4">
                         <Info className="w-5 h-5 text-blue-600 mt-0.5" />
                         <div className="text-sm text-blue-800">
                           <p className="font-medium mb-1">WhatsApp Kullanım Bilgisi</p>
                           <ul className="space-y-1">
-                            <li>• Kendi WhatsApp Business numaranızdan gönderim yapılır</li>
+                            {whatsAppMode === 'shared' ? (
+                              <>
+                                <li>• YolPilot'un resmi numarasından gönderim yapılır</li>
+                                <li>• Mesajın başında şirket adınız görünür</li>
+                                <li>• ₺0.50 per mesaj ücretlendirilir</li>
+                                <li>• Kurulum gerektirmez, hemen başlayın</li>
+                              </>
+                            ) : (
+                              <>
+                                <li>• Kendi WhatsApp Business numaranızdan gönderim yapılır</li>
+                                <li>• Twilio üzerinden kendi ücretlendirmeniz uygulanır</li>
+                                <li>• Test için Twilio Sandbox kullanabilirsiniz</li>
+                              </>
+                            )}
                             <li>• Sadece onay veren müşterilere mesaj gönderilir</li>
-                            <li>• Mesaj başına Twilio ücretlendirmesi uygulanır</li>
-                            <li>• Test için Twilio Sandbox kullanabilirsiniz</li>
                           </ul>
                         </div>
                       </div>
-                    </div>
+                    </>
                   )}
                 </div>
                 
