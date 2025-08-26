@@ -45,13 +45,20 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
   const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
   const [defaultServiceTime, setDefaultServiceTime] = useState<number>(15);
 
-  // Form State
+  // Form State - WhatsApp alanları eklendi
   const [formData, setFormData] = useState<Partial<Customer>>({
     code: initialData?.code || '',
     name: initialData?.name || '',
     address: initialData?.address || '',
     phone: initialData?.phone || '',
     email: initialData?.email || '',
+    
+    // WhatsApp Alanları - YENİ EKLENEN
+    whatsApp: initialData?.whatsApp || initialData?.phone || '',
+    whatsAppOptIn: initialData?.whatsAppOptIn || false,
+    whatsAppVerified: initialData?.whatsAppVerified || false,
+    whatsAppOptInDate: initialData?.whatsAppOptInDate,
+    
     latitude: initialData?.latitude || 40.9869,
     longitude: initialData?.longitude || 29.0252,
     priority: initialData?.priority || 'normal',
@@ -322,7 +329,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
               />
             </Autocomplete>
             <p className="text-xs text-blue-600 mt-2">
-              💡 İşletme seçtiğinizde adres, telefon ve konum bilgileri otomatik doldurulacak
+              İşletme seçtiğinizde adres, telefon ve konum bilgileri otomatik doldurulacak
             </p>
           </div>
         )}
@@ -611,8 +618,193 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
         </div>
       </div>
 
-      {/* Tags & Notes - Kısaltılmış, geri kalanı aynı */}
-      {/* ... rest of the form ... */}
+      {/* WhatsApp Settings - YENİ EKLENEN */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <Phone className="w-5 h-5 mr-2 text-green-600" />
+          WhatsApp Bildirimleri
+        </h2>
+
+        <div className="space-y-4">
+          {/* WhatsApp Number */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              WhatsApp Numarası
+            </label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-green-600" />
+              <input
+                type="tel"
+                value={formData.whatsApp || formData.phone}
+                onChange={(e) => setFormData({ ...formData, whatsApp: e.target.value })}
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Örn: +90 532 111 2233"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Boş bırakırsanız telefon numarası kullanılır
+            </p>
+          </div>
+
+          {/* WhatsApp Opt-in */}
+          <div className="space-y-3">
+            <label className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
+              <input
+                type="checkbox"
+                checked={formData.whatsAppOptIn || false}
+                onChange={(e) => {
+                  const optIn = e.target.checked;
+                  setFormData({ 
+                    ...formData, 
+                    whatsAppOptIn: optIn,
+                    whatsAppOptInDate: optIn ? new Date() : undefined
+                  });
+                }}
+                className="w-5 h-5 text-green-600 rounded focus:ring-green-500"
+              />
+              <div className="flex-1">
+                <span className="font-medium text-gray-900">
+                  WhatsApp bildirimleri gönder
+                </span>
+                <p className="text-sm text-gray-600 mt-1">
+                  Müşteri teslimat bildirimleri için WhatsApp mesajı almayı kabul ediyor
+                </p>
+              </div>
+            </label>
+
+            {formData.whatsAppOptIn && (
+              <>
+                {/* WhatsApp Verification Status */}
+                <label className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <input
+                    type="checkbox"
+                    checked={formData.whatsAppVerified || false}
+                    onChange={(e) => setFormData({ ...formData, whatsAppVerified: e.target.checked })}
+                    className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                  <div className="flex-1">
+                    <span className="font-medium text-gray-900">
+                      Numara doğrulandı
+                    </span>
+                    <p className="text-sm text-gray-600 mt-1">
+                      WhatsApp numarası müşteri tarafından doğrulandı
+                    </p>
+                  </div>
+                </label>
+
+                {/* Opt-in Date Display */}
+                {formData.whatsAppOptInDate && (
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Onay tarihi:</span>{' '}
+                      {new Date(formData.whatsAppOptInDate).toLocaleDateString('tr-TR', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* WhatsApp Info Box */}
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-green-600 mt-0.5" />
+            <div className="text-sm text-green-800">
+              <p className="font-medium mb-1">WhatsApp bildirimleri hakkında</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Müşteriye sefer başladığında bildirim gönderilir</li>
+                <li>Teslimat yaklaştığında (30 dk önce) bildirim gönderilir</li>
+                <li>Teslimat tamamlandığında veya başarısız olduğunda bildirim gönderilir</li>
+                <li>Tüm bildirimler email'e ek olarak gönderilir</li>
+                <li>Plan limitinize göre ücretlendirilir</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tags & Notes */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <FileText className="w-5 h-5 mr-2" />
+          Ek Bilgiler
+        </h2>
+
+        <div className="space-y-4">
+          {/* Tags */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Tag className="w-4 h-4 inline mr-1" />
+              Etiketler
+            </label>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {formData.tags?.map((tag) => (
+                <span
+                  key={tag}
+                  className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm flex items-center gap-1"
+                >
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => removeTag(tag)}
+                    className="text-blue-500 hover:text-blue-700"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyPress={handleTagKeyPress}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Etiket ekle..."
+              />
+              <button
+                type="button"
+                onClick={() => tagInput.trim() && addTag(tagInput)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Ekle
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {commonTags.filter(tag => !formData.tags?.includes(tag)).map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => addTag(tag)}
+                  className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs hover:bg-gray-200"
+                >
+                  + {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notlar
+            </label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={3}
+              placeholder="Müşteri hakkında önemli notlar..."
+            />
+          </div>
+        </div>
+      </div>
 
       {/* Actions */}
       <div className="flex items-center justify-end space-x-3">

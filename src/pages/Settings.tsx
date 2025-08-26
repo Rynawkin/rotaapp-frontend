@@ -28,7 +28,11 @@ import {
   AlertCircle,
   Crown,
   Zap,
-  Star
+  Star,
+  ExternalLink,
+  Link,
+  Unlink,
+  Loader2
 } from 'lucide-react';
 import { settingsService } from '@/services/settings.service';
 import { useAuth } from '@/contexts/AuthContext';
@@ -47,7 +51,7 @@ interface User {
 const Settings: React.FC = () => {
   const { user, canAccessDispatcherFeatures, canAccessAdminFeatures } = useAuth();
   
-  // ROL BAZLI SEKME KONTROLÜ - Theme kaldırıldı, driver'lar erişemiyor
+  // ROL BAZLI SEKME KONTROLÜ
   const getAvailableTabs = () => {
     if (user?.isSuperAdmin) {
       return ['company', 'users', 'delivery', 'notifications', 'subscription', 'regional', 'data'];
@@ -58,13 +62,11 @@ const Settings: React.FC = () => {
     if (canAccessDispatcherFeatures()) {
       return ['users', 'delivery', 'notifications'];
     }
-    // Driver'lar artık hiçbir sekmeye erişemiyor
     return [];
   };
 
   const availableTabs = getAvailableTabs();
   
-  // Eğer hiç sekme yoksa (driver ise) hata göster
   if (availableTabs.length === 0) {
     return (
       <div className="max-w-7xl mx-auto space-y-6">
@@ -84,6 +86,9 @@ const Settings: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [connectingWhatsApp, setConnectingWhatsApp] = useState(false);
+  const [disconnectingWhatsApp, setDisconnectingWhatsApp] = useState(false);
+  const [twilioStatus, setTwilioStatus] = useState<any>(null);
 
   // Company Settings
   const [companySettings, setCompanySettings] = useState({
@@ -95,10 +100,16 @@ const Settings: React.FC = () => {
     taxNumber: '',
     phoneNumber: '',
     email: '',
-    website: ''
+    website: '',
+    // Twilio/WhatsApp Credentials - YENİ EKLENEN
+    twilioConnected: false,
+    twilioAccountSid: '',
+    twilioWhatsAppNumber: '',
+    twilioVerified: false,
+    twilioConnectedAt: null as Date | null
   });
 
-  // Users - Still local for now
+  // Users
   const [users, setUsers] = useState<User[]>([
     { id: '1', name: 'Admin Kullanıcı', email: 'admin@rotaapp.com', role: 'admin', status: 'active', createdAt: '2024-01-01', lastLogin: '2024-02-28 14:30' },
     { id: '2', name: 'Mehmet Yönetici', email: 'mehmet@rotaapp.com', role: 'manager', status: 'active', createdAt: '2024-01-15', lastLogin: '2024-02-28 09:15' },
@@ -134,12 +145,22 @@ const Settings: React.FC = () => {
     costPerHour: null as number | null
   });
 
-  // Notification Settings
+  // Notification Settings - Multi-tenant WhatsApp
   const [notificationSettings, setNotificationSettings] = useState({
     emailNotifications: true,
     smsNotifications: false,
     notificationEmail: '',
     notificationPhone: '',
+    
+    // WhatsApp Settings - MULTI-TENANT YAPISINA UYGUN
+    whatsAppSettings: {
+      enabled: false,
+      enableWhatsAppForJourneyStart: false,
+      enableWhatsAppForCheckIn: false,
+      enableWhatsAppForCompletion: false,
+      enableWhatsAppForFailure: false
+    },
+    
     events: {
       routeCompleted: true,
       deliveryFailed: true,
@@ -149,7 +170,7 @@ const Settings: React.FC = () => {
     }
   });
 
-  // Regional Settings - Still local
+  // Regional Settings
   const [regionalSettings, setRegionalSettings] = useState({
     language: 'tr' as 'tr' | 'en',
     timezone: 'Europe/Istanbul',
@@ -161,6 +182,7 @@ const Settings: React.FC = () => {
   // Load settings from backend
   useEffect(() => {
     loadSettingsFromBackend();
+    checkTwilioStatus();
   }, []);
 
   useEffect(() => {
@@ -174,7 +196,6 @@ const Settings: React.FC = () => {
     setError(null);
     
     try {
-      // Load all settings from backend (theme kaldırıldı)
       const [workspace, delivery, notifications] = await Promise.all([
         settingsService.getWorkspaceSettings().catch(() => null),
         settingsService.getDeliverySettings().catch(() => null),
@@ -191,10 +212,15 @@ const Settings: React.FC = () => {
           taxNumber: workspace.taxNumber || '',
           phoneNumber: workspace.phoneNumber || '',
           email: workspace.email || '',
-          website: workspace.website || ''
+          website: workspace.website || '',
+          // Twilio/WhatsApp bilgileri
+          twilioConnected: workspace.twilioConnected || false,
+          twilioAccountSid: workspace.twilioAccountSid || '',
+          twilioWhatsAppNumber: workspace.twilioWhatsAppNumber || '',
+          twilioVerified: workspace.twilioVerified || false,
+          twilioConnectedAt: workspace.twilioConnectedAt ? new Date(workspace.twilioConnectedAt) : null
         });
         
-        // Update regional settings from workspace
         setRegionalSettings(prev => ({
           ...prev,
           currency: workspace.currency || 'TRY',
@@ -224,11 +250,11 @@ const Settings: React.FC = () => {
           smsNotifications: notifications.smsNotifications,
           notificationEmail: notifications.notificationEmail || '',
           notificationPhone: notifications.notificationPhone || '',
+          whatsAppSettings: notifications.whatsAppSettings || notificationSettings.whatsAppSettings,
           events: notifications.events || notificationSettings.events
         });
       }
 
-      // Also load from localStorage for backward compatibility
       const savedSettings = localStorage.getItem('appSettings');
       if (savedSettings) {
         const settings = JSON.parse(savedSettings);
@@ -238,19 +264,84 @@ const Settings: React.FC = () => {
     } catch (err) {
       console.error('Error loading settings:', err);
       setError('Ayarlar yüklenirken bir hata oluştu');
-      
-      // Fallback to localStorage
-      const savedSettings = localStorage.getItem('appSettings');
-      if (savedSettings) {
-        const settings = JSON.parse(savedSettings);
-        if (settings.company) setCompanySettings(settings.company);
-        if (settings.delivery) setDeliverySettings(prev => ({ ...prev, ...settings.delivery }));
-        if (settings.notifications) setNotificationSettings(settings.notifications);
-        if (settings.regional) setRegionalSettings(settings.regional);
-        if (settings.users) setUsers(settings.users);
-      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // WhatsApp Connect - Multi-tenant için Twilio Embedded Signup
+  const handleConnectWhatsApp = async () => {
+    setConnectingWhatsApp(true);
+    try {
+      const response = await settingsService.connectTwilioWhatsApp();
+      
+      if (response.signupUrl) {
+        // Twilio signup sayfasını yeni sekmede aç
+        const popup = window.open(
+          response.signupUrl,
+          'twilio-signup',
+          'width=600,height=700,left=200,top=100'
+        );
+
+        // Popup'ı dinle
+        const checkInterval = setInterval(() => {
+          if (popup?.closed) {
+            clearInterval(checkInterval);
+            checkTwilioStatus();
+          }
+        }, 1000);
+      }
+    } catch (err: any) {
+      console.error('WhatsApp connect error:', err);
+      setError(err.response?.data?.message || 'WhatsApp bağlantısı başlatılamadı');
+    } finally {
+      setConnectingWhatsApp(false);
+    }
+  };
+
+  // WhatsApp Disconnect
+  const handleDisconnectWhatsApp = async () => {
+    if (!confirm('WhatsApp bağlantısını kaldırmak istediğinizden emin misiniz?')) {
+      return;
+    }
+
+    setDisconnectingWhatsApp(true);
+    try {
+      await settingsService.disconnectTwilioWhatsApp();
+      
+      setCompanySettings(prev => ({
+        ...prev,
+        twilioConnected: false,
+        twilioAccountSid: '',
+        twilioWhatsAppNumber: '',
+        twilioVerified: false,
+        twilioConnectedAt: null
+      }));
+
+      setShowSuccessMessage(true);
+      setTimeout(() => setShowSuccessMessage(false), 3000);
+    } catch (err: any) {
+      console.error('WhatsApp disconnect error:', err);
+      setError(err.response?.data?.message || 'WhatsApp bağlantısı kaldırılamadı');
+    } finally {
+      setDisconnectingWhatsApp(false);
+    }
+  };
+
+  // WhatsApp bağlantı durumunu kontrol et
+  const checkTwilioStatus = async () => {
+    try {
+      const status = await settingsService.getTwilioStatus();
+      setTwilioStatus(status);
+      setCompanySettings(prev => ({
+        ...prev,
+        twilioConnected: status.connected,
+        twilioWhatsAppNumber: status.phoneNumber || '',
+        twilioVerified: status.connected,
+        twilioConnectedAt: status.connectedAt
+      }));
+    } catch (err) {
+      console.error('Error checking Twilio status:', err);
     }
   };
 
@@ -261,7 +352,6 @@ const Settings: React.FC = () => {
     try {
       const promises = [];
       
-      // Save workspace settings if admin
       if (canAccessAdminFeatures() && availableTabs.includes('company')) {
         promises.push(
           settingsService.updateWorkspaceSettings({
@@ -275,14 +365,12 @@ const Settings: React.FC = () => {
         );
       }
       
-      // Save delivery settings if dispatcher+
       if (canAccessDispatcherFeatures() && availableTabs.includes('delivery')) {
         promises.push(
           settingsService.updateDeliverySettings(deliverySettings)
         );
       }
       
-      // Save notification settings if dispatcher+
       if (canAccessDispatcherFeatures() && availableTabs.includes('notifications')) {
         promises.push(
           settingsService.updateNotificationSettings(notificationSettings)
@@ -291,7 +379,6 @@ const Settings: React.FC = () => {
       
       await Promise.all(promises);
       
-      // Also save to localStorage for backward compatibility (theme kaldırıldı)
       const settings = {
         company: companySettings,
         delivery: deliverySettings,
@@ -403,7 +490,7 @@ const Settings: React.FC = () => {
           const settings = JSON.parse(event.target?.result as string);
           if (settings.company) setCompanySettings(settings.company);
           if (settings.delivery) setDeliverySettings(prev => ({ ...prev, ...settings.delivery }));
-          if (settings.notifications) setNotificationSettings(settings.notifications);
+          if (settings.notifications) setNotificationSettings(prev => ({ ...prev, ...settings.notifications }));
           if (settings.regional) setRegionalSettings(settings.regional);
           setHasChanges(true);
         } catch (error) {
@@ -1040,7 +1127,7 @@ const Settings: React.FC = () => {
               </div>
             )}
 
-            {/* Notification Settings */}
+            {/* Notification Settings - MULTI-TENANT WhatsApp */}
             {activeTab === 'notifications' && availableTabs.includes('notifications') && (
               <div className="space-y-6">
                 <h2 className="text-lg font-semibold text-gray-900 border-b pb-3">Bildirim Ayarları</h2>
@@ -1107,6 +1194,186 @@ const Settings: React.FC = () => {
                       />
                     )}
                   </div>
+                </div>
+
+                {/* WhatsApp Business Connect - MULTI-TENANT */}
+                <div className="border-t pt-6">
+                  <h3 className="text-base font-medium text-gray-900 mb-4 flex items-center">
+                    <Phone className="w-5 h-5 mr-2 text-green-600" />
+                    WhatsApp Business Bağlantısı
+                  </h3>
+                  
+                  {!companySettings.twilioConnected ? (
+                    <div className="space-y-4">
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <h4 className="font-medium text-yellow-900 mb-2">WhatsApp Business'ı Bağlayın</h4>
+                        <p className="text-sm text-yellow-800 mb-3">
+                          Müşterilerinize WhatsApp üzerinden bildirim göndermek için kendi WhatsApp Business hesabınızı bağlayın.
+                        </p>
+                        <ul className="text-sm text-yellow-800 space-y-1 mb-4">
+                          <li>• Kendi WhatsApp Business numaranızdan gönderim</li>
+                          <li>• Müşteri onayı ile otomatik bildirimler</li>
+                          <li>• Teslimat takibi ve durum güncellemeleri</li>
+                        </ul>
+                        <button
+                          onClick={handleConnectWhatsApp}
+                          disabled={connectingWhatsApp}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                        >
+                          {connectingWhatsApp ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                              Bağlanıyor...
+                            </>
+                          ) : (
+                            <>
+                              <Link className="w-4 h-4" />
+                              WhatsApp Business'ı Bağla
+                              <ExternalLink className="w-3 h-3" />
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* WhatsApp Connected */}
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="font-medium text-green-900 mb-2 flex items-center gap-2">
+                              <Check className="w-5 h-5" />
+                              WhatsApp Business Bağlı
+                            </h4>
+                            <div className="text-sm text-green-800 space-y-1">
+                              <p><strong>Numara:</strong> {companySettings.twilioWhatsAppNumber}</p>
+                              {companySettings.twilioConnectedAt && (
+                                <p><strong>Bağlantı Tarihi:</strong> {new Date(companySettings.twilioConnectedAt).toLocaleDateString('tr-TR')}</p>
+                              )}
+                              {companySettings.twilioVerified && (
+                                <p className="flex items-center gap-1">
+                                  <Check className="w-4 h-4" />
+                                  Doğrulanmış Hesap
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={handleDisconnectWhatsApp}
+                            disabled={disconnectingWhatsApp}
+                            className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+                          >
+                            {disconnectingWhatsApp ? (
+                              <>
+                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                Kaldırılıyor...
+                              </>
+                            ) : (
+                              <>
+                                <Unlink className="w-3 h-3" />
+                                Bağlantıyı Kaldır
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* WhatsApp Event Settings */}
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-medium text-gray-700">Hangi durumlarda WhatsApp gönderilsin?</h4>
+                        
+                        <label className="flex items-center gap-3 p-3 bg-white rounded-lg border hover:bg-gray-50">
+                          <input
+                            type="checkbox"
+                            checked={notificationSettings.whatsAppSettings.enableWhatsAppForJourneyStart}
+                            onChange={(e) => {
+                              setNotificationSettings({
+                                ...notificationSettings,
+                                whatsAppSettings: {
+                                  ...notificationSettings.whatsAppSettings,
+                                  enableWhatsAppForJourneyStart: e.target.checked
+                                }
+                              });
+                              setHasChanges(true);
+                            }}
+                            className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                          />
+                          <span className="text-gray-700">Sefer başladığında (Teslimatınız yola çıktı)</span>
+                        </label>
+
+                        <label className="flex items-center gap-3 p-3 bg-white rounded-lg border hover:bg-gray-50">
+                          <input
+                            type="checkbox"
+                            checked={notificationSettings.whatsAppSettings.enableWhatsAppForCheckIn}
+                            onChange={(e) => {
+                              setNotificationSettings({
+                                ...notificationSettings,
+                                whatsAppSettings: {
+                                  ...notificationSettings.whatsAppSettings,
+                                  enableWhatsAppForCheckIn: e.target.checked
+                                }
+                              });
+                              setHasChanges(true);
+                            }}
+                            className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                          />
+                          <span className="text-gray-700">Teslimat yaklaştığında (30 dakika önce)</span>
+                        </label>
+
+                        <label className="flex items-center gap-3 p-3 bg-white rounded-lg border hover:bg-gray-50">
+                          <input
+                            type="checkbox"
+                            checked={notificationSettings.whatsAppSettings.enableWhatsAppForCompletion}
+                            onChange={(e) => {
+                              setNotificationSettings({
+                                ...notificationSettings,
+                                whatsAppSettings: {
+                                  ...notificationSettings.whatsAppSettings,
+                                  enableWhatsAppForCompletion: e.target.checked
+                                }
+                              });
+                              setHasChanges(true);
+                            }}
+                            className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                          />
+                          <span className="text-gray-700">Teslimat tamamlandığında</span>
+                        </label>
+
+                        <label className="flex items-center gap-3 p-3 bg-white rounded-lg border hover:bg-gray-50">
+                          <input
+                            type="checkbox"
+                            checked={notificationSettings.whatsAppSettings.enableWhatsAppForFailure}
+                            onChange={(e) => {
+                              setNotificationSettings({
+                                ...notificationSettings,
+                                whatsAppSettings: {
+                                  ...notificationSettings.whatsAppSettings,
+                                  enableWhatsAppForFailure: e.target.checked
+                                }
+                              });
+                              setHasChanges(true);
+                            }}
+                            className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                          />
+                          <span className="text-gray-700">Teslimat başarısız olduğunda</span>
+                        </label>
+                      </div>
+
+                      {/* WhatsApp Usage Info */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
+                        <Info className="w-5 h-5 text-blue-600 mt-0.5" />
+                        <div className="text-sm text-blue-800">
+                          <p className="font-medium mb-1">WhatsApp Kullanım Bilgisi</p>
+                          <ul className="space-y-1">
+                            <li>• Kendi WhatsApp Business numaranızdan gönderim yapılır</li>
+                            <li>• Sadece onay veren müşterilere mesaj gönderilir</li>
+                            <li>• Mesaj başına Twilio ücretlendirmesi uygulanır</li>
+                            <li>• Test için Twilio Sandbox kullanabilirsiniz</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div>

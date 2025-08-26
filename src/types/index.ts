@@ -34,6 +34,25 @@ export interface Workspace {
     maxRoutes: number;
     maxCustomers: number;
   };
+  settings?: WorkspaceSettings; // YENİ EKLENEN
+}
+
+// Workspace Settings - YENİ EKLENEN
+export interface WorkspaceSettings {
+  whatsAppSettings?: WhatsAppSettings;
+  emailTemplates?: any;
+  // Diğer ayarlar...
+}
+
+// WhatsApp Settings - YENİ EKLENEN
+export interface WhatsAppSettings {
+  enabled: boolean;
+  enableWhatsAppForJourneyStart: boolean;
+  enableWhatsAppForCheckIn: boolean;
+  enableWhatsAppForCompletion: boolean;
+  enableWhatsAppForFailure: boolean;
+  businessPhoneNumber?: string;
+  businessDisplayName?: string;
 }
 
 // Super Admin Types
@@ -67,6 +86,13 @@ export interface Customer {
   address: string;
   phone: string;
   email?: string;
+  
+  // WhatsApp Alanları - YENİ EKLENEN
+  whatsApp?: string;
+  whatsAppOptIn: boolean;
+  whatsAppVerified: boolean;
+  whatsAppOptInDate?: Date;
+  
   latitude: number;
   longitude: number;
   timeWindow?: {
@@ -176,7 +202,7 @@ export type JourneyStopStatus =
   | 'Failed'
   | 'Skipped';
 
-// Journey Stop Types - DÜZELTİLDİ
+// Journey Stop Types
 export interface JourneyStop {
   id: string;
   journeyId: string;
@@ -200,7 +226,7 @@ export interface JourneyStop {
   arriveBetweenStart?: string;
   arriveBetweenEnd?: string;
   
-  // ✅ BACKEND'DEN GELEN FIELD'LAR
+  // Backend'den gelen field'lar
   checkInTime?: string;  // ISO string format
   checkOutTime?: string; // ISO string format
   

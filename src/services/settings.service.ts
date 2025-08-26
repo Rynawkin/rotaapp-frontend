@@ -45,6 +45,15 @@ export interface NotificationSettings {
   smsNotifications: boolean;
   notificationEmail: string;
   notificationPhone: string;
+  whatsAppSettings: {
+    enabled: boolean;
+    enableWhatsAppForJourneyStart: boolean;
+    enableWhatsAppForCheckIn: boolean;
+    enableWhatsAppForCompletion: boolean;
+    enableWhatsAppForFailure: boolean;
+    businessPhoneNumber: string;
+    businessDisplayName: string;
+  };
   events: {
     routeCompleted: boolean;
     deliveryFailed: boolean;
@@ -52,6 +61,16 @@ export interface NotificationSettings {
     newCustomer: boolean;
     dailyReport: boolean;
   };
+}
+
+export interface TwilioStatus {
+  connected: boolean;
+  phoneNumber?: string;
+  connectedAt?: Date;
+}
+
+export interface TwilioSignupResponse {
+  signupUrl: string;
 }
 
 export interface AllSettings {
@@ -91,7 +110,23 @@ class SettingsService {
     await api.put('/settings/notifications', settings);
   }
 
-  // Get All Settings (Theme kaldırıldı)
+  // Twilio WhatsApp Integration
+  async getTwilioStatus(): Promise<TwilioStatus> {
+    const response = await api.get('/twilio/status');
+    return response.data;
+  }
+
+  async connectTwilioWhatsApp(): Promise<TwilioSignupResponse> {
+    const response = await api.get('/twilio/embedded-signup');
+    return response.data;
+  }
+
+  async disconnectTwilioWhatsApp(): Promise<{ success: boolean }> {
+    const response = await api.delete('/twilio/disconnect');
+    return response.data;
+  }
+
+  // Get All Settings
   async getAllSettings(): Promise<AllSettings> {
     const response = await api.get('/settings/all');
     return response.data;
