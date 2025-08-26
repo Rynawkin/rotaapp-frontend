@@ -89,6 +89,7 @@ const Settings: React.FC = () => {
   const [connectingWhatsApp, setConnectingWhatsApp] = useState(false);
   const [disconnectingWhatsApp, setDisconnectingWhatsApp] = useState(false);
   const [whatsAppMode, setWhatsAppMode] = useState<'disabled' | 'shared' | 'custom'>('disabled');
+  const [twilioStatus, setTwilioStatus] = useState<any>(null);
 
   // Company Settings
   const [companySettings, setCompanySettings] = useState({
