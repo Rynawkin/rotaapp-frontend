@@ -68,8 +68,8 @@ export interface AddJourneyStatusDto {
 
 export interface CompleteStopDto {
   notes?: string;
-  signatureBase64?: string;
-  photoBase64?: string;
+  signature?: File | Blob;  // Blob desteği
+  photo?: File | Blob;      // Blob desteği
 }
 
 export interface CompleteStopWithFilesDto {
@@ -97,8 +97,125 @@ export interface BulkOperationFailedItem {
   reason: string;
 }
 
+// ✅ YENİ: Cloudinary transformation interface
+export interface ImageTransformation {
+  width?: number;
+  height?: number;
+  crop?: 'fill' | 'limit' | 'thumb' | 'scale';
+  quality?: 'auto' | number;
+  format?: 'auto' | 'jpg' | 'png' | 'webp';
+}
+
 class JourneyService {
   private baseUrl = '/workspace/journeys';
+
+  // ✅ YENİ: Cloudinary URL helper metodları
+  isCloudinaryUrl(url: string): boolean {
+    return url.includes('cloudinary.com') || url.includes('res.cloudinary.com');
+  }
+
+  getOptimizedImageUrl(url: string, transformation: ImageTransformation): string {
+    if (!url || !this.isCloudinaryUrl(url)) return url;
+    
+    // Cloudinary URL format: https://res.cloudinary.com/{cloud-name}/image/upload/{transformations}/{public-id}.{format}
+    const transformParts: string[] = [];
+    
+    if (transformation.width) transformParts.push(`w_${transformation.width}`);
+    if (transformation.height) transformParts.push(`h_${transformation.height}`);
+    if (transformation.crop) transformParts.push(`c_${transformation.crop}`);
+    if (transformation.quality) transformParts.push(`q_${transformation.quality}`);
+    if (transformation.format) transformParts.push(`f_${transformation.format}`);
+    
+    const transformString = transformParts.join(',');
+    
+    // URL'de zaten transformation varsa değiştir, yoksa ekle
+    if (url.includes('/upload/')) {
+      // Check if there's already a transformation
+      const parts = url.split('/upload/');
+      const afterUpload = parts[1];
+      
+      // Check if first part after upload starts with v{number} (version)
+      const segments = afterUpload.split('/');
+      if (segments[0].match(/^v\d+$/)) {
+        // Has version, add transformation after upload
+        return `${parts[0]}/upload/${transformString}/${afterUpload}`;
+      } else if (segments[0].includes('_')) {
+        // Has existing transformation, replace it
+        const publicIdIndex = segments.findIndex(s => !s.includes('_') || s.includes('.'));
+        const publicIdParts = segments.slice(publicIdIndex);
+        return `${parts[0]}/upload/${transformString}/${publicIdParts.join('/')}`;
+      } else {
+        // No transformation, add it
+        return `${parts[0]}/upload/${transformString}/${afterUpload}`;
+      }
+    }
+    
+    return url;
+  }
+
+  getThumbnailUrl(url: string): string {
+    return this.getOptimizedImageUrl(url, {
+      width: 200,
+      height: 200,
+      crop: 'thumb',
+      quality: 'auto',
+      format: 'auto'
+    });
+  }
+
+  getEmailOptimizedUrl(url: string, type: 'signature' | 'photo'): string {
+    if (type === 'signature') {
+      return this.getOptimizedImageUrl(url, {
+        width: 400,
+        height: 200,
+        crop: 'limit',
+        quality: 'auto',
+        format: 'auto'
+      });
+    } else {
+      return this.getOptimizedImageUrl(url, {
+        width: 600,
+        height: 400,
+        crop: 'limit',
+        quality: 'auto',
+        format: 'auto'
+      });
+    }
+  }
+
+  getWhatsAppOptimizedUrl(url: string): string {
+    return this.getOptimizedImageUrl(url, {
+      width: 300,
+      height: 300,
+      crop: 'limit',
+      quality: 80,
+      format: 'jpg'
+    });
+  }
+
+  // ✅ YENİ: URL'leri normalize et (Base64, Cloudinary, Local desteği)
+  normalizeImageUrl(url: string | null | undefined): string {
+    if (!url) return '';
+    
+    // Base64 data URL ise direkt döndür
+    if (url.startsWith('data:')) {
+      return url;
+    }
+    
+    // Tam URL ise direkt döndür
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    
+    // Cloudinary URL kontrolü
+    if (url.includes('cloudinary.com')) {
+      return url;
+    }
+    
+    // Relative URL ise base URL ekle (legacy local storage desteği)
+    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5055';
+    return `${baseUrl}${url}`;
+  }
 
   async getAllSummary(from?: Date, to?: Date): Promise<JourneySummary[]> {
     try {
@@ -147,6 +264,16 @@ class JourneyService {
     try {
       const response = await api.get(`${this.baseUrl}/${id}`);
       console.log('Journey detail loaded:', response.data);
+      
+      // ✅ YENİ: Image URL'lerini normalize et
+      if (response.data && response.data.statuses) {
+        response.data.statuses = response.data.statuses.map((status: any) => ({
+          ...status,
+          signatureUrl: this.normalizeImageUrl(status.signatureUrl),
+          photoUrl: this.normalizeImageUrl(status.photoUrl)
+        }));
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Error fetching journey:', error);
@@ -173,7 +300,15 @@ class JourneyService {
   async getStatuses(journeyId: string | number): Promise<JourneyStatus[]> {
     try {
       const response = await api.get(`${this.baseUrl}/${journeyId}/statuses`);
-      return response.data;
+      
+      // ✅ YENİ: Image URL'lerini normalize et
+      const statuses = response.data.map((status: any) => ({
+        ...status,
+        signatureUrl: this.normalizeImageUrl(status.signatureUrl),
+        photoUrl: this.normalizeImageUrl(status.photoUrl)
+      }));
+      
+      return statuses;
     } catch (error) {
       console.error('Error fetching journey statuses:', error);
       throw error;
@@ -206,9 +341,6 @@ class JourneyService {
       
       if (assignResponse.data && assignResponse.data.id) {
         console.log('Journey created, NOT auto-starting:', assignResponse.data.id);
-        // Otomatik başlatma KALDIRILDI
-        // const startResponse = await this.start(assignResponse.data.id);
-        // return startResponse;
         return assignResponse.data;
       }
       
@@ -330,10 +462,11 @@ class JourneyService {
     }
   }
 
+  // ✅ Legacy method - Base64 desteği için korundu
   async completeStop(
     journeyId: string | number, 
     stopId: string | number, 
-    data?: CompleteStopDto
+    data?: CompleteStopDto & { signatureBase64?: string; photoBase64?: string }
   ): Promise<JourneyStatus> {
     try {
       console.warn('⚠️ completeStop() Base64 kullanıyor. Timeout riski var! completeStopWithFiles() kullanın.');
