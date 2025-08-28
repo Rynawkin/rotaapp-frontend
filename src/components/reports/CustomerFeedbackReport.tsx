@@ -340,7 +340,7 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
                     </div>
                     <div className="flex items-center gap-1">
                       <span className="text-lg font-bold text-gray-900">
-                        {driver.averageRating.toFixed(1)}
+                        {driver.averageRating?.toFixed(1) || '0.0'}
                       </span>
                       <Star className="w-4 h-4 text-yellow-400 fill-current" />
                     </div>
@@ -367,7 +367,7 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
                     </div>
                     <div className="flex items-center gap-1">
                       <span className="text-lg font-bold text-orange-600">
-                        {driver.averageRating.toFixed(1)}
+                        {driver.averageRating?.toFixed(1) || '0.0'}
                       </span>
                       <Star className="w-4 h-4 text-yellow-400 fill-current" />
                     </div>
