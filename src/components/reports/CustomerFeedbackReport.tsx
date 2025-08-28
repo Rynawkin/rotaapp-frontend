@@ -210,7 +210,7 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
                 </span>
               </div>
               <p className="text-2xl font-bold text-gray-900">
-                {stats.averageOverallRating.toFixed(1)}
+                {stats.averageOverallRating?.toFixed(1) || '0.0'}
               </p>
               <p className="text-sm text-gray-600 mt-1">Genel Memnuniyet</p>
             </div>
@@ -220,7 +220,7 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
                 <Clock className="w-8 h-8 text-blue-500" />
               </div>
               <p className="text-2xl font-bold text-gray-900">
-                {stats.averageDeliverySpeedRating.toFixed(1)}
+                {stats.averageDeliverySpeedRating?.toFixed(1) || '0.0'}
               </p>
               <p className="text-sm text-gray-600 mt-1">Teslimat Hızı</p>
             </div>
@@ -230,7 +230,7 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
                 <User className="w-8 h-8 text-green-500" />
               </div>
               <p className="text-2xl font-bold text-gray-900">
-                {stats.averageDriverBehaviorRating.toFixed(1)}
+                {stats.averageDriverBehaviorRating?.toFixed(1) || '0.0'}
               </p>
               <p className="text-sm text-gray-600 mt-1">Sürücü Davranışı</p>
             </div>
@@ -240,7 +240,7 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
                 <Package className="w-8 h-8 text-purple-500" />
               </div>
               <p className="text-2xl font-bold text-gray-900">
-                {stats.averagePackageConditionRating.toFixed(1)}
+                {stats.averagePackageConditionRating?.toFixed(1) || '0.0'}
               </p>
               <p className="text-sm text-gray-600 mt-1">Paket Durumu</p>
             </div>
