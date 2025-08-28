@@ -37,6 +37,7 @@ import Onboarding from '@/pages/Onboarding';
 import SuperAdminDashboard from '@/pages/superadmin/SuperAdminDashboard';
 import WorkspaceDetail from '@/pages/superadmin/WorkspaceDetail';
 import WorkspaceEdit from '@/pages/superadmin/WorkspaceEdit';
+import PublicFeedback from './pages/PublicFeedback';
 
 // Layout wrapper for protected routes - useAuth hook'unu kullanacak şekilde güncellendi
 const ProtectedLayout: React.FC<{ 
@@ -73,6 +74,7 @@ const AppRoutes: React.FC = () => {
       {/* Public Routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/feedback/:token" element={<PublicFeedback />} />
       <Route path="/onboarding" element={<Onboarding />} />
       <Route path="/test-map" element={<TestMap />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
