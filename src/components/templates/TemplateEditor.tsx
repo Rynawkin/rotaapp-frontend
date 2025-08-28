@@ -15,7 +15,8 @@ import {
   FileText,
   Variable,
   Code,
-  Loader2
+  Loader2,
+  Download
 } from 'lucide-react';
 import {
   MessageTemplate,
@@ -38,6 +39,7 @@ export const TemplateEditor: React.FC = () => {
   const [previewContent, setPreviewContent] = useState<{ subject?: string; body: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TemplateType>(TemplateType.WelcomeEmail);
+  const [loadingDefaults, setLoadingDefaults] = useState(false);
   const bodyTextAreaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -198,6 +200,46 @@ export const TemplateEditor: React.FC = () => {
     } catch (error) {
       toast.error('Şablon kopyalanamadı');
     }
+  };
+
+  const loadDefaultTemplate = async () => {
+    if (!editingTemplate) return;
+    
+    setLoadingDefaults(true);
+    try {
+      // Default template'i bul
+      const defaultTemplate = templates.find(t => 
+        t.templateType === editingTemplate.templateType && 
+        t.channel === editingTemplate.channel && 
+        t.isDefault
+      );
+      
+      if (defaultTemplate) {
+        setEditingTemplate({
+          ...editingTemplate,
+          subject: defaultTemplate.subject || '',
+          body: defaultTemplate.body
+        });
+        toast.success('Varsayılan şablon yüklendi');
+      } else {
+        toast.error('Bu tip için varsayılan şablon bulunamadı');
+      }
+    } catch (error) {
+      toast.error('Varsayılan şablon yüklenemedi');
+    } finally {
+      setLoadingDefaults(false);
+    }
+  };
+
+  const clearTemplate = () => {
+    if (!editingTemplate) return;
+    
+    setEditingTemplate({
+      ...editingTemplate,
+      subject: '',
+      body: ''
+    });
+    toast.success('Şablon temizlendi');
   };
 
   const getTemplatesByType = (type: TemplateType) => {
@@ -407,9 +449,32 @@ export const TemplateEditor: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700">
                         {editingTemplate.channel === TemplateChannel.Email ? 'E-posta İçeriği' : 'Mesaj İçeriği'}
                       </label>
-                      {editingTemplate.channel === TemplateChannel.WhatsApp && (
-                        <span className="text-xs text-gray-500">Max 1024 karakter</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={loadDefaultTemplate}
+                          disabled={loadingDefaults}
+                          className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 flex items-center gap-1"
+                        >
+                          {loadingDefaults ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Download className="w-3 h-3" />
+                          )}
+                          Varsayılanı Getir
+                        </button>
+                        <button
+                          type="button"
+                          onClick={clearTemplate}
+                          className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 flex items-center gap-1"
+                        >
+                          <X className="w-3 h-3" />
+                          Temizle
+                        </button>
+                        {editingTemplate.channel === TemplateChannel.WhatsApp && (
+                          <span className="text-xs text-gray-500">Max 1024 karakter</span>
+                        )}
+                      </div>
                     </div>
                     <textarea
                       ref={bodyTextAreaRef}
