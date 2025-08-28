@@ -16,7 +16,8 @@ import {
   ArrowDown,
   Filter,
   Printer,
-  Navigation // ✅ Navigation import'u eklendi
+  Navigation,
+  Star // Star import'u eklendi
 } from 'lucide-react';
 import {
   LineChart,
@@ -45,6 +46,7 @@ import { driverService } from '@/services/driver.service';
 import { vehicleService } from '@/services/vehicle.service';
 import { Route, Journey, Customer, Driver, Vehicle } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { CustomerFeedbackReport } from '@/components/reports/CustomerFeedbackReport';
 
 interface ReportData {
   deliveryTrends: Array<{ date: string; completed: number; failed: number; total: number }>;
@@ -70,7 +72,7 @@ const Reports: React.FC = () => {
   const [startDate, setStartDate] = useState<string>(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [loading, setLoading] = useState(true);
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'deliveries' | 'drivers' | 'vehicles' | 'customers'>('overview');
+  const [selectedTab, setSelectedTab] = useState<'overview' | 'deliveries' | 'drivers' | 'vehicles' | 'customers' | 'feedback'>('overview');
   
   const [routes, setRoutes] = useState<Route[]>([]);
   const [journeys, setJourneys] = useState<Journey[]>([]);
@@ -80,7 +82,6 @@ const Reports: React.FC = () => {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [kpiMetrics, setKpiMetrics] = useState<KPIMetric[]>([]);
 
-  // ✅ ROL KONTROLÜ İÇİN AUTH HOOK
   const { user, canAccessDispatcherFeatures, canAccessAdminFeatures } = useAuth();
 
   // Veri yükleme
@@ -99,7 +100,6 @@ const Reports: React.FC = () => {
     try {
       const promises: Promise<any>[] = [];
       
-      // ✅ ROL BAZLI VERİ YÜKLEME
       // Routes ve Journeys - Tüm roller yükleyebilir (backend zaten filtreliyor)
       promises.push(
         routeService.getAll().then(data => {
@@ -168,7 +168,7 @@ const Reports: React.FC = () => {
   };
 
   const generateReportData = () => {
-    // ✅ Driver rolü için kendi verilerini filtrele
+    // Driver rolü için kendi verilerini filtrele
     let filteredRoutes = routes;
     let filteredJourneys = journeys;
     
@@ -486,10 +486,10 @@ const Reports: React.FC = () => {
     );
   }
 
-  // ✅ Driver için tab kısıtlaması
+  // Driver için tab kısıtlaması
   const availableTabs = user?.isDriver && !canAccessDispatcherFeatures()
     ? ['overview', 'deliveries', 'vehicles']
-    : ['overview', 'deliveries', 'drivers', 'vehicles', 'customers'];
+    : ['overview', 'deliveries', 'drivers', 'vehicles', 'customers', 'feedback'];
 
   return (
     <div className="space-y-6">
@@ -567,7 +567,8 @@ const Reports: React.FC = () => {
             { id: 'deliveries', label: 'Teslimatlar', icon: Package },
             { id: 'drivers', label: 'Sürücüler', icon: Users },
             { id: 'vehicles', label: 'Araçlar', icon: Truck },
-            { id: 'customers', label: 'Müşteriler', icon: Users }
+            { id: 'customers', label: 'Müşteriler', icon: Users },
+            { id: 'feedback', label: 'Müşteri Memnuniyeti', icon: Star }
           ].filter(tab => availableTabs.includes(tab.id)).map((tab) => (
             <button
               key={tab.id}
@@ -930,6 +931,11 @@ const Reports: React.FC = () => {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Müşteri Memnuniyeti Tab */}
+          {selectedTab === 'feedback' && (
+            <CustomerFeedbackReport startDate={startDate} endDate={endDate} />
           )}
         </>
       )}

@@ -8,6 +8,7 @@ import {
   CreditCard,
   Globe,
   Database,
+  FileText,
   Save,
   Upload,
   Download,
@@ -34,6 +35,7 @@ import {
   Unlink,
   Loader2
 } from 'lucide-react';
+import { TemplateEditor } from '@/components/templates/TemplateEditor';
 import { settingsService } from '@/services/settings.service';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -54,13 +56,13 @@ const Settings: React.FC = () => {
   // ROL BAZLI SEKME KONTROLÜ
   const getAvailableTabs = () => {
     if (user?.isSuperAdmin) {
-      return ['company', 'users', 'delivery', 'notifications', 'subscription', 'regional', 'data'];
+      return ['company', 'users', 'delivery', 'notifications', 'templates', 'subscription', 'regional', 'data'];
     }
     if (canAccessAdminFeatures()) {
-      return ['company', 'users', 'delivery', 'notifications', 'subscription', 'regional', 'data'];
+      return ['company', 'users', 'delivery', 'notifications', 'templates', 'subscription', 'regional', 'data'];
     }
     if (canAccessDispatcherFeatures()) {
-      return ['users', 'delivery', 'notifications'];
+      return ['users', 'delivery', 'notifications', 'templates'];
     }
     return [];
   };
@@ -80,7 +82,7 @@ const Settings: React.FC = () => {
     );
   }
 
-  const [activeTab, setActiveTab] = useState<'company' | 'users' | 'delivery' | 'notifications' | 'subscription' | 'regional' | 'data'>(availableTabs[0] as any);
+  const [activeTab, setActiveTab] = useState<'company' | 'users' | 'delivery' | 'notifications' | 'templates' | 'subscription' | 'regional' | 'data'>(availableTabs[0] as any);
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -640,6 +642,7 @@ const Settings: React.FC = () => {
               { id: 'users', label: 'Kullanıcı Yönetimi', icon: Users },
               { id: 'delivery', label: 'Teslimat Ayarları', icon: Truck },
               { id: 'notifications', label: 'Bildirimler', icon: Bell },
+              { id: 'templates', label: 'Mesaj Şablonları', icon: FileText }, // YENİ EKLENEN
               { id: 'subscription', label: 'Abonelik', icon: CreditCard },
               { id: 'regional', label: 'Bölgesel Ayarlar', icon: Globe },
               { id: 'data', label: 'Veri Yönetimi', icon: Database }
@@ -1506,6 +1509,11 @@ const Settings: React.FC = () => {
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* Message Templates */}
+            {activeTab === 'templates' && availableTabs.includes('templates') && (
+              <TemplateEditor />
             )}
 
             {/* Subscription Info */}
