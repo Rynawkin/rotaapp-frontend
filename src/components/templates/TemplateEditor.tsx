@@ -121,7 +121,14 @@ export const TemplateEditor: React.FC = () => {
   };
 
   const processTemplate = (template: string, data: Record<string, any>): string => {
+    if (!template) return '';
+    
     let result = template;
+    
+    // HTML tag'lerini temizle (WhatsApp için)
+    if (editingTemplate?.channel === TemplateChannel.WhatsApp) {
+      result = result.replace(/<[^>]*>/g, '');
+    }
     
     // {{variable}} formatındaki değişkenleri değiştir
     const regex = /\{\{([^}]+)\}\}/g;
@@ -134,7 +141,7 @@ export const TemplateEditor: React.FC = () => {
         value = value?.[part];
       }
       
-      return value?.toString() || match;
+      return value !== undefined && value !== null ? String(value) : match;
     });
     
     return result;
@@ -545,20 +552,22 @@ export const TemplateEditor: React.FC = () => {
                     </div>
                     
                     {editingTemplate.channel === TemplateChannel.Email ? (
-                      <ReactQuill
-                        ref={quillRef}
-                        value={editingTemplate.body}
-                        onChange={(value) => setEditingTemplate({ ...editingTemplate, body: value })}
-                        modules={quillModules}
-                        theme="snow"
-                        className="bg-white"
-                        style={{ height: '300px', marginBottom: '50px' }}
-                      />
+                      <div className="border rounded-lg">
+                        <ReactQuill
+                          ref={quillRef}
+                          value={editingTemplate.body}
+                          onChange={(value) => setEditingTemplate({ ...editingTemplate, body: value })}
+                          modules={quillModules}
+                          theme="snow"
+                          className="bg-white"
+                          style={{ minHeight: '400px' }}
+                        />
+                      </div>
                     ) : (
                       <textarea
                         value={editingTemplate.body}
                         onChange={(e) => setEditingTemplate({ ...editingTemplate, body: e.target.value })}
-                        rows={8}
+                        rows={12}  // 8'den 12'ye çıkarıldı
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
                         placeholder="WhatsApp mesaj içeriği..."
                       />
@@ -663,7 +672,7 @@ export const TemplateEditor: React.FC = () => {
                             
                             {/* Tooltip */}
                             {variable.example && (
-                              <div className="absolute left-full ml-2 top-0 z-10 hidden group-hover:block">
+                              <div className="absolute right-full mr-2 top-0 z-10 hidden group-hover:block">
                                 <div className="bg-gray-900 text-white text-xs rounded px-3 py-2 whitespace-nowrap">
                                   <div className="font-medium mb-1">Örnek Değer:</div>
                                   <div className="text-gray-300">{variable.example}</div>

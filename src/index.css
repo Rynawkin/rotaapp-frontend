@@ -17,7 +17,12 @@ textarea,
 .select-text,
 .selectable,
 p,
-h1, h2, h3, h4, h5, h6,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
 span,
 td,
 th {
@@ -87,6 +92,7 @@ select:focus-visible {
     transform: translateX(-100%);
     opacity: 0;
   }
+
   to {
     transform: translateX(0);
     opacity: 1;
@@ -97,6 +103,7 @@ select:focus-visible {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -137,4 +144,53 @@ td[data-selectable="true"],
   -moz-user-select: text;
   -ms-user-select: text;
   user-select: text;
+}
+
+/* Quill Editor Styles */
+.ql-container {
+  min-height: 350px;
+  font-size: 14px;
+}
+
+.ql-editor {
+  min-height: 350px;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+.ql-toolbar {
+  border-top-left-radius: 0.5rem;
+  border-top-right-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.ql-container {
+  border-bottom-left-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-top: none;
+  background: white;
+}
+
+/* Quill toolbar buttons */
+.ql-toolbar button {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Quill editor placeholder */
+.ql-editor.ql-blank::before {
+  color: #9ca3af;
+  font-style: normal;
+}
+
+/* Quill editor focus state */
+.ql-container.ql-snow:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
