@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import {
   Mail,
   MessageSquare,
@@ -16,7 +18,10 @@ import {
   Variable,
   Code,
   Loader2,
-  Download
+  Download,
+  Monitor,
+  Smartphone,
+  AlertTriangle
 } from 'lucide-react';
 import {
   MessageTemplate,
@@ -29,6 +34,19 @@ import {
 import { templatesService } from '@/services/templates.service';
 import toast from 'react-hot-toast';
 
+// Quill modülleri
+const quillModules = {
+  toolbar: [
+    [{ 'header': [1, 2, 3, false] }],
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ 'color': [] }, { 'background': [] }],
+    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+    [{ 'align': [] }],
+    ['link', 'image'],
+    ['clean']
+  ]
+};
+
 export const TemplateEditor: React.FC = () => {
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,11 +58,21 @@ export const TemplateEditor: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TemplateType>(TemplateType.WelcomeEmail);
   const [loadingDefaults, setLoadingDefaults] = useState(false);
-  const bodyTextAreaRef = useRef<HTMLTextAreaElement>(null);
+  const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
+  const [showLivePreview, setShowLivePreview] = useState(true);
+  const [invalidVariables, setInvalidVariables] = useState<string[]>([]);
+  const quillRef = useRef<ReactQuill>(null);
 
   useEffect(() => {
     loadTemplates();
   }, []);
+
+  // Değişken validasyonu
+  useEffect(() => {
+    if (editingTemplate) {
+      validateVariables();
+    }
+  }, [editingTemplate?.body, editingTemplate?.subject]);
 
   const loadTemplates = async () => {
     try {
@@ -57,6 +85,76 @@ export const TemplateEditor: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const validateVariables = () => {
+    if (!editingTemplate) return;
+
+    const validVars = TEMPLATE_VARIABLES[editingTemplate.templateType as TemplateType]
+      ?.flatMap(group => group.variables.map(v => v.key)) || [];
+
+    const regex = /\{\{([^}]+)\}\}/g;
+    const foundVars: string[] = [];
+    const invalid: string[] = [];
+
+    // Body'den değişkenleri topla
+    let match;
+    while ((match = regex.exec(editingTemplate.body)) !== null) {
+      const varName = match[1].trim();
+      if (!validVars.includes(varName)) {
+        invalid.push(varName);
+      }
+      foundVars.push(varName);
+    }
+
+    // Subject'ten değişkenleri topla
+    if (editingTemplate.subject) {
+      regex.lastIndex = 0;
+      while ((match = regex.exec(editingTemplate.subject)) !== null) {
+        const varName = match[1].trim();
+        if (!validVars.includes(varName)) {
+          invalid.push(varName);
+        }
+      }
+    }
+
+    setInvalidVariables([...new Set(invalid)]);
+  };
+
+  const processTemplate = (template: string, data: Record<string, any>): string => {
+    let result = template;
+    
+    // {{variable}} formatındaki değişkenleri değiştir
+    const regex = /\{\{([^}]+)\}\}/g;
+    result = result.replace(regex, (match, key) => {
+      const trimmedKey = key.trim();
+      const parts = trimmedKey.split('.');
+      
+      let value: any = data;
+      for (const part of parts) {
+        value = value?.[part];
+      }
+      
+      return value?.toString() || match;
+    });
+    
+    return result;
+  };
+
+  // Canlı önizleme için memoized sample data
+  const sampleData = useMemo(() => {
+    if (!editingTemplate) return {};
+    return templatesService.generateSampleData(editingTemplate.templateType as TemplateType);
+  }, [editingTemplate?.templateType]);
+
+  // Canlı önizleme içeriği
+  const livePreviewContent = useMemo(() => {
+    if (!editingTemplate || !showLivePreview) return null;
+    
+    return {
+      subject: editingTemplate.subject ? processTemplate(editingTemplate.subject, sampleData) : undefined,
+      body: processTemplate(editingTemplate.body, sampleData)
+    };
+  }, [editingTemplate, sampleData, showLivePreview]);
 
   const handleCreateTemplate = () => {
     setEditingTemplate({
@@ -101,6 +199,11 @@ export const TemplateEditor: React.FC = () => {
       toast.error('Şablon içeriği gereklidir');
       return;
     }
+
+    if (invalidVariables.length > 0) {
+      toast.error(`Geçersiz değişkenler: ${invalidVariables.join(', ')}`);
+      return;
+    }
     
     setSaving(true);
     try {
@@ -121,68 +224,19 @@ export const TemplateEditor: React.FC = () => {
     }
   };
 
-  const handlePreview = async () => {
-    if (!editingTemplate) return;
-    
-    try {
-      const sampleData = templatesService.generateSampleData(editingTemplate.templateType as TemplateType);
-      
-      // Eğer template kaydedilmişse API'den preview al
-      if (editingTemplate.id) {
-        const preview = await templatesService.previewTemplate(editingTemplate.id, sampleData);
-        setPreviewContent(preview);
-      } else {
-        // Kaydedilmemiş template için client-side preview
-        const processedBody = processTemplate(editingTemplate.body, sampleData);
-        const processedSubject = editingTemplate.subject ? processTemplate(editingTemplate.subject, sampleData) : undefined;
-        setPreviewContent({ subject: processedSubject, body: processedBody });
-      }
-      setShowPreview(true);
-    } catch (error) {
-      toast.error('Önizleme oluşturulamadı');
-    }
-  };
-
-  const processTemplate = (template: string, data: Record<string, any>): string => {
-    let result = template;
-    
-    // {{variable}} formatındaki değişkenleri değiştir
-    const regex = /\{\{([^}]+)\}\}/g;
-    result = result.replace(regex, (match, key) => {
-      const trimmedKey = key.trim();
-      const parts = trimmedKey.split('.');
-      
-      let value: any = data;
-      for (const part of parts) {
-        value = value?.[part];
-      }
-      
-      return value?.toString() || match;
-    });
-    
-    return result;
-  };
-
   const insertVariable = (variable: string) => {
-    if (!bodyTextAreaRef.current || !editingTemplate) return;
+    if (!quillRef.current || !editingTemplate) return;
     
-    const textarea = bodyTextAreaRef.current;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
+    const quill = quillRef.current.getEditor();
+    const range = quill.getSelection();
     
-    const newText = text.substring(0, start) + `{{${variable}}}` + text.substring(end);
-    
-    setEditingTemplate({
-      ...editingTemplate,
-      body: newText
-    });
-    
-    // Cursor'ı eklenen değişkenin sonuna taşı
-    setTimeout(() => {
-      textarea.selectionStart = textarea.selectionEnd = start + variable.length + 4;
-      textarea.focus();
-    }, 0);
+    if (range) {
+      quill.insertText(range.index, `{{${variable}}}`);
+      quill.setSelection(range.index + variable.length + 4, 0);
+    } else {
+      const length = quill.getLength();
+      quill.insertText(length - 1, `{{${variable}}}`);
+    }
   };
 
   const duplicateTemplate = async (template: MessageTemplate) => {
@@ -207,7 +261,6 @@ export const TemplateEditor: React.FC = () => {
     
     setLoadingDefaults(true);
     try {
-      // Default template'i bul
       const defaultTemplate = templates.find(t => 
         t.templateType === editingTemplate.templateType && 
         t.channel === editingTemplate.channel && 
@@ -339,7 +392,7 @@ export const TemplateEditor: React.FC = () => {
                     </p>
                   )}
                   <p className="text-sm text-gray-500 mt-1">
-                    {template.body.substring(0, 150)}...
+                    {template.body.replace(/<[^>]*>/g, '').substring(0, 150)}...
                   </p>
                 </div>
                 <div className="flex items-center gap-2 ml-4">
@@ -377,25 +430,39 @@ export const TemplateEditor: React.FC = () => {
       {/* Edit Modal */}
       {showModal && editingTemplate && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-white rounded-lg w-full max-w-7xl h-[90vh] overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">
                 {editingTemplate.id ? 'Şablonu Düzenle' : 'Yeni Şablon Oluştur'}
               </h3>
-              <button
-                onClick={() => {
-                  setShowModal(false);
-                  setEditingTemplate(null);
-                }}
-                className="p-1 hover:bg-gray-100 rounded"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
+              <div className="flex items-center gap-3">
+                {invalidVariables.length > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-lg text-sm">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>Geçersiz değişkenler var</span>
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowLivePreview(!showLivePreview)}
+                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
+                >
+                  {showLivePreview ? 'Önizlemeyi Gizle' : 'Önizlemeyi Göster'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowModal(false);
+                    setEditingTemplate(null);
+                  }}
+                  className="p-1 hover:bg-gray-100 rounded"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
             </div>
             
             <div className="flex flex-1 overflow-hidden">
               {/* Left Side - Form */}
-              <div className="flex-1 p-6 overflow-y-auto">
+              <div className={`${showLivePreview ? 'w-1/2' : 'flex-1'} p-6 overflow-y-auto`}>
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -476,16 +543,27 @@ export const TemplateEditor: React.FC = () => {
                         )}
                       </div>
                     </div>
-                    <textarea
-                      ref={bodyTextAreaRef}
-                      value={editingTemplate.body}
-                      onChange={(e) => setEditingTemplate({ ...editingTemplate, body: e.target.value })}
-                      rows={editingTemplate.channel === TemplateChannel.Email ? 15 : 8}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                      placeholder={editingTemplate.channel === TemplateChannel.Email 
-                        ? 'HTML içerik yazabilirsiniz...' 
-                        : 'WhatsApp mesaj içeriği...'}
-                    />
+                    
+                    {editingTemplate.channel === TemplateChannel.Email ? (
+                      <ReactQuill
+                        ref={quillRef}
+                        value={editingTemplate.body}
+                        onChange={(value) => setEditingTemplate({ ...editingTemplate, body: value })}
+                        modules={quillModules}
+                        theme="snow"
+                        className="bg-white"
+                        style={{ height: '300px', marginBottom: '50px' }}
+                      />
+                    ) : (
+                      <textarea
+                        value={editingTemplate.body}
+                        onChange={(e) => setEditingTemplate({ ...editingTemplate, body: e.target.value })}
+                        rows={8}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                        placeholder="WhatsApp mesaj içeriği..."
+                      />
+                    )}
+                    
                     {editingTemplate.channel === TemplateChannel.WhatsApp && (
                       <div className="mt-1 text-xs text-gray-500">
                         Karakter: {editingTemplate.body.length} / 1024
@@ -507,6 +585,52 @@ export const TemplateEditor: React.FC = () => {
                 </div>
               </div>
 
+              {/* Middle - Live Preview */}
+              {showLivePreview && (
+                <div className="w-1/2 border-l bg-gray-50 p-6 overflow-y-auto">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-medium text-gray-900 flex items-center gap-2">
+                      <Eye className="w-4 h-4" />
+                      Canlı Önizleme
+                    </h4>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setPreviewMode('desktop')}
+                        className={`p-2 rounded ${previewMode === 'desktop' ? 'bg-white shadow' : 'hover:bg-gray-200'}`}
+                        title="Masaüstü"
+                      >
+                        <Monitor className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setPreviewMode('mobile')}
+                        className={`p-2 rounded ${previewMode === 'mobile' ? 'bg-white shadow' : 'hover:bg-gray-200'}`}
+                        title="Mobil"
+                      >
+                        <Smartphone className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className={`${previewMode === 'mobile' ? 'max-w-sm mx-auto' : ''}`}>
+                    <div className="bg-white rounded-lg shadow-sm border">
+                      {livePreviewContent?.subject && (
+                        <div className="p-4 border-b">
+                          <div className="text-xs text-gray-500 mb-1">Konu</div>
+                          <div className="font-medium">{livePreviewContent.subject}</div>
+                        </div>
+                      )}
+                      <div className="p-4">
+                        {editingTemplate?.channel === TemplateChannel.Email ? (
+                          <div dangerouslySetInnerHTML={{ __html: livePreviewContent?.body || '' }} />
+                        ) : (
+                          <div className="whitespace-pre-wrap">{livePreviewContent?.body}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Right Side - Variables */}
               <div className="w-80 border-l bg-gray-50 p-4 overflow-y-auto">
                 <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
@@ -520,24 +644,33 @@ export const TemplateEditor: React.FC = () => {
                       <h5 className="font-medium text-sm text-gray-700 mb-2">{group.name}</h5>
                       <div className="space-y-1">
                         {group.variables.map(variable => (
-                          <button
+                          <div
                             key={variable.key}
-                            onClick={() => insertVariable(variable.key)}
-                            className="w-full text-left px-2 py-1.5 text-xs hover:bg-blue-50 rounded transition-colors group"
+                            className="group relative"
                           >
-                            <div className="flex items-center justify-between">
-                              <span className="font-mono text-blue-600">
-                                {`{{${variable.key}}}`}
-                              </span>
-                              <ChevronRight className="w-3 h-3 text-gray-400 group-hover:text-blue-600" />
-                            </div>
-                            <div className="text-gray-500 mt-0.5">{variable.label}</div>
+                            <button
+                              onClick={() => insertVariable(variable.key)}
+                              className="w-full text-left px-2 py-1.5 text-xs hover:bg-blue-50 rounded transition-colors"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-mono text-blue-600">
+                                  {`{{${variable.key}}}`}
+                                </span>
+                                <ChevronRight className="w-3 h-3 text-gray-400 group-hover:text-blue-600" />
+                              </div>
+                              <div className="text-gray-500 mt-0.5">{variable.label}</div>
+                            </button>
+                            
+                            {/* Tooltip */}
                             {variable.example && (
-                              <div className="text-gray-400 text-xs mt-0.5">
-                                Örnek: {variable.example}
+                              <div className="absolute left-full ml-2 top-0 z-10 hidden group-hover:block">
+                                <div className="bg-gray-900 text-white text-xs rounded px-3 py-2 whitespace-nowrap">
+                                  <div className="font-medium mb-1">Örnek Değer:</div>
+                                  <div className="text-gray-300">{variable.example}</div>
+                                </div>
                               </div>
                             )}
-                          </button>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -553,18 +686,25 @@ export const TemplateEditor: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Geçersiz değişkenler uyarısı */}
+                {invalidVariables.length > 0 && (
+                  <div className="mt-4 p-3 bg-red-50 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5" />
+                      <div className="text-xs text-red-800">
+                        <p className="font-medium mb-1">Geçersiz Değişkenler</p>
+                        {invalidVariables.map(v => (
+                          <div key={v} className="font-mono text-red-600">{`{{${v}}}`}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="px-6 py-4 border-t flex items-center justify-between bg-gray-50">
-              <button
-                onClick={handlePreview}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-white transition-colors flex items-center gap-2"
-              >
-                <Eye className="w-4 h-4" />
-                Önizle
-              </button>
-              
               <div className="flex gap-3">
                 <button
                   onClick={() => {
@@ -577,7 +717,7 @@ export const TemplateEditor: React.FC = () => {
                 </button>
                 <button
                   onClick={handleSaveTemplate}
-                  disabled={saving}
+                  disabled={saving || invalidVariables.length > 0}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50"
                 >
                   {saving ? (
@@ -593,54 +733,6 @@ export const TemplateEditor: React.FC = () => {
                   )}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Preview Modal */}
-      {showPreview && previewContent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-hidden">
-            <div className="px-6 py-4 border-b flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Şablon Önizlemesi</h3>
-              <button
-                onClick={() => setShowPreview(false)}
-                className="p-1 hover:bg-gray-100 rounded"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-            
-            <div className="p-6 overflow-y-auto">
-              {previewContent.subject && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Konu</label>
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    {previewContent.subject}
-                  </div>
-                </div>
-              )}
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">İçerik</label>
-                <div className="p-4 bg-gray-50 rounded-lg border">
-                  {editingTemplate?.channel === TemplateChannel.Email ? (
-                    <div dangerouslySetInnerHTML={{ __html: previewContent.body }} />
-                  ) : (
-                    <div className="whitespace-pre-wrap">{previewContent.body}</div>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            <div className="px-6 py-4 border-t flex justify-end bg-gray-50">
-              <button
-                onClick={() => setShowPreview(false)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Kapat
-              </button>
             </div>
           </div>
         </div>

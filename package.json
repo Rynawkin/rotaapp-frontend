@@ -12,13 +12,16 @@
   "dependencies": {
     "@microsoft/signalr": "^9.0.6",
     "@react-google-maps/api": "^2.20.7",
+    "@tinymce/tinymce-react": "^6.3.0",
     "axios": "^1.6.5",
     "date-fns": "^3.6.0",
     "lucide-react": "^0.363.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.6.0",
+    "react-quill": "^2.0.0",
     "react-router-dom": "^6.21.1",
+    "react-split-pane-v2": "^1.0.3",
     "recharts": "^2.15.4"
   },
   "devDependencies": {

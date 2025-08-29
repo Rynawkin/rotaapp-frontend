@@ -130,6 +130,7 @@ export const TEMPLATE_VARIABLES: Record<TemplateType, TemplateVariableGroup[]> =
         { key: 'signatureUrl', label: 'İmza Görüntüsü', example: 'https://cdn.yolpilot.com/signature.png' },
         { key: 'photoUrl', label: 'Fotoğraf', example: 'https://cdn.yolpilot.com/photo.jpg' },
         { key: 'stop.notes', label: 'Teslimat Notları', example: 'Kapıcıya teslim edildi' },
+        { key: 'trackingUrl', label: 'Takip Linki', example: 'https://app.yolpilot.com/tracking/123' },
         { key: 'feedbackUrl', label: 'Geri Bildirim Linki', example: 'https://app.yolpilot.com/feedback/123' }
       ]
     },
