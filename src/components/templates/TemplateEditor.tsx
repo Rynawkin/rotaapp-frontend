@@ -231,18 +231,44 @@ export const TemplateEditor: React.FC = () => {
     }
   };
 
+  // TemplateEditor.tsx - line 216 civarı
   const insertVariable = (variable: string) => {
-    if (!quillRef.current || !editingTemplate) return;
+    if (!editingTemplate) return;
     
-    const quill = quillRef.current.getEditor();
-    const range = quill.getSelection();
-    
-    if (range) {
-      quill.insertText(range.index, `{{${variable}}}`);
-      quill.setSelection(range.index + variable.length + 4, 0);
-    } else {
-      const length = quill.getLength();
-      quill.insertText(length - 1, `{{${variable}}}`);
+    // Email kanalı için Quill
+    if (editingTemplate.channel === TemplateChannel.Email && quillRef.current) {
+      const quill = quillRef.current.getEditor();
+      const range = quill.getSelection();
+      
+      if (range) {
+        quill.insertText(range.index, `{{${variable}}}`);
+        quill.setSelection(range.index + variable.length + 4, 0);
+      } else {
+        const length = quill.getLength();
+        quill.insertText(length - 1, `{{${variable}}}`);
+      }
+    } 
+    // WhatsApp kanalı için textarea
+    else {
+      const textarea = document.getElementById('whatsapp-textarea') as HTMLTextAreaElement;
+      if (textarea) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = editingTemplate.body;
+        
+        const newText = text.substring(0, start) + `{{${variable}}}` + text.substring(end);
+        
+        setEditingTemplate({
+          ...editingTemplate,
+          body: newText
+        });
+        
+        // Cursor'ı eklenen değişkenin sonuna taşı
+        setTimeout(() => {
+          textarea.focus();
+          textarea.selectionStart = textarea.selectionEnd = start + variable.length + 4;
+        }, 0);
+      }
     }
   };
 
@@ -436,7 +462,7 @@ export const TemplateEditor: React.FC = () => {
 
       {/* Edit Modal */}
       {showModal && editingTemplate && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-lg w-full max-w-7xl h-[90vh] overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">
@@ -565,6 +591,7 @@ export const TemplateEditor: React.FC = () => {
                       </div>
                     ) : (
                       <textarea
+                        id="whatsapp-textarea"  
                         value={editingTemplate.body}
                         onChange={(e) => setEditingTemplate({ ...editingTemplate, body: e.target.value })}
                         rows={12}  // 8'den 12'ye çıkarıldı
@@ -672,10 +699,14 @@ export const TemplateEditor: React.FC = () => {
                             
                             {/* Tooltip */}
                             {variable.example && (
-                              <div className="absolute right-full mr-2 top-0 z-10 hidden group-hover:block">
-                                <div className="bg-gray-900 text-white text-xs rounded px-3 py-2 whitespace-nowrap">
+                              <div className="absolute right-full mr-2 top-0 z-50 hidden group-hover:block pointer-events-none">
+                                <div className="bg-gray-900 text-white text-xs rounded px-3 py-2 whitespace-nowrap shadow-lg">
                                   <div className="font-medium mb-1">Örnek Değer:</div>
                                   <div className="text-gray-300">{variable.example}</div>
+                                  {/* Ok işareti */}
+                                  <div className="absolute left-full top-1/2 -translate-y-1/2 -ml-1">
+                                    <div className="border-8 border-transparent border-l-gray-900"></div>
+                                  </div>
                                 </div>
                               </div>
                             )}
