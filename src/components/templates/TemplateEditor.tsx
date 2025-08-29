@@ -699,13 +699,13 @@ export const TemplateEditor: React.FC = () => {
                             
                             {/* Tooltip */}
                             {variable.example && (
-                              <div className="absolute right-full mr-2 top-0 z-50 hidden group-hover:block pointer-events-none">
-                                <div className="bg-gray-900 text-white text-xs rounded px-3 py-2 whitespace-nowrap shadow-lg">
+                              <div className="absolute left-0 bottom-full mb-2 z-50 hidden group-hover:block pointer-events-none">
+                                <div className="bg-gray-900 text-white text-xs rounded px-3 py-2 whitespace-nowrap shadow-xl">
                                   <div className="font-medium mb-1">Örnek Değer:</div>
                                   <div className="text-gray-300">{variable.example}</div>
-                                  {/* Ok işareti */}
-                                  <div className="absolute left-full top-1/2 -translate-y-1/2 -ml-1">
-                                    <div className="border-8 border-transparent border-l-gray-900"></div>
+                                  {/* Ok işareti aşağı bakacak */}
+                                  <div className="absolute left-4 top-full -mt-1">
+                                    <div className="border-4 border-transparent border-t-gray-900"></div>
                                   </div>
                                 </div>
                               </div>
