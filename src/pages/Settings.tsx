@@ -137,7 +137,6 @@ const Settings: React.FC = () => {
   // Delivery Settings
   const [deliverySettings, setDeliverySettings] = useState({
     defaultServiceTime: 15,
-    maxDeliveriesPerRoute: 50,
     workingHours: {
       monday: { start: '08:00', end: '18:00', enabled: true },
       tuesday: { start: '08:00', end: '18:00', enabled: true },
@@ -152,10 +151,6 @@ const Settings: React.FC = () => {
       normal: { color: '#F59E0B', maxDelay: 60 },
       low: { color: '#10B981', maxDelay: 120 }
     },
-    autoOptimize: true,
-    trafficConsideration: true,
-    costPerKm: null as number | null,
-    costPerHour: null as number | null
   });
 
   // Notification Settings - Multi-tenant WhatsApp
