@@ -40,6 +40,8 @@ import { settingsService } from '@/services/settings.service';
 import { memberService, type Member, type CreateMemberRequest } from '@/services/member.service';
 import { depotService } from '@/services/depot.service';
 import { useAuth } from '@/contexts/AuthContext';
+import { subscriptionService } from '@/services/subscription.service';
+import { Package, MessageSquare, Calendar } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const { user, canAccessDispatcherFeatures, canAccessAdminFeatures } = useAuth();
@@ -90,6 +92,10 @@ const Settings: React.FC = () => {
     memberName: string;
   }>({ show: false, memberId: '', memberName: '' });
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
+  const [subscriptionData, setSubscriptionData] = useState<any>(null);
+  const [billingData, setBillingData] = useState<any>(null);
+  const [loadingSubscription, setLoadingSubscription] = useState(false);
 
   // Company Settings
   const [companySettings, setCompanySettings] = useState({
@@ -198,6 +204,30 @@ const Settings: React.FC = () => {
     }
   }, [user]);
 
+  
+  // Subscription verilerini yükle
+  useEffect(() => {
+    if (activeTab === 'subscription' && availableTabs.includes('subscription')) {
+      loadSubscriptionData();
+    }
+  }, [activeTab]);
+
+  const loadSubscriptionData = async () => {
+    setLoadingSubscription(true);
+    try {
+      const [planDetails, billingSummary] = await Promise.all([
+        subscriptionService.getPlanDetails(),
+        subscriptionService.getBillingSummary()
+      ]);
+      setSubscriptionData(planDetails);
+      setBillingData(billingSummary);
+    } catch (error) {
+      console.error('Error loading subscription data:', error);
+    } finally {
+      setLoadingSubscription(false);
+    }
+  };
+  
   // Members ve Depots yükleme
   useEffect(() => {
     if (activeTab === 'users' && canAccessAdminFeatures()) {
@@ -1444,56 +1474,161 @@ const Settings: React.FC = () => {
 
             {/* Subscription Info */}
             {activeTab === 'subscription' && availableTabs.includes('subscription') && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between border-b pb-3">
-                  <h2 className="text-lg font-semibold text-gray-900">Abonelik Bilgileri</h2>
-                  {getPlanBadge('Professional')}
+            <div className="space-y-6">
+              <div className="flex items-center justify-between border-b pb-3">
+                <h2 className="text-lg font-semibold text-gray-900">Abonelik Bilgileri</h2>
+                {subscriptionData && getPlanBadge(subscriptionData.currentPlan)}
+              </div>
+              
+              {loadingSubscription ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                 </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">Abonelik Durumu</span>
-                      <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">Aktif</span>
+              ) : billingData ? (
+                <>
+                  {/* Plan Özeti */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-600">Mevcut Plan</span>
+                        <Crown className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <p className="text-2xl font-bold text-gray-900">{billingData.plan.name}</p>
+                      <p className="text-sm text-gray-600 mt-1">₺{billingData.plan.monthlyPrice}/ay</p>
                     </div>
-                    <p className="text-2xl font-bold text-gray-900">Professional</p>
-                    <p className="text-sm text-gray-600 mt-1">Aylık ödeme</p>
+                    
+                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-600">Fatura Dönemi</span>
+                        <Calendar className="w-4 h-4 text-green-600" />
+                      </div>
+                      <p className="text-lg font-bold text-gray-900">
+                        {new Date(billingData.summary.billingPeriod.end).toLocaleDateString('tr-TR')}
+                      </p>
+                      <p className="text-sm text-gray-600 mt-1">Sonraki fatura tarihi</p>
+                    </div>
+                    
+                    <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-lg p-4 border border-orange-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-600">Tahmini Tutar</span>
+                        <CreditCard className="w-4 h-4 text-orange-600" />
+                      </div>
+                      <p className="text-2xl font-bold text-gray-900">₺{billingData.summary.estimatedTotal}</p>
+                      <p className="text-sm text-gray-600 mt-1">Bu ay</p>
+                    </div>
+                  </div>
+
+                  {/* Kullanım Detayları */}
+                  <div>
+                    <h3 className="text-base font-medium text-gray-900 mb-3">Kullanım Detayları</h3>
+                    <div className="space-y-4">
+                      {/* Teslimat Noktaları */}
+                      <div className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Package className="w-5 h-5 text-blue-600" />
+                            <span className="font-medium">Teslimat Noktaları</span>
+                          </div>
+                          <span className="text-sm text-gray-600">
+                            {billingData.usage.stops.used} / {billingData.usage.stops.included}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full ${
+                              billingData.usage.stops.used > billingData.usage.stops.included 
+                                ? 'bg-red-600' 
+                                : 'bg-blue-600'
+                            }`}
+                            style={{ 
+                              width: `${Math.min(100, (billingData.usage.stops.used / billingData.usage.stops.included) * 100)}%` 
+                            }}
+                          />
+                        </div>
+                        {billingData.usage.stops.extra > 0 && (
+                          <p className="text-sm text-red-600 mt-2">
+                            +{billingData.usage.stops.extra} ekstra nokta × ₺{billingData.usage.stops.extraUnitPrice} = ₺{billingData.usage.stops.extraCharges}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* WhatsApp Mesajları */}
+                      <div className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <MessageSquare className="w-5 h-5 text-green-600" />
+                            <span className="font-medium">WhatsApp Mesajları</span>
+                          </div>
+                          <span className="text-sm text-gray-600">
+                            {billingData.usage.whatsApp.used} / {billingData.usage.whatsApp.included}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full ${
+                              billingData.usage.whatsApp.used > billingData.usage.whatsApp.included 
+                                ? 'bg-red-600' 
+                                : 'bg-green-600'
+                            }`}
+                            style={{ 
+                              width: `${Math.min(100, (billingData.usage.whatsApp.used / billingData.usage.whatsApp.included) * 100)}%` 
+                            }}
+                          />
+                        </div>
+                        {billingData.usage.whatsApp.extra > 0 && (
+                          <p className="text-sm text-red-600 mt-2">
+                            +{billingData.usage.whatsApp.extra} ekstra mesaj × ₺{billingData.usage.whatsApp.extraUnitPrice} = ₺{billingData.usage.whatsApp.extraCharges}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Plan Özellikleri */}
+                  <div>
+                    <h3 className="text-base font-medium text-gray-900 mb-3">Plan Özellikleri</h3>
+                    <div className="bg-green-50 rounded-lg p-4">
+                      <ul className="space-y-2">
+                        <li className="flex items-center gap-2">
+                          <Check className="w-5 h-5 text-green-600" />
+                          <span className="text-gray-700">{subscriptionData?.limits.includedMonthlyStops} teslimat noktası/ay</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <Check className="w-5 h-5 text-green-600" />
+                          <span className="text-gray-700">{subscriptionData?.limits.includedWhatsAppMessages} WhatsApp mesajı/ay</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <Check className="w-5 h-5 text-green-600" />
+                          <span className="text-gray-700">{subscriptionData?.limits.maxDrivers} sürücü</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <Check className="w-5 h-5 text-green-600" />
+                          <span className="text-gray-700">Gerçek zamanlı takip</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <Check className="w-5 h-5 text-green-600" />
+                          <span className="text-gray-700">API erişimi</span>
+                        </li>
+                      </ul>
+                    </div>
                   </div>
                   
-                  <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-lg p-4 border border-orange-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">Sonraki Fatura</span>
-                      <CreditCard className="w-4 h-4 text-gray-400" />
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900">15 Mart 2024</p>
-                    <p className="text-sm text-gray-600 mt-1">17 gün kaldı</p>
+                  <div className="flex gap-3">
+                    <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                      Planı Yükselt
+                    </button>
+                    <button className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                      Fatura Geçmişi
+                    </button>
                   </div>
+                </>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  Abonelik bilgileri yüklenemedi
                 </div>
-                
-                <div>
-                  <h3 className="text-base font-medium text-gray-900 mb-3">Plan Özellikleri</h3>
-                  <div className="bg-green-50 rounded-lg p-4">
-                    <ul className="space-y-2">
-                      {['Sınırsız rota oluşturma', 'Gerçek zamanlı takip', 'API erişimi', 'Öncelikli destek', 'Gelişmiş raporlama'].map((feature, index) => (
-                        <li key={index} className="flex items-center gap-2">
-                          <Check className="w-5 h-5 text-green-600" />
-                          <span className="text-gray-700">{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-                
-                <div className="flex gap-3">
-                  <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                    Planı Yükselt
-                  </button>
-                  <button className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                    Fatura Geçmişi
-                  </button>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
+          )}
 
             {/* Regional Settings */}
             {activeTab === 'regional' && availableTabs.includes('regional') && (
