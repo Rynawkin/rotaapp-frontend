@@ -113,13 +113,15 @@ const Settings: React.FC = () => {
   const [newMember, setNewMember] = useState<{
     fullName: string;
     email: string;
+    password: string;
+    phoneNumber: string;
     depotId: number | null;
-    isDispatcher: boolean;
   }>({
     fullName: '',
     email: '',
-    depotId: null,
-    isDispatcher: true // Varsayılan olarak Dispatcher
+    password: '',
+    phoneNumber: '',
+    depotId: null
   });
   
   const [showMemberModal, setShowMemberModal] = useState(false);
@@ -233,28 +235,28 @@ const Settings: React.FC = () => {
     setNewMember({
       fullName: '',
       email: '',
-      depotId: depots.length > 0 ? depots[0].id : null,
-      isDispatcher: true
+      password: '',
+      phoneNumber: '',
+      depotId: depots.length > 0 ? depots[0].id : null
     });
     setShowMemberModal(true);
   };
 
   const handleSaveMember = async () => {
-    if (!newMember.fullName || !newMember.email || !newMember.depotId) {
-      setError('Lütfen tüm alanları doldurun');
+    if (!newMember.fullName || !newMember.email || !newMember.password) {
+      setError('Ad Soyad, Email ve Şifre zorunludur');
       return;
     }
 
     setSavingMember(true);
     try {
-      const request: CreateMemberRequest = {
+      await memberService.createDispatcher({
         fullName: newMember.fullName,
         email: newMember.email,
-        depotId: newMember.depotId,
-        roles: newMember.isDispatcher ? [10] : [] // 10 = Dispatcher
-      };
-
-      const token = await memberService.createMember(request);
+        password: newMember.password,
+        phoneNumber: newMember.phoneNumber || undefined,
+        depotId: newMember.depotId || undefined
+      });
       
       // Başarılı - listeyi yenile
       await loadMembers();
@@ -262,11 +264,17 @@ const Settings: React.FC = () => {
       setShowSuccessMessage(true);
       setTimeout(() => setShowSuccessMessage(false), 3000);
       
-      // Kullanıcıya davet linki göster
-      alert(`Kullanıcı davet edildi! Davet kodu: ${token}\n\nKullanıcıya bu kodu vererek kayıt olmasını sağlayabilirsiniz.`);
+      // Form'u temizle
+      setNewMember({
+        fullName: '',
+        email: '',
+        password: '',
+        phoneNumber: '',
+        depotId: depots.length > 0 ? depots[0].id : null
+      });
     } catch (error: any) {
-      console.error('Error creating member:', error);
-      setError(error.response?.data?.message || 'Kullanıcı oluşturulurken hata oluştu');
+      console.error('Error creating dispatcher:', error);
+      setError(error.response?.data?.message || 'Dispatcher oluşturulurken hata oluştu');
     } finally {
       setSavingMember(false);
     }
@@ -1743,7 +1751,7 @@ const Settings: React.FC = () => {
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ad Soyad</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ad Soyad *</label>
                 <input
                   type="text"
                   value={newMember.fullName}
@@ -1754,7 +1762,7 @@ const Settings: React.FC = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">E-posta</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">E-posta *</label>
                 <input
                   type="email"
                   value={newMember.email}
@@ -1765,13 +1773,35 @@ const Settings: React.FC = () => {
               </div>
               
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Şifre *</label>
+                <input
+                  type="password"
+                  value={newMember.password}
+                  onChange={(e) => setNewMember({ ...newMember, password: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="En az 6 karakter"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Telefon</label>
+                <input
+                  type="tel"
+                  value={newMember.phoneNumber}
+                  onChange={(e) => setNewMember({ ...newMember, phoneNumber: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0532 XXX XX XX"
+                />
+              </div>
+              
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Depo</label>
                 <select
                   value={newMember.depotId || ''}
-                  onChange={(e) => setNewMember({ ...newMember, depotId: parseInt(e.target.value) })}
+                  onChange={(e) => setNewMember({ ...newMember, depotId: e.target.value ? parseInt(e.target.value) : null })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Depo Seçin</option>
+                  <option value="">Depo Seçin (Opsiyonel)</option>
                   {depots.map(depot => (
                     <option key={depot.id} value={depot.id}>{depot.name}</option>
                   ))}
@@ -1781,7 +1811,7 @@ const Settings: React.FC = () => {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-sm text-blue-800">
                   <Info className="w-4 h-4 inline mr-1" />
-                  Kullanıcıya davet e-postası gönderilecek. Kullanıcı e-postadaki link ile şifresini belirleyerek kayıt olabilecek.
+                  Dispatcher sisteme giriş yapabilecek ve rota yönetimi yapabilecek.
                 </p>
               </div>
             </div>
@@ -1795,10 +1825,10 @@ const Settings: React.FC = () => {
                 {savingMember ? (
                   <>
                     <Loader2 className="w-4 h-4 inline mr-2 animate-spin" />
-                    Ekleniyor...
+                    Oluşturuluyor...
                   </>
                 ) : (
-                  'Davet Gönder'
+                  'Dispatcher Oluştur'
                 )}
               </button>
               <button

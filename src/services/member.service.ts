@@ -33,6 +33,15 @@ export interface UpdateMemberRoleRequest {
     roles: number[];
 }
 
+export interface CreateDispatcherRequest {
+  fullName: string;
+  email: string;
+  password: string;
+  phoneNumber?: string;
+  depotId?: number;
+}
+
+
 class MemberService {
     // Get all members
     async getMembers(filters?: {
@@ -57,6 +66,11 @@ class MemberService {
         return response.data; // Returns invitation token
     }
 
+    async createDispatcher(data: CreateDispatcherRequest): Promise<Member> {
+        const response = await api.post('/members/create-dispatcher', data);
+        return response.data;
+    }
+    
     // Save invited member (complete signup)
     async saveInvitedMember(token: string, password: string): Promise<any> {
         const response = await api.post(`/members/save-invited?token=${token}`, { password });
