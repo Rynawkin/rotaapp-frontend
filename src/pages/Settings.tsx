@@ -85,6 +85,13 @@ const Settings: React.FC = () => {
   const [whatsAppMode, setWhatsAppMode] = useState<'disabled' | 'shared' | 'custom'>('disabled');
   const [twilioStatus, setTwilioStatus] = useState<any>(null);
 
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
+    show: boolean;
+    memberId: string;
+    memberName: string;
+  }>({ show: false, memberId: '', memberName: '' });
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
   // Company Settings
   const [companySettings, setCompanySettings] = useState({
     name: '',
@@ -280,14 +287,23 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handleDeleteMember = async (userId: string) => {
-    if (!confirm('Bu kullanıcıyı silmek istediğinizden emin misiniz?')) {
+  const handleDeleteMember = (userId: string, memberName: string) => {
+    setDeleteConfirmModal({ show: true, memberId: userId, memberName });
+    setDeleteConfirmText('');
+  };
+
+  const confirmDelete = async () => {
+    if (deleteConfirmText !== 'SİL') {
+      setError('Onaylamak için "SİL" yazmalısınız');
       return;
     }
 
     try {
-      await memberService.deleteMember(userId);
+      await memberService.deleteMember(deleteConfirmModal.memberId);
       await loadMembers();
+      setDeleteConfirmModal({ show: false, memberId: '', memberName: '' });
+      setDeleteConfirmText('');
+      setError(null);
       setShowSuccessMessage(true);
       setTimeout(() => setShowSuccessMessage(false), 3000);
     } catch (error: any) {
@@ -296,16 +312,6 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handleToggleRole = async (member: Member) => {
-    try {
-      const newRoles = member.isDispatcher ? [] : [10]; // Toggle Dispatcher role
-      await memberService.updateMemberRoles(member.id, newRoles);
-      await loadMembers();
-    } catch (error: any) {
-      console.error('Error updating member role:', error);
-      setError(error.response?.data?.message || 'Rol güncellenirken hata oluştu');
-    }
-  };
 
   const getRoleBadgeColor = (member: Member) => {
     if (member.isSuperAdmin) return 'bg-purple-100 text-purple-700';
@@ -906,21 +912,13 @@ const Settings: React.FC = () => {
                           </div>
                           <div className="flex items-center gap-2">
                             {!member.isAdmin && !member.isSuperAdmin && (
-                              <>
-                                <button 
-                                  onClick={() => handleToggleRole(member)}
-                                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                                  title={member.isDispatcher ? 'Dispatcher rolünü kaldır' : 'Dispatcher yap'}
-                                >
-                                  {member.isDispatcher ? <Shield className="w-4 h-4" /> : <User className="w-4 h-4" />}
-                                </button>
-                                <button 
-                                  onClick={() => handleDeleteMember(member.id)}
-                                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </>
+                              <button 
+                                onClick={() => handleDeleteMember(member.id, member.fullName || member.email)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Kullanıcıyı Sil"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             )}
                           </div>
                         </div>
@@ -1741,6 +1739,60 @@ const Settings: React.FC = () => {
         </div>
       </div>
 
+      
+      {/* Delete Confirm Modal */}
+{deleteConfirmModal.show && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-lg p-6 w-full max-w-md">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">
+        Kullanıcı Silme Onayı
+      </h3>
+      
+      <div className="mb-4">
+        <p className="text-gray-700 mb-2">
+          <strong>{deleteConfirmModal.memberName}</strong> kullanıcısını silmek üzeresiniz.
+        </p>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+          <p className="text-sm text-red-800">
+            <AlertCircle className="w-4 h-4 inline mr-1" />
+            Bu işlem geri alınamaz! Kullanıcı kalıcı olarak silinecektir.
+          </p>
+        </div>
+        <p className="text-sm text-gray-600 mb-2">
+          Onaylamak için aşağıya <strong>SİL</strong> yazın:
+        </p>
+        <input
+          type="text"
+          value={deleteConfirmText}
+          onChange={(e) => setDeleteConfirmText(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+          placeholder="SİL"
+        />
+      </div>
+      
+      <div className="flex gap-3">
+        <button
+          onClick={confirmDelete}
+          disabled={deleteConfirmText !== 'SİL'}
+          className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Kullanıcıyı Sil
+        </button>
+        <button
+          onClick={() => {
+            setDeleteConfirmModal({ show: false, memberId: '', memberName: '' });
+            setDeleteConfirmText('');
+            setError(null);
+          }}
+          className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          İptal
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+      
       {/* Member Modal - Güncellenmiş */}
       {showMemberModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
