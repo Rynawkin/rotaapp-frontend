@@ -367,13 +367,8 @@ const Settings: React.FC = () => {
       if (delivery) {
         setDeliverySettings({
           defaultServiceTime: delivery.defaultServiceTime,
-          maxDeliveriesPerRoute: delivery.maxDeliveriesPerRoute,
           workingHours: delivery.workingHours || deliverySettings.workingHours,
-          prioritySettings: delivery.prioritySettings || deliverySettings.prioritySettings,
-          autoOptimize: delivery.autoOptimize ?? true,
-          trafficConsideration: delivery.trafficConsideration ?? true,
-          costPerKm: delivery.costPerKm ?? null,
-          costPerHour: delivery.costPerHour ?? null
+          prioritySettings: delivery.prioritySettings || deliverySettings.prioritySettings
         });
       }
 
@@ -939,104 +934,24 @@ const Settings: React.FC = () => {
                   <Info className="w-5 h-5 text-blue-600 mt-0.5" />
                   <div className="text-sm text-blue-800">
                     <p className="font-medium">Bu ayarlar tüm yeni rotalara uygulanır</p>
-                    <p>Öncelik ve gecikme süreleri rota optimizasyonunda kullanılır.</p>
+                    <p>Varsayılan servis süresi ve çalışma saatlerini belirleyin.</p>
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Varsayılan Servis Süresi (dakika)
-                    </label>
-                    <input
-                      type="number"
-                      value={deliverySettings.defaultServiceTime}
-                      onChange={(e) => {
-                        setDeliverySettings({ ...deliverySettings, defaultServiceTime: parseInt(e.target.value) });
-                        setHasChanges(true);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Rota Başına Max Teslimat
-                    </label>
-                    <input
-                      type="number"
-                      value={deliverySettings.maxDeliveriesPerRoute}
-                      onChange={(e) => {
-                        setDeliverySettings({ ...deliverySettings, maxDeliveriesPerRoute: parseInt(e.target.value) });
-                        setHasChanges(true);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Km Başına Maliyet (₺)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={deliverySettings.costPerKm || ''}
-                      onChange={(e) => {
-                        setDeliverySettings({ ...deliverySettings, costPerKm: e.target.value ? parseFloat(e.target.value) : null });
-                        setHasChanges(true);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="0.00"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Saat Başına Maliyet (₺)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={deliverySettings.costPerHour || ''}
-                      onChange={(e) => {
-                        setDeliverySettings({ ...deliverySettings, costPerHour: e.target.value ? parseFloat(e.target.value) : null });
-                        setHasChanges(true);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="0.00"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={!!deliverySettings.autoOptimize}
-                        onChange={(e) => {
-                          setDeliverySettings({ ...deliverySettings, autoOptimize: e.target.checked });
-                          setHasChanges(true);
-                        }}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm font-medium text-gray-700">Otomatik Optimizasyon</span>
-                    </label>
-                  </div>
-                  
-                  <div>
-                    <label className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={!!deliverySettings.trafficConsideration}
-                        onChange={(e) => {
-                          setDeliverySettings({ ...deliverySettings, trafficConsideration: e.target.checked });
-                          setHasChanges(true);
-                        }}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm font-medium text-gray-700">Trafik Durumunu Dikkate Al</span>
-                    </label>
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Varsayılan Servis Süresi (dakika)
+                  </label>
+                  <input
+                    type="number"
+                    value={deliverySettings.defaultServiceTime}
+                    onChange={(e) => {
+                      setDeliverySettings({ ...deliverySettings, defaultServiceTime: parseInt(e.target.value) });
+                      setHasChanges(true);
+                    }}
+                    className="w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Her teslimat noktasında geçirilecek ortalama süre</p>
                 </div>
                 
                 <div>
@@ -1061,11 +976,11 @@ const Settings: React.FC = () => {
                         />
                         <span className="w-24 font-medium text-gray-700 capitalize">
                           {day === 'monday' ? 'Pazartesi' : 
-                           day === 'tuesday' ? 'Salı' : 
-                           day === 'wednesday' ? 'Çarşamba' : 
-                           day === 'thursday' ? 'Perşembe' : 
-                           day === 'friday' ? 'Cuma' : 
-                           day === 'saturday' ? 'Cumartesi' : 'Pazar'}
+                          day === 'tuesday' ? 'Salı' : 
+                          day === 'wednesday' ? 'Çarşamba' : 
+                          day === 'thursday' ? 'Perşembe' : 
+                          day === 'friday' ? 'Cuma' : 
+                          day === 'saturday' ? 'Cumartesi' : 'Pazar'}
                         </span>
                         <input
                           type="time"
