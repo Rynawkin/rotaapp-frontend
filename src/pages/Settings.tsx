@@ -8,7 +8,6 @@ import {
   Truck,
   CreditCard,
   Globe,
-  Database,
   FileText,
   Save,
   Upload,
@@ -74,7 +73,7 @@ const Settings: React.FC = () => {
     );
   }
 
-  const [activeTab, setActiveTab] = useState<'company' | 'users' | 'delivery' | 'notifications' | 'templates' | 'subscription' | 'regional' | 'data'>(availableTabs[0] as any);
+  const [activeTab, setActiveTab] = useState<'company' | 'users' | 'delivery' | 'notifications' | 'templates' | 'subscription' | 'regional'>(availableTabs[0] as any);
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -669,8 +668,7 @@ const Settings: React.FC = () => {
               { id: 'notifications', label: 'Bildirimler', icon: Bell },
               { id: 'templates', label: 'Mesaj Şablonları', icon: FileText },
               { id: 'subscription', label: 'Abonelik', icon: CreditCard },
-              { id: 'regional', label: 'Bölgesel Ayarlar', icon: Globe },
-              { id: 'data', label: 'Veri Yönetimi', icon: Database }
+              { id: 'regional', label: 'Bölgesel Ayarlar', icon: Globe }
             ].filter(item => availableTabs.includes(item.id)).map((item) => (
               <button
                 key={item.id}
@@ -1584,67 +1582,6 @@ const Settings: React.FC = () => {
               </div>
             )}
 
-            {/* Data Management */}
-            {activeTab === 'data' && availableTabs.includes('data') && (
-              <div className="space-y-6">
-                <h2 className="text-lg font-semibold text-gray-900 border-b pb-3">Veri Yönetimi</h2>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="border rounded-lg p-6">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="p-3 bg-green-100 rounded-lg">
-                        <Download className="w-6 h-6 text-green-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-gray-900">Ayarları Dışa Aktar</h3>
-                        <p className="text-sm text-gray-600">JSON formatında indir</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={exportSettings}
-                      className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                    >
-                      Ayarları İndir
-                    </button>
-                  </div>
-                  
-                  <div className="border rounded-lg p-6">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="p-3 bg-blue-100 rounded-lg">
-                        <Upload className="w-6 h-6 text-blue-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-gray-900">Ayarları İçe Aktar</h3>
-                        <p className="text-sm text-gray-600">JSON dosyasından yükle</p>
-                      </div>
-                    </div>
-                    <input
-                      type="file"
-                      accept=".json"
-                      onChange={importSettings}
-                      className="hidden"
-                      id="import-settings"
-                    />
-                    <label
-                      htmlFor="import-settings"
-                      className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer inline-block text-center"
-                    >
-                      Dosya Seç
-                    </label>
-                  </div>
-                </div>
-                
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-                    <div className="text-sm text-yellow-800">
-                      <p className="font-medium mb-1">Otomatik Yedekleme</p>
-                      <p>Verileriniz günlük olarak otomatik yedeklenmektedir. Son yedekleme: Bugün 03:00</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
