@@ -28,6 +28,7 @@ import { vehicleService } from '@/services/vehicle.service';
 import { depotService } from '@/services/depot.service';
 import { routeService } from '@/services/route.service';
 import { googleMapsService } from '@/services/googleMapsService';
+import { settingsService } from '@/services/settings.service';
 
 type OptimizationStatus = 'none' | 'success' | 'partial';
 
@@ -156,6 +157,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
   const [mapDirections, setMapDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [optimizing, setOptimizing] = useState(false);
   const [optimizationMode, setOptimizationMode] = useState<'distance' | 'duration'>('distance');
+  const [defaultSignatureRequired, setDefaultSignatureRequired] = useState(false);
+  const [defaultPhotoRequired, setDefaultPhotoRequired] = useState(false);
   const [optimizedOrder, setOptimizedOrder] = useState<number[]>(() => {
     return savedData?.optimized && savedData?.stops ? 
       savedData.stops.map((_: any, index: number) => index) : [];
@@ -275,6 +278,17 @@ const RouteForm: React.FC<RouteFormProps> = ({
         depotService.getAll()
       ]);
 
+      // Settings'i de yükle
+      try {
+        const deliverySettings = await settingsService.getDeliverySettings();
+        setDefaultSignatureRequired(deliverySettings.defaultSignatureRequired || false);
+        setDefaultPhotoRequired(deliverySettings.defaultPhotoRequired || false);
+      } catch (error) {
+        console.error('Error loading delivery settings:', error);
+        setDefaultSignatureRequired(false);
+        setDefaultPhotoRequired(false);
+      }
+
       const validCustomers = customersData.filter(c => 
         typeof c.id === 'number' || (typeof c.id === 'string' && !c.id.startsWith('google-'))
       );
@@ -341,8 +355,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
       const newStopsData = [...stopsData, { 
         customer,
         serviceTime: customer.estimatedServiceTime || 10,
-        signatureRequired: defaultSignature,  // YENİ
-        photoRequired: defaultPhoto           // YENİ
+        signatureRequired: defaultSignatureRequired,  // DÜZELTİLDİ
+        photoRequired: defaultPhotoRequired           // DÜZELTİLDİ
       }];
       setStopsData(newStopsData);
       resetOptimization();
