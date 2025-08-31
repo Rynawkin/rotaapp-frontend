@@ -340,7 +340,9 @@ const RouteForm: React.FC<RouteFormProps> = ({
     if (!stopsData.find(s => s.customer.id === customer.id)) {
       const newStopsData = [...stopsData, { 
         customer,
-        serviceTime: customer.estimatedServiceTime || 10
+        serviceTime: customer.estimatedServiceTime || 10,
+        signatureRequired: defaultSignature,  // YENİ
+        photoRequired: defaultPhoto           // YENİ
       }];
       setStopsData(newStopsData);
       resetOptimization();
