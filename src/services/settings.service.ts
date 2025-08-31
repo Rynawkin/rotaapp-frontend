@@ -22,6 +22,8 @@ export interface WorkspaceSettings {
 export interface DeliverySettings {
   defaultServiceTime: number;
   maxDeliveriesPerRoute: number;
+  defaultSignatureRequired: boolean;  // YENİ
+  defaultPhotoRequired: boolean;      // YENİ
   workingHours: {
     [key: string]: {
       start: string;

@@ -398,6 +398,8 @@ const Settings: React.FC = () => {
       if (delivery) {
         setDeliverySettings({
           defaultServiceTime: delivery.defaultServiceTime,
+          defaultSignatureRequired: delivery.defaultSignatureRequired || false, // YENİ
+          defaultPhotoRequired: delivery.defaultPhotoRequired || false,      // YENİ
           workingHours: delivery.workingHours || deliverySettings.workingHours,
           prioritySettings: delivery.prioritySettings || deliverySettings.prioritySettings
         });

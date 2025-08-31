@@ -13,7 +13,9 @@ import {
   Timer,
   CheckCircle,
   ArrowRight,
-  Calendar
+  Calendar,
+  Camera,
+  FileSignature
 } from 'lucide-react';
 import { Customer } from '@/types';
 
@@ -22,6 +24,8 @@ interface StopData {
   overrideTimeWindow?: { start: string; end: string };
   overridePriority?: 'high' | 'normal' | 'low';
   serviceTime?: number;
+  signatureRequired?: boolean;
+  photoRequired?: boolean;
   stopNotes?: string;
   estimatedArrivalTime?: string;
   estimatedDepartureTime?: string;
@@ -103,6 +107,8 @@ const StopsList: React.FC<StopsListProps> = ({
       overrideTimeWindow: hasOverride ? stop.overrideTimeWindow : undefined,
       overridePriority: stop.overridePriority || stop.customer.priority,
       serviceTime: stop.serviceTime || stop.customer.estimatedServiceTime || 10,
+      signatureRequired: stop.signatureRequired || false,
+      photoRequired: stop.photoRequired || false,
       stopNotes: stop.stopNotes || ''
     });
   };
@@ -272,7 +278,7 @@ const StopsList: React.FC<StopsListProps> = ({
                               </span>
                             </div>
 
-                            {/* ETA Bilgileri - YENİ EKLENEN KISIM */}
+                            {/* ETA Bilgileri */}
                             {optimizationStatus !== 'none' && (stop.estimatedArrivalTime || stop.estimatedDepartureTime) && (
                               <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
                                 <div className="flex items-center justify-between text-sm">
@@ -299,7 +305,6 @@ const StopsList: React.FC<StopsListProps> = ({
                                     </div>
                                   )}
                                 </div>
-                                {/* İlerleme göstergesi - isteğe bağlı */}
                                 {index > 0 && stops[index - 1].estimatedDepartureTime && (
                                   <div className="mt-2 pt-2 border-t border-blue-200">
                                     <div className="flex items-center text-xs text-blue-600">
@@ -321,6 +326,20 @@ const StopsList: React.FC<StopsListProps> = ({
                                   <span className="ml-1">(düzenlenmiş)</span>
                                 )}
                               </span>
+
+                              {/* Proof Requirements Badges - YENİ EKLENEN */}
+                              {stop.signatureRequired && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                                  <FileSignature className="w-3 h-3 mr-1" />
+                                  İmza Zorunlu
+                                </span>
+                              )}
+                              {stop.photoRequired && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                                  <Camera className="w-3 h-3 mr-1" />
+                                  Fotoğraf Zorunlu
+                                </span>
+                              )}
                             </div>
 
                             {(stop.customer.notes || stop.stopNotes) && (
@@ -420,6 +439,39 @@ const StopsList: React.FC<StopsListProps> = ({
                             className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                           />
                         </div>
+                      </div>
+
+                      {/* Proof of Delivery Requirements - YENİ EKLENEN */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-blue-50 rounded">
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={editData.signatureRequired ?? false}
+                            onChange={(e) => setEditData({
+                              ...editData,
+                              signatureRequired: e.target.checked
+                            })}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-sm text-gray-700 font-medium">
+                            İmza Zorunlu
+                          </span>
+                        </label>
+
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={editData.photoRequired ?? false}
+                            onChange={(e) => setEditData({
+                              ...editData,
+                              photoRequired: e.target.checked
+                            })}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-sm text-gray-700 font-medium">
+                            Fotoğraf Zorunlu
+                          </span>
+                        </label>
                       </div>
 
                       {/* Time Window Override Checkbox */}

@@ -690,6 +690,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
         arriveBetweenEnd: stopData.overrideTimeWindow?.end,
         overridePriority: stopData.overridePriority,
         serviceTime: stopData.serviceTime,
+        signatureRequired: stopData.signatureRequired,  // YENİ
+        photoRequired: stopData.photoRequired,          // YENİ
         stopNotes: stopData.stopNotes,
         estimatedArrival: new Date(),
         distance: 0,
@@ -759,6 +761,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
         arriveBetweenEnd: stopData.overrideTimeWindow?.end,
         overridePriority: stopData.overridePriority,
         serviceTime: stopData.serviceTime,
+        signatureRequired: stopData.signatureRequired,  // YENİ
+        photoRequired: stopData.photoRequired,          // YENİ
         stopNotes: stopData.stopNotes,
         estimatedArrival: new Date(),
         distance: 0,

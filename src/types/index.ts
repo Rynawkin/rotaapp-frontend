@@ -179,7 +179,9 @@ export interface RouteStop {
   };
   overridePriority?: 'high' | 'normal' | 'low';
   serviceTime?: number;
-  
+  signatureRequired?: boolean;  // YENİ
+  photoRequired?: boolean;      // YENİ
+
   estimatedArrival?: Date;
   actualArrival?: Date;
   completedAt?: Date;
@@ -442,6 +444,8 @@ export interface StopData {
   overrideTimeWindow?: { start: string; end: string };
   overridePriority?: 'high' | 'normal' | 'low';
   serviceTime?: number;
+  signatureRequired?: boolean;  // YENİ
+  photoRequired?: boolean;      // YENİ
   stopNotes?: string;
   estimatedArrivalTime?: string;
   estimatedDepartureTime?: string;
