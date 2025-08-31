@@ -147,6 +147,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
         overrideTimeWindow: stop.overrideTimeWindow,
         overridePriority: stop.overridePriority,
         serviceTime: stop.serviceTime,
+        signatureRequired: stop.signatureRequired || false,  // ✅ EKLE
+        photoRequired: stop.photoRequired || false,          // ✅ EKLE
         stopNotes: stop.stopNotes
       }));
     }
@@ -187,7 +189,9 @@ const RouteForm: React.FC<RouteFormProps> = ({
             ...stop,
             order: index + 1,
             customerId: stop.customer.id,
-            customer: stop.customer
+            customer: stop.customer,
+            signatureRequired: stop.signatureRequired || false,  // ✅ EKLE
+            photoRequired: stop.photoRequired || false          // ✅ EKLE
           }))
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
@@ -463,6 +467,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
           order: index + 1,
           status: 'pending',
           serviceTime: stopData.serviceTime,
+          signatureRequired: stopData.signatureRequired || false,  // ✅ EKLE
+          photoRequired: stopData.photoRequired || false,          // ✅ EKLE
           stopNotes: stopData.stopNotes,
           arriveBetweenStart: stopData.overrideTimeWindow?.start,
           arriveBetweenEnd: stopData.overrideTimeWindow?.end,
