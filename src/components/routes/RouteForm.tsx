@@ -37,6 +37,8 @@ interface StopData {
   overrideTimeWindow?: { start: string; end: string };
   overridePriority?: 'high' | 'normal' | 'low';
   serviceTime?: number;
+  signatureRequired?: boolean;    // ✅ EKLE
+  photoRequired?: boolean;         // ✅ EKLE
   stopNotes?: string;
   estimatedArrivalTime?: string;
   estimatedDepartureTime?: string;
