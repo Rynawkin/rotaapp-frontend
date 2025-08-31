@@ -25,7 +25,10 @@ const CreateRoute: React.FC = () => {
         route = await routeService.create(formData);
       }
       
-      navigate(`/routes/${route.id || formData.id}`);
+      alert('Rota başarıyla oluşturuldu!');
+      setTimeout(() => {
+        navigate(`/routes/${route.id || formData.id}`);
+      }, 100);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Rota işleminde bir hata oluştu.');
       console.error('Error processing route:', err);

@@ -744,7 +744,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
       }
     };
     
-    if (!isEdit) {
+    if (!isEdit && !formData.id) {
       localStorage.removeItem(STORAGE_KEY);
     }
     
@@ -815,7 +815,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
       }
     };
 
-    if (!isEdit) {
+    if (!isEdit && !formData.id) {
       localStorage.removeItem(STORAGE_KEY);
     }
 
