@@ -142,6 +142,8 @@ const Settings: React.FC = () => {
   // Delivery Settings
   const [deliverySettings, setDeliverySettings] = useState({
     defaultServiceTime: 15,
+    defaultSignatureRequired: false,  // YENİ
+    defaultPhotoRequired: false,      // YENİ
     workingHours: {
       monday: { start: '08:00', end: '18:00', enabled: true },
       tuesday: { start: '08:00', end: '18:00', enabled: true },
@@ -955,32 +957,84 @@ const Settings: React.FC = () => {
 
             {/* Delivery Settings */}
             {activeTab === 'delivery' && availableTabs.includes('delivery') && (
-              <div className="space-y-6">
-                <h2 className="text-lg font-semibold text-gray-900 border-b pb-3">Teslimat Ayarları</h2>
-                
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-                  <Info className="w-5 h-5 text-blue-600 mt-0.5" />
-                  <div className="text-sm text-blue-800">
-                    <p className="font-medium">Bu ayarlar tüm yeni rotalara uygulanır</p>
-                    <p>Varsayılan servis süresi ve çalışma saatlerini belirleyin.</p>
+            <div className="space-y-6">
+              <h2 className="text-lg font-semibold text-gray-900 border-b pb-3">Teslimat Ayarları</h2>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
+                <Info className="w-5 h-5 text-blue-600 mt-0.5" />
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium">Bu ayarlar tüm yeni rotalara uygulanır</p>
+                  <p>Varsayılan servis süresi ve çalışma saatlerini belirleyin.</p>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Varsayılan Servis Süresi (dakika)
+                </label>
+                <input
+                  type="number"
+                  value={deliverySettings.defaultServiceTime}
+                  onChange={(e) => {
+                    setDeliverySettings({ ...deliverySettings, defaultServiceTime: parseInt(e.target.value) });
+                    setHasChanges(true);
+                  }}
+                  className="w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">Her teslimat noktasında geçirilecek ortalama süre</p>
+              </div>
+              
+              {/* YENİ - Teslimat Kanıt Ayarları */}
+              <div>
+                <h3 className="text-base font-medium text-gray-900 mb-3">Teslimat Kanıt Ayarları</h3>
+                <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+                  <label className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium text-gray-700">Varsayılan İmza Zorunluluğu</span>
+                      <p className="text-sm text-gray-500 mt-1">Tüm yeni teslimatlar için imza zorunlu olsun</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={deliverySettings.defaultSignatureRequired}
+                      onChange={(e) => {
+                        setDeliverySettings({ 
+                          ...deliverySettings, 
+                          defaultSignatureRequired: e.target.checked 
+                        });
+                        setHasChanges(true);
+                      }}
+                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium text-gray-700">Varsayılan Fotoğraf Zorunluluğu</span>
+                      <p className="text-sm text-gray-500 mt-1">Tüm yeni teslimatlar için fotoğraf zorunlu olsun</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={deliverySettings.defaultPhotoRequired}
+                      onChange={(e) => {
+                        setDeliverySettings({ 
+                          ...deliverySettings, 
+                          defaultPhotoRequired: e.target.checked 
+                        });
+                        setHasChanges(true);
+                      }}
+                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                  </label>
+
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4">
+                    <p className="text-sm text-blue-800">
+                      <Info className="w-4 h-4 inline mr-1" />
+                      Bu ayarlar yalnızca yeni oluşturulan rotalar için geçerlidir. Mevcut rotalar etkilenmez.
+                      Her durak için ayrı ayrı da ayarlama yapabilirsiniz.
+                    </p>
                   </div>
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Varsayılan Servis Süresi (dakika)
-                  </label>
-                  <input
-                    type="number"
-                    value={deliverySettings.defaultServiceTime}
-                    onChange={(e) => {
-                      setDeliverySettings({ ...deliverySettings, defaultServiceTime: parseInt(e.target.value) });
-                      setHasChanges(true);
-                    }}
-                    className="w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Her teslimat noktasında geçirilecek ortalama süre</p>
-                </div>
+              </div>
                 
                 <div>
                   <h3 className="text-base font-medium text-gray-900 mb-3">Çalışma Saatleri</h3>

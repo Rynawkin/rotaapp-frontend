@@ -260,6 +260,16 @@ class JourneyService {
     }
   }
 
+  async getStaticMapUrl(journeyId: number): Promise<string> {
+    try {
+      const response = await api.get(`/workspace/journeys/${journeyId}/static-map`);
+      return response.data.staticMapUrl;
+    } catch (error) {
+      console.error('Static map URL error:', error);
+      throw error;
+    }
+  }
+  
   async getById(id: string | number): Promise<Journey> {
     try {
       const response = await api.get(`${this.baseUrl}/${id}`);
