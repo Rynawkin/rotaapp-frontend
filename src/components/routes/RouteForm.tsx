@@ -530,6 +530,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
             stopNotes: stop.stopNotes || existingStopData?.stopNotes,
             overrideTimeWindow: existingStopData?.overrideTimeWindow,
             overridePriority: existingStopData?.overridePriority,
+            signatureRequired: existingStopData?.signatureRequired,  // YENİ - Mevcut değeri koru
+            photoRequired: existingStopData?.photoRequired,          // YENİ - Mevcut değeri koru
             estimatedArrivalTime: stop.estimatedArrivalTime,
             estimatedDepartureTime: stop.estimatedDepartureTime
           };
@@ -552,6 +554,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
             stopNotes: stop.stopNotes || existingStopData?.stopNotes,
             overrideTimeWindow: existingStopData?.overrideTimeWindow,
             overridePriority: existingStopData?.overridePriority,
+            signatureRequired: existingStopData?.signatureRequired,  // YENİ - Mevcut değeri koru
+            photoRequired: existingStopData?.photoRequired,          // YENİ - Mevcut değeri koru
             estimatedArrivalTime: stop.estimatedArrivalTime,
             estimatedDepartureTime: stop.estimatedDepartureTime
           };
@@ -577,6 +581,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
               stopNotes: stop.stopNotes || existingStopData?.stopNotes,
               overrideTimeWindow: existingStopData?.overrideTimeWindow,
               overridePriority: existingStopData?.overridePriority,
+              signatureRequired: existingStopData?.signatureRequired,  // YENİ - Mevcut değeri koru
+              photoRequired: existingStopData?.photoRequired,          // YENİ - Mevcut değeri koru
               estimatedArrivalTime: stop.estimatedArrivalTime,
               estimatedDepartureTime: stop.estimatedDepartureTime
             };
