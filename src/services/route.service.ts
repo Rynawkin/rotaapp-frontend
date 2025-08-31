@@ -26,6 +26,8 @@ export interface CreateRouteDto {
     type: number;
     orderType: number;
     proofOfDeliveryRequired: boolean;
+    signatureRequired?: boolean;  // ✅ YENİ
+    photoRequired?: boolean;       // ✅ YENİ
     arriveBetweenStart?: string | null;
     arriveBetweenEnd?: string | null;
     serviceTime?: string | null;
@@ -69,6 +71,8 @@ export interface UpdateRouteDto {
     type: number;
     orderType: number;
     proofOfDeliveryRequired: boolean;
+    signatureRequired?: boolean;  // ✅ YENİ
+    photoRequired?: boolean;       // ✅ YENİ
     arriveBetweenStart?: string | null;
     arriveBetweenEnd?: string | null;
     serviceTime?: string | null;
@@ -274,7 +278,9 @@ class RouteService {
             ContactEmail: customer?.email || '',
             Type: 10,
             OrderType: 20,
-            ProofOfDeliveryRequired: false,
+            ProofOfDeliveryRequired: stop.proofOfDeliveryRequired || false,  // ✅ DÜZELTME
+            SignatureRequired: stop.signatureRequired || false,              // ✅ YENİ
+            PhotoRequired: stop.photoRequired || false,                      // ✅ YENİ
             ArriveBetweenStart: stop.arriveBetweenStart ? 
               (stop.arriveBetweenStart.includes(':') ? `${stop.arriveBetweenStart}:00` : stop.arriveBetweenStart) : 
               (stop.overrideTimeWindow?.start ? `${stop.overrideTimeWindow.start}:00` : null),
@@ -397,7 +403,9 @@ class RouteService {
             ContactEmail: customer?.email || '',
             Type: 10,
             OrderType: 20,
-            ProofOfDeliveryRequired: false,
+            ProofOfDeliveryRequired: stop.proofOfDeliveryRequired || false,  // ✅ DÜZELTME
+            SignatureRequired: stop.signatureRequired || false,              // ✅ YENİ
+            PhotoRequired: stop.photoRequired || false,                      // ✅ YENİ
             ArriveBetweenStart: stop.arriveBetweenStart ? 
               (stop.arriveBetweenStart.includes(':') ? `${stop.arriveBetweenStart}:00` : stop.arriveBetweenStart) : 
               (stop.overrideTimeWindow?.start ? `${stop.overrideTimeWindow.start}:00` : null),
