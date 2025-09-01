@@ -41,6 +41,7 @@ import PublicFeedback from './pages/PublicFeedback';
 import IssuesManagement from './pages/superadmin/IssuesManagement';
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
 import TermsOfService from './pages/legal/TermsOfService';
+import DeleteAccount from './pages/DeleteAccount';
 
 // Layout wrapper for protected routes - useAuth hook'unu kullanacak şekilde güncellendi
 const ProtectedLayout: React.FC<{ 
@@ -84,6 +85,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
+      <Route path="/delete-account" element={<DeleteAccount />} />
 
       {/* Protected Routes */}
       <Route path="/" element={
