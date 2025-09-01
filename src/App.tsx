@@ -39,6 +39,8 @@ import WorkspaceDetail from '@/pages/superadmin/WorkspaceDetail';
 import WorkspaceEdit from '@/pages/superadmin/WorkspaceEdit';
 import PublicFeedback from './pages/PublicFeedback';
 import IssuesManagement from './pages/superadmin/IssuesManagement';
+import PrivacyPolicy from './pages/legal/PrivacyPolicy';
+import TermsOfService from './pages/legal/TermsOfService';
 
 // Layout wrapper for protected routes - useAuth hook'unu kullanacak şekilde güncellendi
 const ProtectedLayout: React.FC<{ 
@@ -80,6 +82,8 @@ const AppRoutes: React.FC = () => {
       <Route path="/test-map" element={<TestMap />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<TermsOfService />} />
 
       {/* Protected Routes */}
       <Route path="/" element={
