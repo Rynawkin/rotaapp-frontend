@@ -6,10 +6,11 @@ import {
   Activity, AlertCircle, Search, Filter,
   ChevronRight, MoreVertical, Calendar,
   Eye, Edit, Trash2, Power, Lock, Unlock,
-  Archive, AlertTriangle
+  Archive, AlertTriangle, Bug
 } from 'lucide-react';
 import { WorkspaceUsage, WorkspaceStats } from '@/types';
 import { workspaceService } from '@/services/workspace.service';
+import { adminService } from '@/services/admin.service';
 
 // Silme Onay Modal Componenti
 const DeleteConfirmModal: React.FC<{
@@ -101,6 +102,7 @@ const SuperAdminDashboard: React.FC = () => {
   const [filterPlan, setFilterPlan] = useState('all');
   const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
   const [deleteModalWorkspace, setDeleteModalWorkspace] = useState<WorkspaceUsage | null>(null);
+  const [openIssuesCount, setOpenIssuesCount] = useState(0);
 
   useEffect(() => {
     loadData();
@@ -109,12 +111,14 @@ const SuperAdminDashboard: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [statsData, usageData] = await Promise.all([
+      const [statsData, usageData, issuesData] = await Promise.all([
         workspaceService.getStats(),
-        workspaceService.getUsageStats()
+        workspaceService.getUsageStats(),
+        adminService.getIssues({ status: 'Open' })
       ]);
       setStats(statsData);
       setWorkspaces(usageData);
+      setOpenIssuesCount(issuesData.length);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -155,28 +159,32 @@ const SuperAdminDashboard: React.FC = () => {
       value: stats.totalWorkspaces,
       change: '+12%',
       icon: Building2,
-      color: 'blue'
+      color: 'blue',
+      onClick: null
     },
     {
       title: 'Aktif Firma',
       value: stats.activeWorkspaces,
       change: '+8%',
       icon: Activity,
-      color: 'green'
+      color: 'green',
+      onClick: null
     },
     {
       title: 'Aylık Gelir',
       value: `₺${stats.totalRevenue.toLocaleString('tr-TR')}`,
       change: '+23%',
       icon: DollarSign,
-      color: 'purple'
+      color: 'purple',
+      onClick: null
     },
     {
-      title: 'Toplam Kullanıcı',
-      value: stats.totalUsers,
-      change: '+18%',
-      icon: Users,
-      color: 'orange'
+      title: 'Açık Sorunlar',
+      value: openIssuesCount,
+      change: openIssuesCount > 0 ? `${openIssuesCount} bekliyor` : 'Temiz',
+      icon: Bug,
+      color: openIssuesCount > 0 ? 'red' : 'gray',
+      onClick: () => navigate('/superadmin/issues')
     }
   ];
 
@@ -208,27 +216,40 @@ const SuperAdminDashboard: React.FC = () => {
         <p className="text-gray-600 mt-1">RotaApp SaaS platformunu yönetin</p>
       </div>
 
-      {/* Stats Grid - Aynı kalıyor */}
+      {/* Stats Grid - Issues kartı eklendi */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {statCards.map((stat, index) => (
-          <div key={index} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div 
+            key={index} 
+            className={`bg-white rounded-xl shadow-sm border border-gray-200 p-6 ${
+              stat.onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''
+            }`}
+            onClick={stat.onClick}
+          >
             <div className="flex items-center justify-between mb-4">
               <div className={`w-12 h-12 rounded-lg bg-${stat.color}-100 flex items-center justify-center`}>
                 <stat.icon className={`w-6 h-6 text-${stat.color}-600`} />
               </div>
               <span className={`text-sm font-medium ${
-                stat.change.startsWith('+') ? 'text-green-600' : 'text-red-600'
+                stat.color === 'red' ? 'text-red-600' : 
+                stat.change.startsWith('+') ? 'text-green-600' : 
+                stat.change === 'Temiz' ? 'text-gray-500' : 'text-red-600'
               }`}>
                 {stat.change}
               </span>
             </div>
             <h3 className="text-2xl font-bold text-gray-900">{stat.value}</h3>
             <p className="text-sm text-gray-600 mt-1">{stat.title}</p>
+            {stat.onClick && (
+              <p className="text-xs text-blue-600 mt-2 hover:text-blue-700">
+                Detayları görüntüle →
+              </p>
+            )}
           </div>
         ))}
       </div>
 
-      {/* Table - Action menüsü güncellendi */}
+      {/* Table - aynı */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         {/* Table header - aynı */}
         <div className="p-6 border-b border-gray-200">

@@ -49,5 +49,16 @@ export const adminService = {
   async getAvailablePlans() {
     const response = await api.get('/admin/plans');
     return response.data;
+  },
+
+  // Issue Management Methods - YENİ EKLENEN
+  async getIssues(params?: any) {
+    const response = await api.get('/workspace/issues', { params });
+    return response.data;
+  },
+
+  async updateIssueStatus(issueId: number, data: { status: string; adminNotes?: string }) {
+    const response = await api.put(`/workspace/issues/${issueId}/status`, data);
+    return response.data;
   }
 };

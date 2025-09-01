@@ -38,6 +38,7 @@ import SuperAdminDashboard from '@/pages/superadmin/SuperAdminDashboard';
 import WorkspaceDetail from '@/pages/superadmin/WorkspaceDetail';
 import WorkspaceEdit from '@/pages/superadmin/WorkspaceEdit';
 import PublicFeedback from './pages/PublicFeedback';
+import IssuesManagement from './pages/superadmin/IssuesManagement';
 
 // Layout wrapper for protected routes - useAuth hook'unu kullanacak şekilde güncellendi
 const ProtectedLayout: React.FC<{ 
@@ -246,6 +247,11 @@ const AppRoutes: React.FC = () => {
         <ProtectedLayout requireSuperAdmin={true}>
           <WorkspaceDetail />
         </ProtectedLayout>
+      } />
+      <Route path="/superadmin/issues" element={
+        <ProtectedRoute requiredRole="SuperAdmin">
+          <IssuesManagement />
+        </ProtectedRoute>
       } />
       <Route path="/super-admin/workspace/:id/edit" element={
         <ProtectedLayout requireSuperAdmin={true}>
