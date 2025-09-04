@@ -17,6 +17,7 @@ export enum JourneyStatusType {
 export interface JourneySummary {
   id: number;
   routeId: number;
+  name?: string;
   routeName: string;
   date: string;
   status: string;
@@ -227,7 +228,11 @@ class JourneyService {
       
       const response = await api.get(`${this.baseUrl}/summary`, { params });
       console.log('Journey summaries loaded:', response.data);
-      return response.data;
+      const items = Array.isArray(response.data) ? response.data : [];
+      return items.map((j: any) => ({
+        ...j,
+        name: (typeof j.name === 'string' && j.name.trim()) ? j.name : (j.Name || j.journeyName || j.routeName || '')
+      }));
     } catch (error) {
       console.error('Error fetching journey summaries:', error);
       throw error;

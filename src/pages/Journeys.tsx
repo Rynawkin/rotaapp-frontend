@@ -364,6 +364,14 @@ const Journeys: React.FC = () => {
     return journey.failedStops || 0;
   };
 
+  // --- Helper: Safe journey title resolver (handles various casing & missing fields) ---
+  const getJourneyTitle = (j: JourneySummary) => {
+    const raw = (j as any).name ?? (j as any).Name ?? (j as any).journeyName ?? '';
+    const val = typeof raw === 'string' ? raw.trim() : String(raw ?? '');
+    return val || j.routeName || `Sefer #${j.id}`;
+  };
+
+
   const filteredJourneys = journeys.filter(journey => {
     if (journey.status === 'archived' && selectedStatus !== 'archived') {
       return false;
@@ -659,7 +667,7 @@ const Journeys: React.FC = () => {
                   <div className="flex-1">
                     <div className="flex items-center space-x-3 mb-3">
                       <h3 className="text-lg font-semibold text-gray-900">
-                        {journey.routeName || 'İsimsiz Rota'}
+                        {getJourneyTitle(journey)}
                       </h3>
                       {getStatusBadge(journey.status)}
                     </div>
