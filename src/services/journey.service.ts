@@ -49,9 +49,11 @@ export interface JourneySummary {
   };
 }
 
+// ✅ GÜNCELLENDİ: name eklendi
 export interface AssignRouteDto {
   routeId: number;
   driverId: number;
+  name?: string; // ✅ YENİ EKLENEN
 }
 
 export interface AddJourneyStatusDto {
@@ -325,9 +327,10 @@ class JourneyService {
     }
   }
 
-  async startFromRoute(routeId: string | number, driverId?: number): Promise<Journey> {
+  // ✅ GÜNCELLENDİ: name parametresi eklendi
+  async startFromRoute(routeId: string | number, driverId?: number, name?: string): Promise<Journey> {
     try {
-      console.log('Starting journey from route:', routeId, 'with driver:', driverId);
+      console.log('Starting journey from route:', routeId, 'with driver:', driverId, 'name:', name);
       
       const route = await api.get(`/workspace/routes/${routeId}`);
       console.log('Route data:', route.data);
@@ -342,17 +345,13 @@ class JourneyService {
 
       const assignDto: AssignRouteDto = {
         routeId: Number(routeId),
-        driverId: Number(driverId || route.data.driverId)
+        driverId: Number(driverId || route.data.driverId),
+        name: name // ✅ YENİ EKLENEN
       };
 
       console.log('Assigning route:', assignDto);
       const assignResponse = await api.post(`${this.baseUrl}/assignment`, assignDto);
       console.log('Journey created:', assignResponse.data);
-      
-      if (assignResponse.data && assignResponse.data.id) {
-        console.log('Journey created, NOT auto-starting:', assignResponse.data.id);
-        return assignResponse.data;
-      }
       
       return assignResponse.data;
     } catch (error: any) {

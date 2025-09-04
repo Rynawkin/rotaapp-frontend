@@ -33,7 +33,6 @@ import { routeService } from '@/services/route.service';
 import { useAuth } from '@/contexts/AuthContext';
 
 const Journeys: React.FC = () => {
-  // ✅ PERFORMANS: Journey yerine JourneySummary kullan
   const [journeys, setJourneys] = useState<JourneySummary[]>([]);
   const [availableRoutes, setAvailableRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +41,11 @@ const Journeys: React.FC = () => {
   const [showStartModal, setShowStartModal] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   
-  // ✅ YENİ: Toplu işlem state'leri
+  // ✅ YENİ: Sefer ismi modal state'leri
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [journeyName, setJourneyName] = useState('');
+  
+  // Toplu işlem state'leri
   const [selectedJourneyIds, setSelectedJourneyIds] = useState<Set<number>>(new Set());
   const [showBulkActions, setShowBulkActions] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
@@ -50,13 +53,10 @@ const Journeys: React.FC = () => {
   const [bulkActionType, setBulkActionType] = useState<'cancel' | 'archive' | 'delete' | null>(null);
   
   const navigate = useNavigate();
-  
-  // ✅ ROL KONTROLÜ İÇİN AUTH HOOK
   const { user, canAccessDispatcherFeatures } = useAuth();
 
   useEffect(() => {
     loadData();
-    // Her 30 saniyede bir aktif seferleri güncelle
     const interval = setInterval(() => {
       loadJourneys();
     }, 30000);
@@ -64,7 +64,6 @@ const Journeys: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Selection değiştiğinde bulk actions toolbar'ı göster/gizle
   useEffect(() => {
     setShowBulkActions(selectedJourneyIds.size > 0);
   }, [selectedJourneyIds]);
@@ -83,10 +82,8 @@ const Journeys: React.FC = () => {
 
   const loadJourneys = async () => {
     try {
-      // ✅ PERFORMANS: getAllSummary kullan
       const data = await journeyService.getAllSummary();
       
-      // ✅ Driver rolü için sadece kendi journey'lerini göster
       if (user?.isDriver && !canAccessDispatcherFeatures()) {
         const myJourneys = data.filter(j => j.driverId === user.id);
         setJourneys(myJourneys);
@@ -100,10 +97,7 @@ const Journeys: React.FC = () => {
 
   const loadAvailableRoutes = async () => {
     try {
-      // ✅ ROL BAZLI ROUTE YÜKLEME
-      // Driver rolü için özel işlem yapacağız
       if (user?.isDriver && !canAccessDispatcherFeatures()) {
-        // Driver için sadece basit route bilgisi çek, customer detayları olmadan
         try {
           const response = await fetch('/api/workspace/routes', {
             headers: {
@@ -114,7 +108,6 @@ const Journeys: React.FC = () => {
           
           if (response.ok) {
             const routes = await response.json();
-            // Driver'a atanmış ve başlatılabilir rotaları filtrele
             const myAvailableRoutes = routes.filter((r: Route) => 
               (r.status === 'planned' || r.status === 'draft') && 
               r.driverId === user.id &&
@@ -130,7 +123,6 @@ const Journeys: React.FC = () => {
           setAvailableRoutes([]);
         }
       } else {
-        // Dispatcher ve üzeri için normal route service kullan
         const routes = await routeService.getAll();
         const available = routes.filter(r => 
           (r.status === 'planned' || r.status === 'draft') && 
@@ -145,7 +137,6 @@ const Journeys: React.FC = () => {
     }
   };
 
-  // ✅ YENİ: Checkbox işlemleri
   const handleSelectAll = () => {
     if (selectedJourneyIds.size === filteredJourneys.length) {
       setSelectedJourneyIds(new Set());
@@ -169,15 +160,12 @@ const Journeys: React.FC = () => {
     return selectedJourneyIds.has(journeyId);
   };
 
-  // ✅ YENİ: Toplu işlem fonksiyonları
   const handleBulkAction = (action: 'cancel' | 'archive' | 'delete') => {
     setBulkActionType(action);
     
-    // Silme için ekstra onay dialogu
     if (action === 'delete') {
       setShowDeleteConfirmDialog(true);
     } else {
-      // İptal ve arşivleme için normal onay
       const confirmMessage = action === 'cancel' 
         ? `${selectedJourneyIds.size} seferi iptal etmek istediğinizden emin misiniz?`
         : `${selectedJourneyIds.size} seferi arşivlemek istediğinizden emin misiniz?`;
@@ -209,7 +197,6 @@ const Journeys: React.FC = () => {
           throw new Error('Geçersiz işlem');
       }
       
-      // Sonucu göster
       if (result.failedCount > 0) {
         const failedDetails = result.failedItems
           .map(item => `${item.name || `ID: ${item.id}`}: ${item.reason}`)
@@ -219,7 +206,6 @@ const Journeys: React.FC = () => {
         alert(result.message);
       }
       
-      // Listeyi yenile ve seçimleri temizle
       await loadJourneys();
       setSelectedJourneyIds(new Set());
       setShowDeleteConfirmDialog(false);
@@ -232,12 +218,30 @@ const Journeys: React.FC = () => {
     }
   };
 
-  const handleStartJourney = async (route: Route) => {
+  // ✅ YENİ: Rota seçimi sonrası isim modal'ını aç
+  const handleSelectRoute = (route: Route) => {
+    setSelectedRoute(route);
+    // İsim önerisi oluştur
+    const dateStr = new Date().toLocaleDateString('tr-TR');
+    setJourneyName(`${route.name} - ${dateStr}`);
+    setShowStartModal(false);
+    setShowNameModal(true);
+  };
+
+  // ✅ YENİ: İsimle birlikte sefer başlat
+  const handleStartJourneyWithName = async () => {
+    if (!selectedRoute || !journeyName.trim()) return;
+    
     try {
-      const journey = await journeyService.startFromRoute(route.id);
+      const journey = await journeyService.startFromRoute(
+        selectedRoute.id, 
+        selectedRoute.driverId,
+        journeyName
+      );
       await loadData();
-      setShowStartModal(false);
+      setShowNameModal(false);
       setSelectedRoute(null);
+      setJourneyName('');
       navigate(`/journeys/${journey.id}`);
     } catch (error: any) {
       alert(error.message || 'Sefer başlatılamadı');
@@ -342,23 +346,18 @@ const Journeys: React.FC = () => {
     return `${mins}dk`;
   };
 
-  // ✅ DÜZELTİLDİ: Progress hesaplaması
   const calculateProgress = (journey: JourneySummary) => {
     if (journey.totalStops === 0) return 0;
     
-    // Eğer journey tamamlandıysa %100 göster
     if (journey.status === 'completed') return 100;
     
-    // Başarısız durakları da hesaba kat
     const failedStops = journey.failedStops || 0;
     const processedStops = journey.completedStops + failedStops;
     
     return Math.min(100, Math.round((processedStops / journey.totalStops) * 100));
   };
 
-  // ✅ YENİ: Başarısız durak sayısını hesapla
   const getFailedStops = (journey: JourneySummary) => {
-    // Backend'den failedStops gelmiyorsa ve journey tamamlandıysa hesapla
     if (journey.status === 'completed' && !journey.failedStops) {
       return Math.max(0, journey.totalStops - journey.completedStops);
     }
@@ -366,13 +365,11 @@ const Journeys: React.FC = () => {
   };
 
   const filteredJourneys = journeys.filter(journey => {
-    // Arşivlenen seferler sadece arşiv sekmesinde görünsün
     if (journey.status === 'archived' && selectedStatus !== 'archived') {
       return false;
     }
     
     if (selectedStatus === 'all') {
-      // Tümü sekmesinde arşivlenen seferler görünmesin
       return journey.status !== 'archived';
     }
     if (selectedStatus === 'active') {
@@ -410,7 +407,6 @@ const Journeys: React.FC = () => {
               : 'Aktif seferleri takip edin ve yönetin'}
           </p>
         </div>
-        {/* ✅ Driver rolü de kendi seferlerini başlatabilir */}
         <button
           onClick={() => setShowStartModal(true)}
           className="mt-4 sm:mt-0 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
@@ -420,8 +416,7 @@ const Journeys: React.FC = () => {
         </button>
       </div>
 
-      {/* Bulk Actions Toolbar - YENİ */}
-      {/* ✅ Bulk actions sadece Dispatcher ve üzeri için görünür */}
+      {/* Bulk Actions Toolbar */}
       {showBulkActions && canAccessDispatcherFeatures() && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
@@ -598,8 +593,7 @@ const Journeys: React.FC = () => {
         </button>
       </div>
 
-      {/* Select All Checkbox - YENİ */}
-      {/* ✅ Sadece Dispatcher ve üzeri için görünür */}
+      {/* Select All Checkbox */}
       {filteredJourneys.length > 0 && canAccessDispatcherFeatures() && (
         <div className="bg-white rounded-lg shadow-sm p-3 border border-gray-100 flex items-center">
           <button
@@ -646,7 +640,7 @@ const Journeys: React.FC = () => {
             return (
               <div key={journey.id} className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
                 <div className="flex items-start">
-                  {/* Checkbox - YENİ - Sadece Dispatcher ve üzeri için */}
+                  {/* Checkbox */}
                   {canAccessDispatcherFeatures() && (
                     <div className="mr-4 pt-1">
                       <button
@@ -687,12 +681,11 @@ const Journeys: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Progress Bar - DÜZELTİLDİ */}
+                    {/* Progress Bar */}
                     <div className="mb-4">
                       <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
                         <span>İlerleme</span>
                         <span>
-                          {/* ✅ Tamamlanan seferler için özel gösterim */}
                           {journey.status === 'completed' 
                             ? `${journey.totalStops} / ${journey.totalStops} durak`
                             : failedStops > 0
@@ -702,7 +695,6 @@ const Journeys: React.FC = () => {
                         </span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2 relative overflow-hidden">
-                        {/* ✅ İki renkli progress bar */}
                         {displayedCompletedStops > 0 && (
                           <div 
                             className="absolute h-full bg-green-500 transition-all"
@@ -768,7 +760,6 @@ const Journeys: React.FC = () => {
                             Detayları Görüntüle
                           </Link>
                           
-                          {/* ✅ Driver kendi seferini duraklat/devam ettirebilir */}
                           {journey.status === 'preparing' && (
                             <button
                               onClick={() => {
@@ -795,7 +786,6 @@ const Journeys: React.FC = () => {
                             </button>
                           )}
                           
-                          {/* ✅ İptal sadece Dispatcher ve üzeri veya kendi seferi için */}
                           {['preparing', 'started', 'in_progress'].includes(journey.status) && 
                            (canAccessDispatcherFeatures() || journey.driverId === user?.id) && (
                             <>
@@ -823,11 +813,11 @@ const Journeys: React.FC = () => {
         )}
       </div>
 
-      {/* Start Journey Modal */}
+      {/* Start Journey Modal - Rota Seçimi */}
       {showStartModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Yeni Sefer Başlat</h2>
+            <h2 className="text-xl font-bold mb-4">Rota Seçin</h2>
             
             {availableRoutes.length === 0 ? (
               <div className="text-center py-8">
@@ -888,10 +878,10 @@ const Journeys: React.FC = () => {
               </button>
               {selectedRoute && (
                 <button
-                  onClick={() => handleStartJourney(selectedRoute)}
+                  onClick={() => handleSelectRoute(selectedRoute)}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  Seferi Başlat
+                  İleri
                 </button>
               )}
             </div>
@@ -899,7 +889,57 @@ const Journeys: React.FC = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Dialog - YENİ */}
+      {/* ✅ YENİ: Sefer İsmi Modal'ı */}
+      {showNameModal && selectedRoute && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Yeni Sefer Oluştur</h2>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-3">
+                <strong>{selectedRoute.name}</strong> rotasından sefer oluşturulacak
+              </p>
+              
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Sefer Adı
+              </label>
+              <input
+                type="text"
+                value={journeyName}
+                onChange={(e) => setJourneyName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Örn: Sabah Teslimatı - 04.09.2025"
+                autoFocus
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Seferi diğerlerinden ayırt edebilmek için açıklayıcı bir isim verin
+              </p>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowNameModal(false);
+                  setSelectedRoute(null);
+                  setJourneyName('');
+                }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleStartJourneyWithName}
+                disabled={!journeyName.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Seferi Oluştur
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
       {showDeleteConfirmDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">

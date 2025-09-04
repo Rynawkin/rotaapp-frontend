@@ -1,3 +1,5 @@
+// frontend/src/pages/Routes.tsx
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
@@ -32,6 +34,11 @@ const Routes: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
   const navigate = useNavigate();
+  
+  // Sefer ismi modal state'leri
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [selectedRouteForJourney, setSelectedRouteForJourney] = useState<Route | null>(null);
+  const [journeyName, setJourneyName] = useState('');
 
   // Load routes
   useEffect(() => {
@@ -86,7 +93,7 @@ const Routes: React.FC = () => {
     }
   };
 
-  // Start journey from route
+  // Start journey from route - İsim modal'ını aç
   const handleStartJourney = async (route: Route) => {
     try {
       if (!route.driverId || !route.vehicleId) {
@@ -100,12 +107,34 @@ const Routes: React.FC = () => {
         return;
       }
       
-      const journey = await journeyService.startFromRoute(route.id);
+      // İsim modal'ını aç
+      setSelectedRouteForJourney(route);
+      const dateStr = new Date().toLocaleDateString('tr-TR');
+      setJourneyName(`${route.name} - ${dateStr}`);
+      setShowNameModal(true);
       
-      if (journey) {
-        alert('✅ Sefer başarıyla başlatıldı!');
-        navigate(`/journeys/${journey.id}`);
-      }
+    } catch (error: any) {
+      alert(`❌ ${error.message || 'Sefer başlatılamadı'}`);
+    }
+  };
+
+  // Sefer oluşturmayı onayla
+  const handleConfirmStartJourney = async () => {
+    if (!selectedRouteForJourney || !journeyName.trim()) return;
+    
+    try {
+      const journey = await journeyService.startFromRoute(
+        selectedRouteForJourney.id,
+        selectedRouteForJourney.driverId,
+        journeyName
+      );
+      
+      setShowNameModal(false);
+      setSelectedRouteForJourney(null);
+      setJourneyName('');
+      
+      alert('✅ Sefer başarıyla oluşturuldu!');
+      navigate(`/journeys/${journey.id}`);
     } catch (error: any) {
       alert(`❌ ${error.message || 'Sefer başlatılamadı'}`);
     }
@@ -481,7 +510,7 @@ const Routes: React.FC = () => {
                                     className="flex items-center px-4 py-2 hover:bg-gray-50 text-green-700 w-full text-left"
                                   >
                                     <Play className="w-4 h-4 mr-2" />
-                                    Sefer Başlat
+                                    Sefer Oluştur
                                   </button>
                                 )}
                                 
@@ -536,6 +565,56 @@ const Routes: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Sefer İsmi Modal'ı */}
+      {showNameModal && selectedRouteForJourney && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Yeni Sefer Oluştur</h2>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-3">
+                <strong>{selectedRouteForJourney.name}</strong> rotasından sefer oluşturulacak
+              </p>
+              
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Sefer Adı
+              </label>
+              <input
+                type="text"
+                value={journeyName}
+                onChange={(e) => setJourneyName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Örn: Sabah Teslimatı - 04.09.2025"
+                autoFocus
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Seferi diğerlerinden ayırt edebilmek için açıklayıcı bir isim verin
+              </p>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowNameModal(false);
+                  setSelectedRouteForJourney(null);
+                  setJourneyName('');
+                }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleConfirmStartJourney}
+                disabled={!journeyName.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Seferi Oluştur
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
