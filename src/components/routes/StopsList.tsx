@@ -60,6 +60,58 @@ const StopsList: React.FC<StopsListProps> = ({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editData, setEditData] = useState<Partial<StopData>>({});
   const [hasTimeWindowOverride, setHasTimeWindowOverride] = useState(false);
+  const [timeWindowError, setTimeWindowError] = useState<string>('');
+
+  // Time window validation ve auto-completion - YENİ
+  const validateAndFixTimeWindow = (start?: string, end?: string): { start: string; end: string } | undefined => {
+    // İkisi de boşsa undefined dön
+    if (!start && !end) {
+      setTimeWindowError('');
+      return undefined;
+    }
+
+    // 00:00 edge case kontrolü
+    if (start === '00:00') {
+      start = '00:01';
+      setTimeWindowError('Başlangıç saati 00:00 olamaz, 00:01 olarak ayarlandı.');
+    }
+
+    // Sadece başlangıç varsa, bitiş = başlangıç + 1 saat
+    if (start && !end) {
+      const [hours, minutes] = start.split(':').map(Number);
+      const endHours = (hours + 1) % 24;
+      end = `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+      setTimeWindowError(`Bitiş saati otomatik olarak ${end} olarak ayarlandı.`);
+    }
+    
+    // Sadece bitiş varsa, başlangıç = bitiş - 1 saat
+    if (!start && end) {
+      const [hours, minutes] = end.split(':').map(Number);
+      let startHours = hours - 1;
+      if (startHours < 0) startHours = 0;
+      start = `${startHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+      if (start === '00:00') start = '00:01';
+      setTimeWindowError(`Başlangıç saati otomatik olarak ${start} olarak ayarlandı.`);
+    }
+
+    // İkisi de doluysa, mantıklı olup olmadığını kontrol et
+    if (start && end) {
+      const startMinutes = parseInt(start.split(':')[0]) * 60 + parseInt(start.split(':')[1]);
+      const endMinutes = parseInt(end.split(':')[0]) * 60 + parseInt(end.split(':')[1]);
+      
+      if (startMinutes >= endMinutes) {
+        // Bitiş saatini başlangıçtan 1 saat sonraya ayarla
+        const [hours, minutes] = start.split(':').map(Number);
+        const newEndHours = (hours + 1) % 24;
+        end = `${newEndHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        setTimeWindowError(`Bitiş saati başlangıçtan önce olamaz. Bitiş saati ${end} olarak ayarlandı.`);
+      } else {
+        setTimeWindowError('');
+      }
+    }
+
+    return { start, end };
+  };
 
   // Drag handlers
   const handleDragStart = (e: React.DragEvent, index: number) => {
@@ -98,6 +150,7 @@ const StopsList: React.FC<StopsListProps> = ({
   const startEdit = (index: number) => {
     const stop = stops[index];
     setEditingIndex(index);
+    setTimeWindowError('');
     
     // Override varsa göster, yoksa boş başlat
     const hasOverride = !!(stop.overrideTimeWindow?.start || stop.overrideTimeWindow?.end);
@@ -117,9 +170,19 @@ const StopsList: React.FC<StopsListProps> = ({
     if (editingIndex !== null) {
       const updates = { ...editData };
       
-      // Time window override kontrolü
-      if (!hasTimeWindowOverride || 
-          (!updates.overrideTimeWindow?.start && !updates.overrideTimeWindow?.end)) {
+      // Time window validation ve auto-completion
+      if (hasTimeWindowOverride && updates.overrideTimeWindow) {
+        const validatedTimeWindow = validateAndFixTimeWindow(
+          updates.overrideTimeWindow.start,
+          updates.overrideTimeWindow.end
+        );
+        
+        if (validatedTimeWindow) {
+          updates.overrideTimeWindow = validatedTimeWindow;
+        } else {
+          delete updates.overrideTimeWindow;
+        }
+      } else {
         delete updates.overrideTimeWindow;
       }
       
@@ -136,6 +199,7 @@ const StopsList: React.FC<StopsListProps> = ({
       setEditingIndex(null);
       setEditData({});
       setHasTimeWindowOverride(false);
+      setTimeWindowError('');
     }
   };
 
@@ -143,6 +207,21 @@ const StopsList: React.FC<StopsListProps> = ({
     setEditingIndex(null);
     setEditData({});
     setHasTimeWindowOverride(false);
+    setTimeWindowError('');
+  };
+
+  // Time window input değişikliklerini handle et - YENİ
+  const handleTimeWindowChange = (field: 'start' | 'end', value: string) => {
+    const currentTimeWindow = editData.overrideTimeWindow || { start: '', end: '' };
+    const newTimeWindow = { ...currentTimeWindow, [field]: value };
+    
+    // Gerçek zamanlı validation
+    const validated = validateAndFixTimeWindow(newTimeWindow.start, newTimeWindow.end);
+    
+    setEditData({
+      ...editData,
+      overrideTimeWindow: validated || newTimeWindow
+    });
   };
 
   const getPriorityColor = (priority: string) => {
@@ -327,7 +406,7 @@ const StopsList: React.FC<StopsListProps> = ({
                                 )}
                               </span>
 
-                              {/* Proof Requirements Badges - YENİ EKLENEN */}
+                              {/* Proof Requirements Badges */}
                               {stop.signatureRequired && (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
                                   <FileSignature className="w-3 h-3 mr-1" />
@@ -441,7 +520,7 @@ const StopsList: React.FC<StopsListProps> = ({
                         </div>
                       </div>
 
-                      {/* Proof of Delivery Requirements - YENİ EKLENEN */}
+                      {/* Proof of Delivery Requirements */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-blue-50 rounded">
                         <label className="flex items-center">
                           <input
@@ -482,6 +561,7 @@ const StopsList: React.FC<StopsListProps> = ({
                             checked={hasTimeWindowOverride}
                             onChange={(e) => {
                               setHasTimeWindowOverride(e.target.checked);
+                              setTimeWindowError('');
                               if (!e.target.checked) {
                                 setEditData({
                                   ...editData,
@@ -512,42 +592,42 @@ const StopsList: React.FC<StopsListProps> = ({
 
                       {/* Time Window Override Fields */}
                       {hasTimeWindowOverride && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-gray-50 rounded">
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                              Başlangıç Saati
-                            </label>
-                            <input
-                              type="time"
-                              value={editData.overrideTimeWindow?.start || ''}
-                              onChange={(e) => setEditData({
-                                ...editData,
-                                overrideTimeWindow: {
-                                  start: e.target.value,
-                                  end: editData.overrideTimeWindow?.end || ''
-                                }
-                              })}
-                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                          </div>
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-gray-50 rounded">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Başlangıç Saati
+                              </label>
+                              <input
+                                type="time"
+                                value={editData.overrideTimeWindow?.start || ''}
+                                onChange={(e) => handleTimeWindowChange('start', e.target.value)}
+                                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            </div>
 
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                              Bitiş Saati
-                            </label>
-                            <input
-                              type="time"
-                              value={editData.overrideTimeWindow?.end || ''}
-                              onChange={(e) => setEditData({
-                                ...editData,
-                                overrideTimeWindow: {
-                                  start: editData.overrideTimeWindow?.start || '',
-                                  end: e.target.value
-                                }
-                              })}
-                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Bitiş Saati
+                              </label>
+                              <input
+                                type="time"
+                                value={editData.overrideTimeWindow?.end || ''}
+                                onChange={(e) => handleTimeWindowChange('end', e.target.value)}
+                                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            </div>
                           </div>
+                          
+                          {/* Time Window Validation Mesajı - YENİ */}
+                          {timeWindowError && (
+                            <div className="p-2 bg-yellow-50 border border-yellow-200 rounded">
+                              <p className="text-xs text-yellow-700 flex items-center">
+                                <AlertCircle className="w-3 h-3 mr-1" />
+                                {timeWindowError}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
 

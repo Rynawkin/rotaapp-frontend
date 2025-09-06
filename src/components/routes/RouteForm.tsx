@@ -37,8 +37,8 @@ interface StopData {
   overrideTimeWindow?: { start: string; end: string };
   overridePriority?: 'high' | 'normal' | 'low';
   serviceTime?: number;
-  signatureRequired?: boolean;    // ✅ EKLE
-  photoRequired?: boolean;         // ✅ EKLE
+  signatureRequired?: boolean;
+  photoRequired?: boolean;
   stopNotes?: string;
   estimatedArrivalTime?: string;
   estimatedDepartureTime?: string;
@@ -78,6 +78,34 @@ const timeSpanToTimeString = (timeSpan?: string): string => {
 
 const timeStringToTimeSpan = (timeString: string): string => {
   return `${timeString}:00`;
+};
+
+// Time window validation helper
+const validateTimeWindow = (start?: string, end?: string): { start?: string; end?: string } | undefined => {
+  // Eğer ikisi de boşsa, undefined dön
+  if (!start && !end) {
+    return undefined;
+  }
+  
+  // Eğer sadece biri doluysa, diğerini otomatik hesapla
+  if (start && !end) {
+    // Başlangıç varsa, bitiş = başlangıç + 1 saat
+    const [hours, minutes] = start.split(':').map(Number);
+    const endHours = (hours + 1) % 24; // 24 saat formatında
+    const endTime = `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    return { start, end: endTime };
+  }
+  
+  if (!start && end) {
+    // Bitiş varsa, başlangıç = bitiş - 1 saat
+    const [hours, minutes] = end.split(':').map(Number);
+    const startHours = hours === 0 ? 23 : hours - 1;
+    const startTime = `${startHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    return { start: startTime, end };
+  }
+  
+  // İkisi de doluysa, olduğu gibi dön
+  return { start, end };
 };
 
 const STORAGE_KEY = 'createRouteFormData';
@@ -147,8 +175,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
         overrideTimeWindow: stop.overrideTimeWindow,
         overridePriority: stop.overridePriority,
         serviceTime: stop.serviceTime,
-        signatureRequired: stop.signatureRequired || false,  // ✅ EKLE
-        photoRequired: stop.photoRequired || false,          // ✅ EKLE
+        signatureRequired: stop.signatureRequired || false,
+        photoRequired: stop.photoRequired || false,
         stopNotes: stop.stopNotes
       }));
     }
@@ -168,7 +196,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
       savedData.stops.map((_: any, index: number) => index) : [];
   });
 
-  // Yeni state'ler
   const [optimizationStatus, setOptimizationStatus] = useState<OptimizationStatus>('none');
   const [excludedStops, setExcludedStops] = useState<ExcludedStop[]>([]);
 
@@ -190,8 +217,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
             order: index + 1,
             customerId: stop.customer.id,
             customer: stop.customer,
-            signatureRequired: stop.signatureRequired || false,  // ✅ EKLE
-            photoRequired: stop.photoRequired || false          // ✅ EKLE
+            signatureRequired: stop.signatureRequired || false,
+            photoRequired: stop.photoRequired || false
           }))
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
@@ -284,7 +311,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
         depotService.getAll()
       ]);
 
-      // Settings'i de yükle
       try {
         const deliverySettings = await settingsService.getDeliverySettings();
         setDefaultSignatureRequired(deliverySettings.defaultSignatureRequired || false);
@@ -361,8 +387,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
       const newStopsData = [...stopsData, { 
         customer,
         serviceTime: customer.estimatedServiceTime || 10,
-        signatureRequired: defaultSignatureRequired,  // DÜZELTİLDİ
-        photoRequired: defaultPhotoRequired           // DÜZELTİLDİ
+        signatureRequired: defaultSignatureRequired,
+        photoRequired: defaultPhotoRequired
       }];
       setStopsData(newStopsData);
       resetOptimization();
@@ -387,6 +413,16 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
   const handleUpdateStop = (index: number, updates: Partial<StopData>) => {
     const newStops = [...stopsData];
+    
+    // Time window validation
+    if (updates.overrideTimeWindow) {
+      const validatedTimeWindow = validateTimeWindow(
+        updates.overrideTimeWindow.start,
+        updates.overrideTimeWindow.end
+      );
+      updates.overrideTimeWindow = validatedTimeWindow;
+    }
+    
     newStops[index] = { ...newStops[index], ...updates };
     setStopsData(newStops);
     resetOptimization();
@@ -452,6 +488,17 @@ const RouteForm: React.FC<RouteFormProps> = ({
       alert('Lütfen rota adı girin!');
       return;
     }
+    
+    // Time window validation - 00:00 edge case kontrolü
+    const startTimeHours = parseInt(startTime.split(':')[0]);
+    const startTimeMinutes = parseInt(startTime.split(':')[1]);
+    
+    // Eğer saat 00:00 ise ve dakika 0 ise, 00:01 olarak ayarla
+    if (startTimeHours === 0 && startTimeMinutes === 0) {
+      setStartTime('00:01');
+      alert('Başlangıç saati 00:00 olamaz. 00:01 olarak ayarlandı.');
+      return;
+    }
 
     setOptimizing(true);
     
@@ -459,22 +506,30 @@ const RouteForm: React.FC<RouteFormProps> = ({
       let routeId = initialData?.id;
       
       if (!routeId) {
-        const stops: RouteStop[] = stopsData.map((stopData, index) => ({
-          id: `${Date.now()}-${index}`,
-          routeId: '',
-          customerId: stopData.customer.id.toString(),
-          customer: stopData.customer,
-          order: index + 1,
-          status: 'pending',
-          serviceTime: stopData.serviceTime,
-          signatureRequired: stopData.signatureRequired || false,  // ✅ EKLE
-          photoRequired: stopData.photoRequired || false,          // ✅ EKLE
-          stopNotes: stopData.stopNotes,
-          arriveBetweenStart: stopData.overrideTimeWindow?.start,
-          arriveBetweenEnd: stopData.overrideTimeWindow?.end,
-          estimatedArrival: new Date(),
-          distance: 0
-        }));
+        const stops: RouteStop[] = stopsData.map((stopData, index) => {
+          // Time window validation for each stop
+          let timeWindow = stopData.overrideTimeWindow;
+          if (timeWindow) {
+            timeWindow = validateTimeWindow(timeWindow.start, timeWindow.end) || undefined;
+          }
+          
+          return {
+            id: `${Date.now()}-${index}`,
+            routeId: '',
+            customerId: stopData.customer.id.toString(),
+            customer: stopData.customer,
+            order: index + 1,
+            status: 'pending',
+            serviceTime: stopData.serviceTime,
+            signatureRequired: stopData.signatureRequired || false,
+            photoRequired: stopData.photoRequired || false,
+            stopNotes: stopData.stopNotes,
+            arriveBetweenStart: timeWindow?.start,
+            arriveBetweenEnd: timeWindow?.end,
+            estimatedArrival: new Date(),
+            distance: 0
+          };
+        });
 
         const routeData: Partial<Route> = {
           ...formData,
@@ -498,7 +553,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
       const optimizedRoute = await routeService.optimize(routeId, optimizationMode);
 
-      // Backend'den gelen response'a göre excluded stops kontrolü
       if (optimizedRoute.hasExclusions && optimizedRoute.excludedStops && optimizedRoute.excludedStops.length > 0) {
         setOptimizationStatus('partial');
         
@@ -507,7 +561,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
             s.customer.id.toString() === ex.stop.customerId.toString()
           );
           
-          // Eğer mevcut stopData bulunamazsa, backend'den gelen veriyi kullan
           const fallbackStopData: StopData = {
             customer: ex.stop.customer,
             serviceTime: ex.stop.serviceTime,
@@ -527,7 +580,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
         
         setExcludedStops(excluded);
         
-        // Sadece optimize edilmiş durakları tut
         const optimizedStopsData = optimizedRoute.optimizedStops?.map((stop: any) => {
           const existingStopData = stopsData.find(s => 
             s.customer.id.toString() === stop.customerId.toString()
@@ -538,17 +590,16 @@ const RouteForm: React.FC<RouteFormProps> = ({
             stopNotes: stop.stopNotes || existingStopData?.stopNotes,
             overrideTimeWindow: existingStopData?.overrideTimeWindow,
             overridePriority: existingStopData?.overridePriority,
-            signatureRequired: existingStopData?.signatureRequired,  // YENİ - Mevcut değeri koru
-            photoRequired: existingStopData?.photoRequired,          // YENİ - Mevcut değeri koru
+            signatureRequired: existingStopData?.signatureRequired,
+            photoRequired: existingStopData?.photoRequired,
             estimatedArrivalTime: stop.estimatedArrivalTime,
             estimatedDepartureTime: stop.estimatedDepartureTime
           };
-        }).filter(Boolean) || [];  // filter(Boolean) eklendi - null/undefined olanları çıkar
+        }).filter(Boolean) || [];
         
         setStopsData(optimizedStopsData);
         
       } else if (optimizedRoute.optimizedStops && optimizedRoute.optimizedStops.length > 0) {
-        // Exclusion yok ama optimizedStops var
         setOptimizationStatus('success');
         setExcludedStops([]);
         
@@ -562,8 +613,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
             stopNotes: stop.stopNotes || existingStopData?.stopNotes,
             overrideTimeWindow: existingStopData?.overrideTimeWindow,
             overridePriority: existingStopData?.overridePriority,
-            signatureRequired: existingStopData?.signatureRequired,  // YENİ - Mevcut değeri koru
-            photoRequired: existingStopData?.photoRequired,          // YENİ - Mevcut değeri koru
+            signatureRequired: existingStopData?.signatureRequired,
+            photoRequired: existingStopData?.photoRequired,
             estimatedArrivalTime: stop.estimatedArrivalTime,
             estimatedDepartureTime: stop.estimatedDepartureTime
           };
@@ -573,7 +624,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
         setOptimizedOrder(optimizedStopsData.map((_, i) => i));
         
       } else if (optimizedRoute.stops) {
-        // Eski format (backward compatibility)
         setOptimizationStatus('success');
         setExcludedStops([]);
         
@@ -589,8 +639,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
               stopNotes: stop.stopNotes || existingStopData?.stopNotes,
               overrideTimeWindow: existingStopData?.overrideTimeWindow,
               overridePriority: existingStopData?.overridePriority,
-              signatureRequired: existingStopData?.signatureRequired,  // YENİ - Mevcut değeri koru
-              photoRequired: existingStopData?.photoRequired,          // YENİ - Mevcut değeri koru
+              signatureRequired: existingStopData?.signatureRequired,
+              photoRequired: existingStopData?.photoRequired,
               estimatedArrivalTime: stop.estimatedArrivalTime,
               estimatedDepartureTime: stop.estimatedDepartureTime
             };
@@ -709,6 +759,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
         throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
       }
       
+      // Time window validation
+      let timeWindow = stopData.overrideTimeWindow;
+      if (timeWindow) {
+        timeWindow = validateTimeWindow(timeWindow.start, timeWindow.end) || undefined;
+      }
+      
       return {
         id: isEdit && initialData?.stops?.[index]?.id ? initialData.stops[index].id : `${Date.now()}-${index}`,
         routeId: initialData?.id || '',
@@ -716,12 +772,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
         customer: customer,
         order: index + 1,
         status: 'pending',
-        arriveBetweenStart: stopData.overrideTimeWindow?.start,
-        arriveBetweenEnd: stopData.overrideTimeWindow?.end,
+        arriveBetweenStart: timeWindow?.start,
+        arriveBetweenEnd: timeWindow?.end,
         overridePriority: stopData.overridePriority,
         serviceTime: stopData.serviceTime,
-        signatureRequired: stopData.signatureRequired,  // YENİ
-        photoRequired: stopData.photoRequired,          // YENİ
+        signatureRequired: stopData.signatureRequired,
+        photoRequired: stopData.photoRequired,
         stopNotes: stopData.stopNotes,
         estimatedArrival: new Date(),
         distance: 0,
@@ -780,6 +836,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
         throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
       }
       
+      // Time window validation
+      let timeWindow = stopData.overrideTimeWindow;
+      if (timeWindow) {
+        timeWindow = validateTimeWindow(timeWindow.start, timeWindow.end) || undefined;
+      }
+      
       return {
         id: isEdit && initialData?.stops?.[index]?.id ? initialData.stops[index].id : `${Date.now()}-${index}`,
         routeId: initialData?.id || '',
@@ -787,12 +849,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
         customer: customer,
         order: index + 1,
         status: 'pending',
-        arriveBetweenStart: stopData.overrideTimeWindow?.start,
-        arriveBetweenEnd: stopData.overrideTimeWindow?.end,
+        arriveBetweenStart: timeWindow?.start,
+        arriveBetweenEnd: timeWindow?.end,
         overridePriority: stopData.overridePriority,
         serviceTime: stopData.serviceTime,
-        signatureRequired: stopData.signatureRequired,  // YENİ
-        photoRequired: stopData.photoRequired,          // YENİ
+        signatureRequired: stopData.signatureRequired,
+        photoRequired: stopData.photoRequired,
         stopNotes: stopData.stopNotes,
         estimatedArrival: new Date(),
         distance: 0,
