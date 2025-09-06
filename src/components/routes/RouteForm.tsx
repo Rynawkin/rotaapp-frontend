@@ -301,7 +301,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
     }
   }, [stopsData, formData, startTime, saveToLocalStorage]);
 
-  // StartTime 00:00 kontrolü - DÜZELTME
+  // StartTime 00:00 kontrolü
   useEffect(() => {
     if (startTime === '00:00') {
       setStartTime('00:01');
@@ -419,15 +419,19 @@ const RouteForm: React.FC<RouteFormProps> = ({
     setMapDirections(null);
   };
 
-  // DÜZELTME: handleUpdateStop fonksiyonu
-    const handleUpdateStop = (index: number, updates: Partial<StopData>) => {
-    // StopsList zaten validation yapıyor, burada sadece güncelle
+  // DÜZELTME: handleUpdateStop fonksiyonu - validation hatası kontrolü eklendi
+  const handleUpdateStop = (index: number, updates: Partial<StopData>) => {
+    // Eğer updates boş gelirse (validation hatası durumu), hiçbir şey yapma
+    if (!updates || Object.keys(updates).length === 0) {
+      console.log('Empty updates received, skipping update');
+      return;
+    }
+    
     const newStops = [...stopsData];
     newStops[index] = { ...newStops[index], ...updates };
     setStopsData(newStops);
     resetOptimization();
   };
-
 
   const handleMoveExcludedToStops = (excludedStop: ExcludedStop) => {
     setStopsData([...stopsData, excludedStop.stopData]);
@@ -683,6 +687,9 @@ const RouteForm: React.FC<RouteFormProps> = ({
     setExcludedStops([]);
     setOptimizedOrder([]);
     setStartTime('08:00');
+    
+    // LocalStorage'ı da temizle
+    localStorage.removeItem(STORAGE_KEY);
   };
 
   const calculateTotalDuration = () => {

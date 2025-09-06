@@ -63,6 +63,39 @@ const StopsList: React.FC<StopsListProps> = ({
   const [timeWindowError, setTimeWindowError] = useState<string>('');
   const [initialTimeWindowSet, setInitialTimeWindowSet] = useState(false);
 
+  // Time input'u format eden yardımcı fonksiyon
+  const formatTimeInput = (value: string): string => {
+    if (!value) return '';
+    
+    // Boşlukları temizle
+    value = value.trim();
+    
+    // Sadece rakam varsa (örn: "11" veya "9")
+    if (/^\d{1,2}$/.test(value)) {
+      const hour = parseInt(value);
+      if (hour >= 0 && hour <= 23) {
+        return `${hour.toString().padStart(2, '0')}:00`;
+      }
+    }
+    
+    // Saat:dakika formatında eksik dakika varsa (örn: "11:" veya "11:3")
+    const match = value.match(/^(\d{1,2}):(\d{0,2})$/);
+    if (match) {
+      const hour = parseInt(match[1]);
+      const minute = match[2] ? parseInt(match[2]) : 0;
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      }
+    }
+    
+    // Geçerli format zaten varsa olduğu gibi dön
+    if (/^\d{2}:\d{2}$/.test(value)) {
+      return value;
+    }
+    
+    return value;
+  };
+
   // Drag handlers
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index);
@@ -123,21 +156,28 @@ const StopsList: React.FC<StopsListProps> = ({
       
       // Time window validation
       if (hasTimeWindowOverride && updates.overrideTimeWindow) {
-        const { start, end } = updates.overrideTimeWindow;
+        let { start, end } = updates.overrideTimeWindow;
         
-        // İkisi de dolu veya ikisi de boş olmalı
-        if ((start && !end) || (!start && end)) {
-          // Otomatik tamamla
-          if (start && !end) {
-            const [hours, minutes] = start.split(':').map(Number);
-            const endHours = (hours + 1) % 24;
-            updates.overrideTimeWindow.end = `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-          } else if (!start && end) {
-            const [hours, minutes] = end.split(':').map(Number);
-            let startHours = hours - 1;
-            if (startHours < 0) startHours = 23;
-            updates.overrideTimeWindow.start = `${startHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-          }
+        // Format time inputs
+        if (start) {
+          start = formatTimeInput(start);
+          updates.overrideTimeWindow.start = start;
+        }
+        if (end) {
+          end = formatTimeInput(end);
+          updates.overrideTimeWindow.end = end;
+        }
+        
+        // Auto-complete eksik değerler
+        if (start && !end) {
+          const [hours, minutes] = start.split(':').map(Number);
+          const endHours = (hours + 1) % 24;
+          updates.overrideTimeWindow.end = `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        } else if (!start && end) {
+          const [hours, minutes] = end.split(':').map(Number);
+          let startHours = hours - 1;
+          if (startHours < 0) startHours = 23;
+          updates.overrideTimeWindow.start = `${startHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
         }
         
         // 00:00 kontrolü
@@ -154,7 +194,8 @@ const StopsList: React.FC<StopsListProps> = ({
           
           if (startMinutes >= endMinutes) {
             alert('Bitiş saati, başlangıç saatinden sonra olmalıdır!');
-            return; // BURADA RETURN EDİYORUZ, onUpdateStop ÇAĞRILMIYOR
+            // Validation hatası durumunda hiçbir güncelleme yapma
+            return;
           }
         }
       } else {
@@ -203,31 +244,48 @@ const StopsList: React.FC<StopsListProps> = ({
     if (!initialTimeWindowSet) {
       if (field === 'start' && value && !currentTimeWindow.end) {
         // İlk kez başlangıç girildi, end boş
-        const [hours, minutes] = value.split(':').map(Number);
-        const endHours = (hours + 1) % 24;
-        newTimeWindow.end = `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-        setTimeWindowError('Bitiş saati otomatik ayarlandı. İstediğiniz gibi değiştirebilirsiniz.');
-        setInitialTimeWindowSet(true);
+        const formattedValue = formatTimeInput(value);
+        if (formattedValue && formattedValue !== value) {
+          newTimeWindow.start = formattedValue;
+        }
+        const [hours, minutes] = (formattedValue || value).split(':').map(Number);
+        if (!isNaN(hours) && !isNaN(minutes)) {
+          const endHours = (hours + 1) % 24;
+          newTimeWindow.end = `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+          setTimeWindowError('Bitiş saati otomatik ayarlandı. İstediğiniz gibi değiştirebilirsiniz.');
+          setInitialTimeWindowSet(true);
+        }
       } else if (field === 'end' && value && !currentTimeWindow.start) {
         // İlk kez bitiş girildi, start boş
-        const [hours, minutes] = value.split(':').map(Number);
-        let startHours = hours - 1;
-        if (startHours < 0) startHours = 23;
-        newTimeWindow.start = `${startHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-        setTimeWindowError('Başlangıç saati otomatik ayarlandı. İstediğiniz gibi değiştirebilirsiniz.');
-        setInitialTimeWindowSet(true);
+        const formattedValue = formatTimeInput(value);
+        if (formattedValue && formattedValue !== value) {
+          newTimeWindow.end = formattedValue;
+        }
+        const [hours, minutes] = (formattedValue || value).split(':').map(Number);
+        if (!isNaN(hours) && !isNaN(minutes)) {
+          let startHours = hours - 1;
+          if (startHours < 0) startHours = 23;
+          newTimeWindow.start = `${startHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+          setTimeWindowError('Başlangıç saati otomatik ayarlandı. İstediğiniz gibi değiştirebilirsiniz.');
+          setInitialTimeWindowSet(true);
+        }
       }
     }
     
     // Mantık kontrolü - sadece ikisi de doluysa
     if (newTimeWindow.start && newTimeWindow.end) {
-      const startMinutes = parseInt(newTimeWindow.start.split(':')[0]) * 60 + 
-                         parseInt(newTimeWindow.start.split(':')[1]);
-      const endMinutes = parseInt(newTimeWindow.end.split(':')[0]) * 60 + 
-                       parseInt(newTimeWindow.end.split(':')[1]);
+      const formattedStart = formatTimeInput(newTimeWindow.start);
+      const formattedEnd = formatTimeInput(newTimeWindow.end);
       
-      if (startMinutes >= endMinutes) {
-        setTimeWindowError('Bitiş saati, başlangıç saatinden sonra olmalıdır.');
+      if (formattedStart && formattedEnd) {
+        const startMinutes = parseInt(formattedStart.split(':')[0]) * 60 + 
+                           parseInt(formattedStart.split(':')[1]);
+        const endMinutes = parseInt(formattedEnd.split(':')[0]) * 60 + 
+                         parseInt(formattedEnd.split(':')[1]);
+        
+        if (startMinutes >= endMinutes) {
+          setTimeWindowError('Bitiş saati, başlangıç saatinden sonra olmalıdır.');
+        }
       }
     }
     
@@ -616,6 +674,12 @@ const StopsList: React.FC<StopsListProps> = ({
                                 type="time"
                                 value={editData.overrideTimeWindow?.start || ''}
                                 onChange={(e) => handleTimeWindowChange('start', e.target.value)}
+                                onBlur={(e) => {
+                                  const formatted = formatTimeInput(e.target.value);
+                                  if (formatted !== e.target.value) {
+                                    handleTimeWindowChange('start', formatted);
+                                  }
+                                }}
                                 className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                               />
                             </div>
@@ -628,6 +692,12 @@ const StopsList: React.FC<StopsListProps> = ({
                                 type="time"
                                 value={editData.overrideTimeWindow?.end || ''}
                                 onChange={(e) => handleTimeWindowChange('end', e.target.value)}
+                                onBlur={(e) => {
+                                  const formatted = formatTimeInput(e.target.value);
+                                  if (formatted !== e.target.value) {
+                                    handleTimeWindowChange('end', formatted);
+                                  }
+                                }}
                                 className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                               />
                             </div>
