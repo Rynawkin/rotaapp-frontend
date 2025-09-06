@@ -22,6 +22,26 @@ import { settingsService } from '@/services/settings.service';
 // TÜM COMPONENT'LERDE AYNI LIBRARIES KULLANILMALI
 const libraries: ("places" | "drawing" | "geometry")[] = ['places', 'geometry'];
 
+// Telefon numarasını WhatsApp formatına çevir
+const formatPhoneForWhatsApp = (phone: string): string => {
+  if (!phone) return '';
+  
+  // Tüm boşluk, parantez, tire gibi karakterleri temizle
+  let cleaned = phone.replace(/[\s\(\)\-\+]/g, '');
+  
+  // Başındaki sıfırı kaldır
+  if (cleaned.startsWith('0')) {
+    cleaned = cleaned.substring(1);
+  }
+  
+  // +90 ile başlıyorsa kaldır
+  if (cleaned.startsWith('90') && cleaned.length > 10) {
+    cleaned = cleaned.substring(2);
+  }
+  
+  return cleaned;
+};
+
 interface CustomerFormProps {
   initialData?: Customer;
   onSubmit: (data: Partial<Customer>) => void;
@@ -53,8 +73,8 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
     phone: initialData?.phone || '',
     email: initialData?.email || '',
     
-    // WhatsApp Alanları
-    whatsApp: initialData?.whatsApp || initialData?.phone || '',
+    // WhatsApp Alanları - Format düzeltmesi
+    whatsApp: initialData?.whatsApp || formatPhoneForWhatsApp(initialData?.phone || ''),
     whatsAppOptIn: initialData?.whatsAppOptIn || false,
     whatsAppVerified: initialData?.whatsAppVerified || false,
     whatsAppOptInDate: initialData?.whatsAppOptInDate,
@@ -77,7 +97,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
   const [tagInput, setTagInput] = useState('');
   const [showCoordinateInput, setShowCoordinateInput] = useState(false);
   const [useGoogleSearch, setUseGoogleSearch] = useState(true);
-  const [searchQuery, setSearchQuery] = useState(''); // Eksik olan state tanımı
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Validation state
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -154,7 +174,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
           setFormData(prev => ({ 
             ...prev, 
             phone: place.formatted_phone_number || '',
-            whatsApp: place.formatted_phone_number || prev.whatsApp || '' 
+            whatsApp: formatPhoneForWhatsApp(place.formatted_phone_number || '')
           }));
         }
 
@@ -242,7 +262,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
       address: '',
       phone: '',
       email: '',
-      whatsApp: '',
+      whatsApp: '', // Boş bırak, otomatik doldurma
       whatsAppOptIn: false,
       whatsAppVerified: false,
       latitude: 40.9869,
@@ -269,8 +289,15 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
       return;
     }
 
+    // WhatsApp numarasını temizle ve formatla
+    let whatsAppNumber = formData.whatsApp;
+    if (!whatsAppNumber && formData.phone) {
+      whatsAppNumber = formatPhoneForWhatsApp(formData.phone);
+    }
+
     const submitData: Partial<Customer> = {
       ...formData,
+      whatsApp: whatsAppNumber,
       timeWindow: hasTimeWindow ? { start: timeWindowStart, end: timeWindowEnd } : undefined
     };
 
@@ -423,11 +450,19 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
               <input
                 type="tel"
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                onChange={(e) => {
+                  const phone = e.target.value;
+                  setFormData({ 
+                    ...formData, 
+                    phone: phone,
+                    // Telefon değiştiğinde WhatsApp'ı da güncelle (eğer WhatsApp boşsa)
+                    whatsApp: formData.whatsApp || formatPhoneForWhatsApp(phone)
+                  });
+                }}
                 className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   errors.phone ? 'border-red-300' : 'border-gray-300'
                 }`}
-                placeholder="Örn: 0532 111 2233"
+                placeholder="0532 111 2233"
               />
             </div>
             {errors.phone && (
@@ -674,14 +709,28 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-green-600" />
               <input
                 type="tel"
-                value={formData.whatsApp || formData.phone}
-                onChange={(e) => setFormData({ ...formData, whatsApp: e.target.value })}
+                value={formData.whatsApp || ''}
+                onChange={(e) => {
+                  // Sadece rakam girişine izin ver
+                  const value = e.target.value.replace(/[^\d]/g, '');
+                  setFormData({ ...formData, whatsApp: value });
+                }}
+                onBlur={(e) => {
+                  // Eğer boşsa ve telefon varsa, telefonu WhatsApp formatında ekle
+                  if (!e.target.value && formData.phone) {
+                    setFormData({ 
+                      ...formData, 
+                      whatsApp: formatPhoneForWhatsApp(formData.phone) 
+                    });
+                  }
+                }}
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Örn: +90 532 111 2233"
+                placeholder="5321112233"
+                maxLength={10}
               />
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              Boş bırakırsanız telefon numarası kullanılır
+              Başında 0 olmadan, sadece rakamlardan oluşan 10 haneli numara girin
             </p>
           </div>
 
