@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
+import {
   MapPin,
   Phone,
   Mail,
@@ -25,20 +25,20 @@ const libraries: ("places" | "drawing" | "geometry")[] = ['places', 'geometry'];
 // Telefon numarasını WhatsApp formatına çevir
 const formatPhoneForWhatsApp = (phone: string): string => {
   if (!phone) return '';
-  
+
   // Tüm boşluk, parantez, tire gibi karakterleri temizle
   let cleaned = phone.replace(/[\s\(\)\-\+]/g, '');
-  
+
   // Başındaki sıfırı kaldır
   if (cleaned.startsWith('0')) {
     cleaned = cleaned.substring(1);
   }
-  
+
   // +90 ile başlıyorsa kaldır
   if (cleaned.startsWith('90') && cleaned.length > 10) {
     cleaned = cleaned.substring(2);
   }
-  
+
   return cleaned;
 };
 
@@ -72,13 +72,13 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
     address: initialData?.address || '',
     phone: initialData?.phone || '',
     email: initialData?.email || '',
-    
+
     // WhatsApp Alanları - Format düzeltmesi
     whatsApp: initialData?.whatsApp || formatPhoneForWhatsApp(initialData?.phone || ''),
     whatsAppOptIn: initialData?.whatsAppOptIn || false,
     whatsAppVerified: initialData?.whatsAppVerified || false,
     whatsAppOptInDate: initialData?.whatsAppOptInDate,
-    
+
     latitude: initialData?.latitude || 40.9869,
     longitude: initialData?.longitude || 29.0252,
     priority: initialData?.priority || 'normal',
@@ -154,10 +154,10 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
   const onPlaceChanged = () => {
     if (autocomplete !== null) {
       const place = autocomplete.getPlace();
-      
+
       if (place.geometry && place.geometry.location) {
-        // Müşteri adını güncelle
-        if (!formData.name && place.name) {
+        // Müşteri adını her zaman güncelle
+        if (place.name) {
           setFormData(prev => ({ ...prev, name: place.name }));
         }
 
@@ -171,20 +171,31 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
 
         // Telefon numarasını güncelle (varsa)
         if (place.formatted_phone_number) {
-          setFormData(prev => ({ 
-            ...prev, 
+          setFormData(prev => ({
+            ...prev,
             phone: place.formatted_phone_number || '',
             whatsApp: formatPhoneForWhatsApp(place.formatted_phone_number || '')
           }));
         }
 
         // Website'den email çıkarmaya çalış (varsa)
-        if (place.website && !formData.email) {
-          // Website'i not olarak ekle
-          setFormData(prev => ({ 
-            ...prev, 
-            notes: prev.notes ? `${prev.notes}\nWebsite: ${place.website}` : `Website: ${place.website}`
-          }));
+        if (place.website) {
+          // Eğer email boşsa veya website değişmişse notu güncelle
+          const websiteNote = `Website: ${place.website}`;
+          setFormData(prev => {
+            // Eski website notunu temizle
+            let newNotes = prev.notes || '';
+            newNotes = newNotes.replace(/Website: .+(\n|$)/g, '');
+
+            // Yeni website notunu ekle
+            if (newNotes.trim()) {
+              newNotes = `${newNotes.trim()}\n${websiteNote}`;
+            } else {
+              newNotes = websiteNote;
+            }
+
+            return { ...prev, notes: newNotes };
+          });
         }
 
         // İşletme türüne göre otomatik tag ekle
@@ -212,6 +223,9 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
             }));
           }
         }
+
+        // Search input'u temizle
+        setSearchQuery('');
       }
     }
   };
@@ -284,7 +298,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -302,7 +316,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
     };
 
     onSubmit(submitData);
-    
+
     // Modal'da kullanıldığında form'u resetle
     if (!isEdit) {
       resetForm();
@@ -399,7 +413,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
             </p>
           </div>
         )}
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Customer Code */}
           <div>
@@ -427,9 +441,8 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.name ? 'border-red-300' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.name ? 'border-red-300' : 'border-gray-300'
+                }`}
               placeholder="Örn: Bakkal Mehmet"
             />
             {errors.name && (
@@ -452,16 +465,15 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                 value={formData.phone}
                 onChange={(e) => {
                   const phone = e.target.value;
-                  setFormData({ 
-                    ...formData, 
+                  setFormData({
+                    ...formData,
                     phone: phone,
                     // Telefon değiştiğinde WhatsApp'ı da güncelle (eğer WhatsApp boşsa)
                     whatsApp: formData.whatsApp || formatPhoneForWhatsApp(phone)
                   });
                 }}
-                className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.phone ? 'border-red-300' : 'border-gray-300'
-                }`}
+                className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.phone ? 'border-red-300' : 'border-gray-300'
+                  }`}
                 placeholder="0532 111 2233"
               />
             </div>
@@ -484,9 +496,8 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.email ? 'border-red-300' : 'border-gray-300'
-                }`}
+                className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email ? 'border-red-300' : 'border-gray-300'
+                  }`}
                 placeholder="Örn: mehmet@example.com"
               />
             </div>
@@ -525,7 +536,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
           <MapPin className="w-5 h-5 mr-2" />
           Adres Bilgileri
         </h2>
-        
+
         <div className="space-y-4">
           {/* Address */}
           <div>
@@ -535,9 +546,8 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
             <textarea
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.address ? 'border-red-300' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.address ? 'border-red-300' : 'border-gray-300'
+                }`}
               rows={2}
               placeholder="Örn: Kadıköy, Moda Cad. No:45"
             />
@@ -615,13 +625,12 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                 min="1"
                 max="180"
                 value={formData.estimatedServiceTime || defaultServiceTime}
-                onChange={(e) => setFormData({ 
-                  ...formData, 
-                  estimatedServiceTime: parseInt(e.target.value) || defaultServiceTime 
+                onChange={(e) => setFormData({
+                  ...formData,
+                  estimatedServiceTime: parseInt(e.target.value) || defaultServiceTime
                 })}
-                className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.serviceTime ? 'border-red-300' : 'border-gray-300'
-                }`}
+                className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.serviceTime ? 'border-red-300' : 'border-gray-300'
+                  }`}
                 placeholder={defaultServiceTime.toString()}
               />
             </div>
@@ -718,9 +727,9 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                 onBlur={(e) => {
                   // Eğer boşsa ve telefon varsa, telefonu WhatsApp formatında ekle
                   if (!e.target.value && formData.phone) {
-                    setFormData({ 
-                      ...formData, 
-                      whatsApp: formatPhoneForWhatsApp(formData.phone) 
+                    setFormData({
+                      ...formData,
+                      whatsApp: formatPhoneForWhatsApp(formData.phone)
                     });
                   }
                 }}
@@ -742,8 +751,8 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                 checked={formData.whatsAppOptIn || false}
                 onChange={(e) => {
                   const optIn = e.target.checked;
-                  setFormData({ 
-                    ...formData, 
+                  setFormData({
+                    ...formData,
                     whatsAppOptIn: optIn,
                     whatsAppOptInDate: optIn ? new Date() : undefined
                   });
