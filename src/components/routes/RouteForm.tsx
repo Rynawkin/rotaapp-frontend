@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { 
+import {
   Calendar,
   Clock,
   MapPin,
@@ -86,7 +86,7 @@ const validateTimeWindow = (start?: string, end?: string): { start?: string; end
   if (!start && !end) {
     return undefined;
   }
-  
+
   // Eğer sadece biri doluysa, diğerini otomatik hesapla
   if (start && !end) {
     // Başlangıç varsa, bitiş = başlangıç + 1 saat
@@ -95,7 +95,7 @@ const validateTimeWindow = (start?: string, end?: string): { start?: string; end
     const endTime = `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
     return { start, end: endTime };
   }
-  
+
   if (!start && end) {
     // Bitiş varsa, başlangıç = bitiş - 1 saat
     const [hours, minutes] = end.split(':').map(Number);
@@ -103,7 +103,7 @@ const validateTimeWindow = (start?: string, end?: string): { start?: string; end
     const startTime = `${startHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
     return { start: startTime, end };
   }
-  
+
   // İkisi de doluysa, olduğu gibi dön
   return { start, end };
 };
@@ -182,7 +182,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
     }
     return [];
   });
-  
+
   const initialStopsLoadedRef = useRef(false);
 
   const [mapCenter, setMapCenter] = useState<LatLng>({ lat: 40.9869, lng: 29.0252 });
@@ -192,7 +192,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
   const [defaultSignatureRequired, setDefaultSignatureRequired] = useState(false);
   const [defaultPhotoRequired, setDefaultPhotoRequired] = useState(false);
   const [optimizedOrder, setOptimizedOrder] = useState<number[]>(() => {
-    return savedData?.optimized && savedData?.stops ? 
+    return savedData?.optimized && savedData?.stops ?
       savedData.stops.map((_: any, index: number) => index) : [];
   });
 
@@ -256,16 +256,16 @@ const RouteForm: React.FC<RouteFormProps> = ({
     const initialStops: StopData[] = initialData.stops
       .map(stop => {
         let customer = stop.customer;
-        
+
         if (!customer) {
           customer = customers.find(c => c.id.toString() === stop.customerId.toString());
         }
-        
+
         if (!customer) {
           console.warn(`Customer not found for stop with customerId: ${stop.customerId}`);
           return null;
         }
-        
+
         return {
           customer,
           overrideTimeWindow: stop.overrideTimeWindow,
@@ -275,11 +275,11 @@ const RouteForm: React.FC<RouteFormProps> = ({
         };
       })
       .filter(Boolean) as StopData[];
-    
+
     if (initialStops.length > 0) {
       setStopsData(initialStops);
       initialStopsLoadedRef.current = true;
-      
+
       if (initialData.optimized) {
         setOptimizedOrder(initialStops.map((_, index) => index));
         setOptimizationStatus('success');
@@ -301,6 +301,14 @@ const RouteForm: React.FC<RouteFormProps> = ({
     }
   }, [stopsData, formData, startTime, saveToLocalStorage]);
 
+  // StartTime 00:00 kontrolü - DÜZELTME
+  useEffect(() => {
+    if (startTime === '00:00') {
+      setStartTime('00:01');
+      console.log('Start time adjusted from 00:00 to 00:01');
+    }
+  }, [startTime]);
+
   const loadLists = async () => {
     setLoadingLists(true);
     try {
@@ -321,7 +329,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
         setDefaultPhotoRequired(false);
       }
 
-      const validCustomers = customersData.filter(c => 
+      const validCustomers = customersData.filter(c =>
         typeof c.id === 'number' || (typeof c.id === 'string' && !c.id.startsWith('google-'))
       );
 
@@ -329,15 +337,15 @@ const RouteForm: React.FC<RouteFormProps> = ({
       setDrivers(driversData);
       setVehicles(vehiclesData);
       setDepots(depotsData);
-      
+
       const defaultDepot = depotsData.find(d => d.isDefault);
       if (defaultDepot) {
         setMapCenter({ lat: defaultDepot.latitude, lng: defaultDepot.longitude });
-        
+
         if (!formData.depotId) {
           updateFormData({ depotId: defaultDepot.id.toString() });
         }
-        
+
         if (!initialData?.startDetails?.startTime && !savedData?.startTime) {
           const depotStartTime = defaultDepot.startWorkingHours || '08:00:00';
           setStartTime(timeSpanToTimeString(depotStartTime));
@@ -360,13 +368,13 @@ const RouteForm: React.FC<RouteFormProps> = ({
             return null;
           })
           .filter(Boolean) as StopData[];
-        
+
         if (savedStops.length > 0) {
           setStopsData(savedStops);
           console.log('Restored stops from localStorage:', savedStops.length);
         }
       }
-      
+
       if (savedData?.startTime) {
         setStartTime(savedData.startTime);
       }
@@ -382,9 +390,9 @@ const RouteForm: React.FC<RouteFormProps> = ({
       alert('Bu müşteri henüz veritabanına kaydedilmemiş. Lütfen önce Müşteriler sayfasından ekleyin.');
       return;
     }
-    
+
     if (!stopsData.find(s => s.customer.id === customer.id)) {
-      const newStopsData = [...stopsData, { 
+      const newStopsData = [...stopsData, {
         customer,
         serviceTime: customer.estimatedServiceTime || 10,
         signatureRequired: defaultSignatureRequired,
@@ -411,21 +419,33 @@ const RouteForm: React.FC<RouteFormProps> = ({
     setMapDirections(null);
   };
 
+  // DÜZELTME: handleUpdateStop fonksiyonu
   const handleUpdateStop = (index: number, updates: Partial<StopData>) => {
     const newStops = [...stopsData];
-    
+
     // Time window validation
     if (updates.overrideTimeWindow) {
-      const validatedTimeWindow = validateTimeWindow(
-        updates.overrideTimeWindow.start,
-        updates.overrideTimeWindow.end
-      );
+      const { start, end } = updates.overrideTimeWindow;
+
+      // İkisi de doluysa mantık kontrolü yap
+      if (start && end) {
+        const startMinutes = parseInt(start.split(':')[0]) * 60 + parseInt(start.split(':')[1]);
+        const endMinutes = parseInt(end.split(':')[0]) * 60 + parseInt(end.split(':')[1]);
+
+        if (startMinutes >= endMinutes) {
+          alert('Bitiş saati, başlangıç saatinden sonra olmalıdır!');
+          return; // Direkt return et, hiçbir güncelleme yapma
+        }
+      }
+
+      // Validation'ı geçtiyse otomatik tamamlama yap
+      const validatedTimeWindow = validateTimeWindow(start, end);
       updates.overrideTimeWindow = validatedTimeWindow;
     }
-    
+
     newStops[index] = { ...newStops[index], ...updates };
     setStopsData(newStops);
-    resetOptimization();
+    resetOptimization(); // Sadece başarılı güncelleme sonrası reset et
   };
 
   const handleMoveExcludedToStops = (excludedStop: ExcludedStop) => {
@@ -461,7 +481,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
       if (directions) {
         setMapDirections(directions);
-        
+
         if (initialData?.totalDistance && initialData?.totalDuration) {
           updateFormData({
             totalDistance: initialData.totalDistance,
@@ -488,23 +508,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
       alert('Lütfen rota adı girin!');
       return;
     }
-    
-    // Time window validation - 00:00 edge case kontrolü
-    const startTimeHours = parseInt(startTime.split(':')[0]);
-    const startTimeMinutes = parseInt(startTime.split(':')[1]);
-    
-    // Eğer saat 00:00 ise ve dakika 0 ise, 00:01 olarak ayarla
-    if (startTimeHours === 0 && startTimeMinutes === 0) {
-      setStartTime('00:01');
-      alert('Başlangıç saati 00:00 olamaz. 00:01 olarak ayarlandı.');
-      return;
-    }
 
     setOptimizing(true);
-    
+
     try {
       let routeId = initialData?.id;
-      
+
       if (!routeId) {
         const stops: RouteStop[] = stopsData.map((stopData, index) => {
           // Time window validation for each stop
@@ -512,7 +521,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
           if (timeWindow) {
             timeWindow = validateTimeWindow(timeWindow.start, timeWindow.end) || undefined;
           }
-          
+
           return {
             id: `${Date.now()}-${index}`,
             routeId: '',
@@ -555,12 +564,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
       if (optimizedRoute.hasExclusions && optimizedRoute.excludedStops && optimizedRoute.excludedStops.length > 0) {
         setOptimizationStatus('partial');
-        
+
         const excluded: ExcludedStop[] = optimizedRoute.excludedStops.map((ex: any) => {
-          const stopData = stopsData.find(s => 
+          const stopData = stopsData.find(s =>
             s.customer.id.toString() === ex.stop.customerId.toString()
           );
-          
+
           const fallbackStopData: StopData = {
             customer: ex.stop.customer,
             serviceTime: ex.stop.serviceTime,
@@ -570,18 +579,18 @@ const RouteForm: React.FC<RouteFormProps> = ({
               end: ex.stop.arriveBetweenEnd
             } : undefined
           };
-          
+
           return {
             stopData: stopData || fallbackStopData,
             reason: ex.reason || 'Belirtilen zaman aralığında teslimat yapılamıyor',
             timeWindowConflict: ex.timeWindowConflict
           };
         });
-        
+
         setExcludedStops(excluded);
-        
+
         const optimizedStopsData = optimizedRoute.optimizedStops?.map((stop: any) => {
-          const existingStopData = stopsData.find(s => 
+          const existingStopData = stopsData.find(s =>
             s.customer.id.toString() === stop.customerId.toString()
           );
           return {
@@ -596,15 +605,15 @@ const RouteForm: React.FC<RouteFormProps> = ({
             estimatedDepartureTime: stop.estimatedDepartureTime
           };
         }).filter(Boolean) || [];
-        
+
         setStopsData(optimizedStopsData);
-        
+
       } else if (optimizedRoute.optimizedStops && optimizedRoute.optimizedStops.length > 0) {
         setOptimizationStatus('success');
         setExcludedStops([]);
-        
+
         const optimizedStopsData = optimizedRoute.optimizedStops.map((stop: any) => {
-          const existingStopData = stopsData.find(s => 
+          const existingStopData = stopsData.find(s =>
             s.customer.id.toString() === stop.customerId.toString()
           );
           return {
@@ -619,18 +628,18 @@ const RouteForm: React.FC<RouteFormProps> = ({
             estimatedDepartureTime: stop.estimatedDepartureTime
           };
         }).filter(Boolean);
-        
+
         setStopsData(optimizedStopsData);
         setOptimizedOrder(optimizedStopsData.map((_, i) => i));
-        
+
       } else if (optimizedRoute.stops) {
         setOptimizationStatus('success');
         setExcludedStops([]);
-        
+
         const backendOptimizedStops = optimizedRoute.stops
           .sort((a, b) => a.order - b.order)
           .map(stop => {
-            const existingStopData = stopsData.find(s => 
+            const existingStopData = stopsData.find(s =>
               s.customer.id.toString() === stop.customerId.toString()
             );
             return {
@@ -645,15 +654,15 @@ const RouteForm: React.FC<RouteFormProps> = ({
               estimatedDepartureTime: stop.estimatedDepartureTime
             };
           });
-        
+
         setStopsData(backendOptimizedStops);
         setOptimizedOrder(backendOptimizedStops.map((_, i) => i));
       }
-      
+
       if (!isEdit) {
         initialData = optimizedRoute;
       }
-      
+
       updateFormData({
         ...formData,
         id: routeId,
@@ -663,13 +672,13 @@ const RouteForm: React.FC<RouteFormProps> = ({
       });
 
       await updateMapRoute();
-      
-      const message = optimizationStatus === 'partial' 
+
+      const message = optimizationStatus === 'partial'
         ? `Rota optimize edildi!\n${excludedStops.length} durak zaman uyumsuzluğu nedeniyle dahil edilemedi.`
         : `Rota optimize edildi!\n\nToplam Mesafe: ${optimizedRoute.totalDistance.toFixed(1)} km\nTahmini Süre: ${formatDuration(optimizedRoute.totalDuration)}`;
-      
+
       alert(message);
-      
+
     } catch (error: any) {
       console.error('Optimization error:', error);
       alert('Optimizasyon sırasında bir hata oluştu: ' + (error.response?.data?.message || error.message));
@@ -694,62 +703,62 @@ const RouteForm: React.FC<RouteFormProps> = ({
     setOptimizedOrder([]);
     setStartTime('08:00');
   };
-  
+
   const calculateTotalDuration = () => {
     let totalMinutes = 0;
-    
+
     stopsData.forEach(stop => {
       totalMinutes += stop.serviceTime || stop.customer.estimatedServiceTime || 10;
     });
-    
+
     if (stopsData.length > 0) {
       totalMinutes += stopsData.length * 15;
     }
-    
+
     return totalMinutes;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (optimizationStatus === 'none') {
       alert('Lütfen önce rotayı optimize edin!');
       return;
     }
-    
+
     if (formData.id && formData.optimized) {
       const updateData: Partial<Route> = {
         id: formData.id,
         driverId: formData.driverId,
         vehicleId: formData.vehicleId
       };
-      
+
       onSubmit(updateData);
       return;
     }
-    
+
     if (!formData.driverId || !formData.vehicleId) {
       alert('Lütfen sürücü ve araç ataması yapın!');
       return;
     }
-    
+
     const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
     if (!selectedDepot) {
       alert('Lütfen bir depo seçin!');
       return;
     }
-    
+
     const stops: RouteStop[] = stopsData.map((stopData, index) => {
       if (!stopData.customer) {
         throw new Error(`Durak ${index + 1} için müşteri bilgisi eksik`);
       }
-      
+
       const customer = stopData.customer;
-      
+
       if (typeof customer.id === 'string' && customer.id.startsWith('google-')) {
         throw new Error(`Durak ${index + 1} için müşteri henüz veritabanına kaydedilmemiş.`);
       }
-      
+
       let customerId: string;
       if (typeof customer.id === 'number') {
         customerId = customer.id.toString();
@@ -758,13 +767,13 @@ const RouteForm: React.FC<RouteFormProps> = ({
       } else {
         throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
       }
-      
+
       // Time window validation
       let timeWindow = stopData.overrideTimeWindow;
       if (timeWindow) {
         timeWindow = validateTimeWindow(timeWindow.start, timeWindow.end) || undefined;
       }
-      
+
       return {
         id: isEdit && initialData?.stops?.[index]?.id ? initialData.stops[index].id : `${Date.now()}-${index}`,
         routeId: initialData?.id || '',
@@ -805,28 +814,28 @@ const RouteForm: React.FC<RouteFormProps> = ({
         longitude: selectedDepot.longitude
       }
     };
-    
+
     if (!isEdit && !formData.id) {
       localStorage.removeItem(STORAGE_KEY);
     }
-    
+
     onSubmit(routeData);
   };
 
   const handleSaveDraft = () => {
     const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
-    
+
     const stops: RouteStop[] = stopsData.map((stopData, index) => {
       if (!stopData.customer) {
         throw new Error(`Durak ${index + 1} için müşteri bilgisi eksik`);
       }
-      
+
       const customer = stopData.customer;
-      
+
       if (typeof customer.id === 'string' && customer.id.startsWith('google-')) {
         throw new Error(`Durak ${index + 1} için müşteri henüz veritabanına kaydedilmemiş.`);
       }
-      
+
       let customerId: string;
       if (typeof customer.id === 'number') {
         customerId = customer.id.toString();
@@ -835,13 +844,13 @@ const RouteForm: React.FC<RouteFormProps> = ({
       } else {
         throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
       }
-      
+
       // Time window validation
       let timeWindow = stopData.overrideTimeWindow;
       if (timeWindow) {
         timeWindow = validateTimeWindow(timeWindow.start, timeWindow.end) || undefined;
       }
-      
+
       return {
         id: isEdit && initialData?.stops?.[index]?.id ? initialData.stops[index].id : `${Date.now()}-${index}`,
         routeId: initialData?.id || '',
@@ -934,7 +943,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Temel Bilgiler</h2>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1152,7 +1161,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
               </span>
             )}
           </div>
-          
+
           <MapComponent
             center={mapCenter}
             height="600px"
@@ -1164,18 +1173,18 @@ const RouteForm: React.FC<RouteFormProps> = ({
             showTraffic={true}
             onMapLoad={handleMapLoad}
           />
-          
+
           {stopsData.length > 0 && (
             <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
               <p className="text-sm text-blue-700 flex items-center">
                 <Navigation className="w-4 h-4 mr-2" />
-                <strong>Rota Bilgisi:</strong> 
+                <strong>Rota Bilgisi:</strong>
                 <span className="ml-1">
-                  {optimizationStatus === 'success' 
-                    ? 'Rota başarıyla optimize edildi' 
+                  {optimizationStatus === 'success'
+                    ? 'Rota başarıyla optimize edildi'
                     : optimizationStatus === 'partial'
-                    ? 'Bazı duraklar zaman uyumsuzluğu nedeniyle dahil edilemedi'
-                    : 'Optimize Et butonuna basarak rotanızı optimize edebilirsiniz'}
+                      ? 'Bazı duraklar zaman uyumsuzluğu nedeniyle dahil edilemedi'
+                      : 'Optimize Et butonuna basarak rotanızı optimize edebilirsiniz'}
                 </span>
               </p>
             </div>
@@ -1186,7 +1195,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Duraklar {stopsData.length > 0 && `(${stopsData.length})`}
           </h2>
-          
+
           {stopsData.length > 0 || excludedStops.length > 0 ? (
             <div className="max-h-[600px] overflow-y-auto pr-2">
               <StopsList
@@ -1223,7 +1232,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
             Taslak Kaydet
           </button>
         )}
-        
+
         <button
           type="submit"
           disabled={loading || stopsData.length === 0 || optimizationStatus === 'none'}
