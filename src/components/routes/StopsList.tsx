@@ -146,14 +146,16 @@ const StopsList: React.FC<StopsListProps> = ({
         }
         
         // Mantık kontrolü
-        const startMinutes = parseInt(updates.overrideTimeWindow.start.split(':')[0]) * 60 + 
-                           parseInt(updates.overrideTimeWindow.start.split(':')[1]);
-        const endMinutes = parseInt(updates.overrideTimeWindow.end.split(':')[0]) * 60 + 
-                         parseInt(updates.overrideTimeWindow.end.split(':')[1]);
-        
-        if (startMinutes >= endMinutes) {
-          alert('Bitiş saati, başlangıç saatinden sonra olmalıdır!');
-          return;
+        if (updates.overrideTimeWindow.start && updates.overrideTimeWindow.end) {
+          const startMinutes = parseInt(updates.overrideTimeWindow.start.split(':')[0]) * 60 + 
+                            parseInt(updates.overrideTimeWindow.start.split(':')[1]);
+          const endMinutes = parseInt(updates.overrideTimeWindow.end.split(':')[0]) * 60 + 
+                          parseInt(updates.overrideTimeWindow.end.split(':')[1]);
+          
+          if (startMinutes >= endMinutes) {
+            alert('Bitiş saati, başlangıç saatinden sonra olmalıdır!');
+            return; // BURADA RETURN EDİYORUZ, onUpdateStop ÇAĞRILMIYOR
+          }
         }
       } else {
         delete updates.overrideTimeWindow;

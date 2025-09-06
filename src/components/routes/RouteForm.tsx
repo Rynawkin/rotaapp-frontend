@@ -420,33 +420,14 @@ const RouteForm: React.FC<RouteFormProps> = ({
   };
 
   // DÜZELTME: handleUpdateStop fonksiyonu
-  const handleUpdateStop = (index: number, updates: Partial<StopData>) => {
+    const handleUpdateStop = (index: number, updates: Partial<StopData>) => {
+    // StopsList zaten validation yapıyor, burada sadece güncelle
     const newStops = [...stopsData];
-
-    // Time window validation
-    if (updates.overrideTimeWindow) {
-      const { start, end } = updates.overrideTimeWindow;
-
-      // İkisi de doluysa mantık kontrolü yap
-      if (start && end) {
-        const startMinutes = parseInt(start.split(':')[0]) * 60 + parseInt(start.split(':')[1]);
-        const endMinutes = parseInt(end.split(':')[0]) * 60 + parseInt(end.split(':')[1]);
-
-        if (startMinutes >= endMinutes) {
-          alert('Bitiş saati, başlangıç saatinden sonra olmalıdır!');
-          return; // Direkt return et, hiçbir güncelleme yapma
-        }
-      }
-
-      // Validation'ı geçtiyse otomatik tamamlama yap
-      const validatedTimeWindow = validateTimeWindow(start, end);
-      updates.overrideTimeWindow = validatedTimeWindow;
-    }
-
     newStops[index] = { ...newStops[index], ...updates };
     setStopsData(newStops);
-    resetOptimization(); // Sadece başarılı güncelleme sonrası reset et
+    resetOptimization();
   };
+
 
   const handleMoveExcludedToStops = (excludedStop: ExcludedStop) => {
     setStopsData([...stopsData, excludedStop.stopData]);
