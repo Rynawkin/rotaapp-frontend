@@ -53,7 +53,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
     phone: initialData?.phone || '',
     email: initialData?.email || '',
     
-    // WhatsApp Alanları - YENİ EKLENEN
+    // WhatsApp Alanları
     whatsApp: initialData?.whatsApp || initialData?.phone || '',
     whatsAppOptIn: initialData?.whatsAppOptIn || false,
     whatsAppVerified: initialData?.whatsAppVerified || false,
@@ -77,6 +77,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
   const [tagInput, setTagInput] = useState('');
   const [showCoordinateInput, setShowCoordinateInput] = useState(false);
   const [useGoogleSearch, setUseGoogleSearch] = useState(true);
+  const [searchQuery, setSearchQuery] = useState(''); // Eksik olan state tanımı
 
   // Validation state
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -150,7 +151,11 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
 
         // Telefon numarasını güncelle (varsa)
         if (place.formatted_phone_number) {
-          setFormData(prev => ({ ...prev, phone: place.formatted_phone_number || '' }));
+          setFormData(prev => ({ 
+            ...prev, 
+            phone: place.formatted_phone_number || '',
+            whatsApp: place.formatted_phone_number || prev.whatsApp || '' 
+          }));
         }
 
         // Website'den email çıkarmaya çalış (varsa)
@@ -229,6 +234,33 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
+  // Reset form (modal için)
+  const resetForm = () => {
+    setFormData({
+      code: '',
+      name: '',
+      address: '',
+      phone: '',
+      email: '',
+      whatsApp: '',
+      whatsAppOptIn: false,
+      whatsAppVerified: false,
+      latitude: 40.9869,
+      longitude: 29.0252,
+      priority: 'normal',
+      estimatedServiceTime: defaultServiceTime,
+      notes: '',
+      tags: []
+    });
+    setHasTimeWindow(false);
+    setTimeWindowStart('09:00');
+    setTimeWindowEnd('17:00');
+    setTagInput('');
+    setSearchQuery('');
+    setErrors({});
+    setShowCoordinateInput(false);
+  };
+
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -243,6 +275,11 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
     };
 
     onSubmit(submitData);
+    
+    // Modal'da kullanıldığında form'u resetle
+    if (!isEdit) {
+      resetForm();
+    }
   };
 
   // Add tag
@@ -324,6 +361,8 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
             >
               <input
                 type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="İşletme adı yazın (örn: Migros, Starbucks, vb.)"
               />
@@ -618,7 +657,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
         </div>
       </div>
 
-      {/* WhatsApp Settings - YENİ EKLENEN */}
+      {/* WhatsApp Settings */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
           <Phone className="w-5 h-5 mr-2 text-green-600" />

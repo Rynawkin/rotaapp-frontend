@@ -1,9 +1,10 @@
+// frontend/src/components/routes/CustomerSelector.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Search, 
-  Plus, 
-  MapPin, 
-  Phone, 
+import {
+  Search,
+  Plus,
+  MapPin,
+  Phone,
   Clock,
   Star,
   Check,
@@ -11,18 +12,19 @@ import {
   Package
 } from 'lucide-react';
 import { Customer } from '@/types';
-import { Link } from 'react-router-dom';
 
 interface CustomerSelectorProps {
   customers: Customer[];
   selectedCustomers: Customer[];
   onSelect: (customer: Customer) => void;
+  onCreateNew?: () => void; // YENİ PROP
 }
 
 const CustomerSelector: React.FC<CustomerSelectorProps> = ({
   customers,
   selectedCustomers,
-  onSelect
+  onSelect,
+  onCreateNew // YENİ PROP
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
@@ -52,12 +54,12 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
       if (typeof customer.id === 'string' && customer.id.startsWith('google-')) {
         return false;
       }
-      
+
       // Zaten seçili olanları gösterme
       if (isSelected(customer.id.toString())) {
         return false;
       }
-      
+
       return (
         customer.name.toLowerCase().includes(lowerQuery) ||
         customer.code?.toLowerCase().includes(lowerQuery) ||
@@ -65,7 +67,7 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
         customer.phone?.includes(query)
       );
     });
-    
+
     setFilteredCustomers(filtered);
     setIsDropdownOpen(filtered.length > 0 || query.trim() !== '');
   };
@@ -88,7 +90,7 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
       alert('⚠️ Bu müşteri henüz veritabanına kaydedilmemiş. Lütfen önce Müşteriler sayfasından ekleyin.');
       return;
     }
-    
+
     onSelect(customer);
     setSearchQuery('');
     setIsDropdownOpen(false);
@@ -125,7 +127,7 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
   };
 
   // Kayıtlı müşteri sayısı (Google Places hariç)
-  const validCustomersCount = customers.filter(c => 
+  const validCustomersCount = customers.filter(c =>
     typeof c.id === 'number' || (typeof c.id === 'string' && !c.id.startsWith('google-'))
   ).length;
 
@@ -150,20 +152,22 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
             </span>
           )}
         </div>
-        
-        <Link
-          to="/customers/new"
+
+        {/* Link yerine button kullan */}
+        <button
+          type="button"
+          onClick={onCreateNew}
           className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center whitespace-nowrap"
         >
           <UserPlus className="w-4 h-4 mr-2" />
           Yeni Müşteri
-        </Link>
+        </button>
       </div>
 
       {/* Dropdown Results */}
       {isDropdownOpen && (
         <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-[500px] overflow-y-auto">
-          
+
           {/* Local Customer Results */}
           {filteredCustomers.length > 0 ? (
             <>
@@ -175,14 +179,13 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
               </div>
               {filteredCustomers.map(customer => {
                 const selected = isSelected(customer.id.toString());
-                
+
                 return (
                   <div
                     key={customer.id}
                     onClick={() => !selected && handleSelectCustomer(customer)}
-                    className={`p-4 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors ${
-                      selected ? 'bg-gray-50 cursor-not-allowed' : 'cursor-pointer'
-                    }`}
+                    className={`p-4 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors ${selected ? 'bg-gray-50 cursor-not-allowed' : 'cursor-pointer'
+                      }`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -215,7 +218,7 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
                               <span>{customer.phone}</span>
                             </div>
                           )}
-                          
+
                           {customer.timeWindow && (
                             <div className="flex items-center text-gray-500">
                               <Clock className="w-4 h-4 mr-1" />
@@ -224,7 +227,7 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
                               </span>
                             </div>
                           )}
-                          
+
                           {customer.estimatedServiceTime && (
                             <div className="flex items-center text-gray-500">
                               <Clock className="w-4 h-4 mr-1" />
@@ -281,13 +284,15 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
                   <p className="text-sm text-gray-500 mb-4">
                     Müşteri henüz kayıtlı değilse önce eklemeniz gerekiyor
                   </p>
-                  <Link
-                    to="/customers/new"
+                  {/* Link yerine button kullan */}
+                  <button
+                    type="button"
+                    onClick={onCreateNew}
                     className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
                   >
                     <UserPlus className="w-4 h-4 mr-2" />
                     Yeni Müşteri Ekle
-                  </Link>
+                  </button>
                 </>
               ) : validCustomersCount === 0 ? (
                 <>
@@ -298,13 +303,15 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
                   <p className="text-sm text-gray-500 mb-4">
                     Rota oluşturmak için önce müşteri eklemeniz gerekiyor
                   </p>
-                  <Link
-                    to="/customers"
+                  {/* Link yerine button kullan */}
+                  <button
+                    type="button"
+                    onClick={onCreateNew}
                     className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
                   >
                     <UserPlus className="w-4 h-4 mr-2" />
                     Müşteri Ekle
-                  </Link>
+                  </button>
                 </>
               ) : (
                 <>

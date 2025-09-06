@@ -20,6 +20,8 @@ import {
 import CustomerSelector from './CustomerSelector';
 import StopsList from './StopsList';
 import MapComponent from '@/components/maps/MapComponent';
+import Modal from '@/components/common/Modal';
+import CustomerForm from '@/components/customers/CustomerForm';
 import { Route, Customer, Driver, Vehicle, Depot, RouteStop } from '@/types';
 import { LatLng, MarkerData, OptimizationWaypoint } from '@/types/maps';
 import { customerService } from '@/services/customer.service';
@@ -198,6 +200,10 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
   const [optimizationStatus, setOptimizationStatus] = useState<OptimizationStatus>('none');
   const [excludedStops, setExcludedStops] = useState<ExcludedStop[]>([]);
+
+  // Modal state'leri
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [savingCustomer, setSavingCustomer] = useState(false);
 
   const resetOptimization = useCallback(() => {
     setOptimizationStatus('none');
@@ -401,6 +407,41 @@ const RouteForm: React.FC<RouteFormProps> = ({
       setStopsData(newStopsData);
       resetOptimization();
       saveToLocalStorage(formData);
+    }
+  };
+
+  // Yeni müşteri oluşturma handler'ı
+  const handleCreateCustomer = async (customerData: Partial<Customer>) => {
+    setSavingCustomer(true);
+    try {
+      // Yeni müşteriyi API'ye kaydet
+      const newCustomer = await customerService.create(customerData);
+      
+      // Müşteri listesini güncelle
+      setCustomers(prev => [...prev, newCustomer]);
+      
+      // Yeni müşteriyi direkt stop listesine ekle
+      const newStopData = {
+        customer: newCustomer,
+        serviceTime: newCustomer.estimatedServiceTime || 10,
+        signatureRequired: defaultSignatureRequired,
+        photoRequired: defaultPhotoRequired
+      };
+      setStopsData(prev => [...prev, newStopData]);
+      
+      // Optimizasyonu resetle
+      resetOptimization();
+      
+      // Modal'ı kapat
+      setShowCustomerModal(false);
+      
+      // Başarı mesajı
+      alert('Müşteri başarıyla eklendi ve rotaya dahil edildi!');
+    } catch (error: any) {
+      console.error('Error creating customer:', error);
+      alert('Müşteri eklenirken hata oluştu: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setSavingCustomer(false);
     }
   };
 
@@ -928,318 +969,334 @@ const RouteForm: React.FC<RouteFormProps> = ({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Temel Bilgiler</h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Rota Adı <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => updateFormData({ name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Örn: Kadıköy Sabah Turu"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tarih <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="date"
-                value={formData.date ? new Date(formData.date).toISOString().split('T')[0] : ''}
-                onChange={(e) => updateFormData({ date: new Date(e.target.value) })}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Başlangıç Saati <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Rotanın planlanan başlangıç saati</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Depo <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <select
-                value={formData.depotId}
-                onChange={(e) => updateFormData({ depotId: e.target.value })}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
-                required
-              >
-                <option value="">Depo Seçin</option>
-                {depots.map(depot => (
-                  <option key={depot.id} value={depot.id}>
-                    {depot.name} {depot.isDefault && '(Varsayılan)'}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Sürücü <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <select
-                value={formData.driverId}
-                onChange={(e) => updateFormData({ driverId: e.target.value })}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
-                required
-              >
-                <option value="">Sürücü Seçin</option>
-                {drivers.map(driver => (
-                  <option key={driver.id} value={driver.id}>
-                    {driver.name} {driver.status === 'busy' && '(Meşgul)'}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Araç <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <Truck className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <select
-                value={formData.vehicleId}
-                onChange={(e) => updateFormData({ vehicleId: e.target.value })}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
-                required
-              >
-                <option value="">Araç Seçin</option>
-                {vehicles.map(vehicle => (
-                  <option key={vehicle.id} value={vehicle.id}>
-                    {vehicle.plateNumber} - {vehicle.brand} {vehicle.model}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Notlar
-            </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => updateFormData({ notes: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={3}
-              placeholder="Rota ile ilgili notlarınız..."
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Müşteri Seçimi</h2>
-          <div className="flex items-center space-x-3">
-            {stopsData.length > 0 && (
-              <>
-                <div className="text-sm text-gray-600">
-                  Toplam: <span className="font-semibold">{stopsData.length} durak</span>
-                </div>
-                <div className="text-sm text-gray-600">
-                  Süre: <span className="font-semibold">
-                    {formatDuration(formData.totalDuration || calculateTotalDuration())}
-                  </span>
-                </div>
-                {(formData.totalDistance ?? 0) > 0 && (
-                  <div className="text-sm text-gray-600">
-                    Mesafe: <span className="font-semibold">{(formData.totalDistance ?? 0).toFixed(1)} km</span>
-                  </div>
-                )}
-              </>
-            )}
-
-            {stopsData.length > 1 && (
-              <select
-                value={optimizationMode}
-                onChange={(e) => setOptimizationMode(e.target.value as 'distance' | 'duration')}
-                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-              >
-                <option value="distance">En Kısa Mesafe</option>
-                <option value="duration">En Hızlı Rota</option>
-              </select>
-            )}
-
-            <button
-              type="button"
-              onClick={handleOptimize}
-              disabled={stopsData.length < 2 || optimizing || optimizationStatus !== 'none'}
-              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center text-sm"
-            >
-              {optimizing ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                  Optimize Ediliyor...
-                </>
-              ) : (
-                <>
-                  <Zap className="w-4 h-4 mr-1.5" />
-                  Optimize Et
-                </>
-              )}
-            </button>
-
-            {optimizationStatus !== 'none' && (
-              <button
-                type="button"
-                onClick={handleReset}
-                className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center text-sm"
-              >
-                <RefreshCw className="w-4 h-4 mr-1.5" />
-                Formu Temizle
-              </button>
-            )}
-          </div>
-        </div>
-
-        <CustomerSelector
-          customers={customers}
-          selectedCustomers={stopsData.map(s => s.customer)}
-          onSelect={handleAddCustomer}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <>
+      <form onSubmit={handleSubmit} className="space-y-6">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Rota Haritası</h2>
-            {stopsData.length === 0 ? (
-              <span className="text-sm text-gray-500">Müşteri ekleyin</span>
-            ) : (formData.totalDistance ?? 0) > 0 ? (
-              <span className="text-sm text-gray-600">
-                {(formData.totalDistance ?? 0).toFixed(1)} km • {formatDuration(formData.totalDuration || 0)}
-              </span>
-            ) : (
-              <span className="text-sm text-gray-600">
-                {stopsData.length} durak
-              </span>
-            )}
-          </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Temel Bilgiler</h2>
 
-          <MapComponent
-            center={mapCenter}
-            height="600px"
-            markers={getMapMarkers()}
-            depot={getDepotLocation()}
-            directions={mapDirections}
-            customers={stopsData.map(s => s.customer)}
-            optimizedOrder={optimizedOrder}
-            showTraffic={true}
-            onMapLoad={handleMapLoad}
-          />
-
-          {stopsData.length > 0 && (
-            <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-              <p className="text-sm text-blue-700 flex items-center">
-                <Navigation className="w-4 h-4 mr-2" />
-                <strong>Rota Bilgisi:</strong>
-                <span className="ml-1">
-                  {optimizationStatus === 'success'
-                    ? 'Rota başarıyla optimize edildi'
-                    : optimizationStatus === 'partial'
-                      ? 'Bazı duraklar zaman uyumsuzluğu nedeniyle dahil edilemedi'
-                      : 'Optimize Et butonuna basarak rotanızı optimize edebilirsiniz'}
-                </span>
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Duraklar {stopsData.length > 0 && `(${stopsData.length})`}
-          </h2>
-
-          {stopsData.length > 0 || excludedStops.length > 0 ? (
-            <div className="max-h-[600px] overflow-y-auto pr-2">
-              <StopsList
-                stops={stopsData}
-                excludedStops={excludedStops}
-                optimizationStatus={optimizationStatus}
-                onRemove={handleRemoveCustomer}
-                onReorder={handleReorderStops}
-                onUpdateStop={handleUpdateStop}
-                onMoveExcludedToStops={handleMoveExcludedToStops}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Rota Adı <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => updateFormData({ name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Örn: Kadıköy Sabah Turu"
+                required
               />
             </div>
-          ) : (
-            <div className="flex items-center justify-center h-[500px] text-gray-400">
-              <div className="text-center">
-                <MapPin className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                <p className="text-lg font-medium">Henüz durak eklenmedi</p>
-                <p className="text-sm mt-2">Yukarıdan müşteri ekleyerek başlayın</p>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tarih <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="date"
+                  value={formData.date ? new Date(formData.date).toISOString().split('T')[0] : ''}
+                  onChange={(e) => updateFormData({ date: new Date(e.target.value) })}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
               </div>
             </div>
-          )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Başlangıç Saati <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Rotanın planlanan başlangıç saati</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Depo <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <select
+                  value={formData.depotId}
+                  onChange={(e) => updateFormData({ depotId: e.target.value })}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                  required
+                >
+                  <option value="">Depo Seçin</option>
+                  {depots.map(depot => (
+                    <option key={depot.id} value={depot.id}>
+                      {depot.name} {depot.isDefault && '(Varsayılan)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sürücü <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <select
+                  value={formData.driverId}
+                  onChange={(e) => updateFormData({ driverId: e.target.value })}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                  required
+                >
+                  <option value="">Sürücü Seçin</option>
+                  {drivers.map(driver => (
+                    <option key={driver.id} value={driver.id}>
+                      {driver.name} {driver.status === 'busy' && '(Meşgul)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Araç <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Truck className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <select
+                  value={formData.vehicleId}
+                  onChange={(e) => updateFormData({ vehicleId: e.target.value })}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                  required
+                >
+                  <option value="">Araç Seçin</option>
+                  {vehicles.map(vehicle => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {vehicle.plateNumber} - {vehicle.brand} {vehicle.model}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Notlar
+              </label>
+              <textarea
+                value={formData.notes}
+                onChange={(e) => updateFormData({ notes: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
+                placeholder="Rota ile ilgili notlarınız..."
+              />
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="flex items-center justify-end space-x-3">
-        {onSaveAsDraft && (
-          <button
-            type="button"
-            onClick={handleSaveDraft}
-            disabled={loading || stopsData.length === 0}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors flex items-center"
-          >
-            <Save className="w-4 h-4 mr-2" />
-            Taslak Kaydet
-          </button>
-        )}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Müşteri Seçimi</h2>
+            <div className="flex items-center space-x-3">
+              {stopsData.length > 0 && (
+                <>
+                  <div className="text-sm text-gray-600">
+                    Toplam: <span className="font-semibold">{stopsData.length} durak</span>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Süre: <span className="font-semibold">
+                      {formatDuration(formData.totalDuration || calculateTotalDuration())}
+                    </span>
+                  </div>
+                  {(formData.totalDistance ?? 0) > 0 && (
+                    <div className="text-sm text-gray-600">
+                      Mesafe: <span className="font-semibold">{(formData.totalDistance ?? 0).toFixed(1)} km</span>
+                    </div>
+                  )}
+                </>
+              )}
 
-        <button
-          type="submit"
-          disabled={loading || stopsData.length === 0 || optimizationStatus === 'none'}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Kaydediliyor...
-            </>
-          ) : (
-            <>
-              <Send className="w-4 h-4 mr-2" />
-              {isEdit ? 'Güncelle' : 'Rota Oluştur'}
-            </>
+              {stopsData.length > 1 && (
+                <select
+                  value={optimizationMode}
+                  onChange={(e) => setOptimizationMode(e.target.value as 'distance' | 'duration')}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="distance">En Kısa Mesafe</option>
+                  <option value="duration">En Hızlı Rota</option>
+                </select>
+              )}
+
+              <button
+                type="button"
+                onClick={handleOptimize}
+                disabled={stopsData.length < 2 || optimizing || optimizationStatus !== 'none'}
+                className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center text-sm"
+              >
+                {optimizing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                    Optimize Ediliyor...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4 mr-1.5" />
+                    Optimize Et
+                  </>
+                )}
+              </button>
+
+              {optimizationStatus !== 'none' && (
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center text-sm"
+                >
+                  <RefreshCw className="w-4 h-4 mr-1.5" />
+                  Formu Temizle
+                </button>
+              )}
+            </div>
+          </div>
+
+          <CustomerSelector
+            customers={customers}
+            selectedCustomers={stopsData.map(s => s.customer)}
+            onSelect={handleAddCustomer}
+            onCreateNew={() => setShowCustomerModal(true)}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Rota Haritası</h2>
+              {stopsData.length === 0 ? (
+                <span className="text-sm text-gray-500">Müşteri ekleyin</span>
+              ) : (formData.totalDistance ?? 0) > 0 ? (
+                <span className="text-sm text-gray-600">
+                  {(formData.totalDistance ?? 0).toFixed(1)} km • {formatDuration(formData.totalDuration || 0)}
+                </span>
+              ) : (
+                <span className="text-sm text-gray-600">
+                  {stopsData.length} durak
+                </span>
+              )}
+            </div>
+
+            <MapComponent
+              center={mapCenter}
+              height="600px"
+              markers={getMapMarkers()}
+              depot={getDepotLocation()}
+              directions={mapDirections}
+              customers={stopsData.map(s => s.customer)}
+              optimizedOrder={optimizedOrder}
+              showTraffic={true}
+              onMapLoad={handleMapLoad}
+            />
+
+            {stopsData.length > 0 && (
+              <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                <p className="text-sm text-blue-700 flex items-center">
+                  <Navigation className="w-4 h-4 mr-2" />
+                  <strong>Rota Bilgisi:</strong>
+                  <span className="ml-1">
+                    {optimizationStatus === 'success'
+                      ? 'Rota başarıyla optimize edildi'
+                      : optimizationStatus === 'partial'
+                        ? 'Bazı duraklar zaman uyumsuzluğu nedeniyle dahil edilemedi'
+                        : 'Optimize Et butonuna basarak rotanızı optimize edebilirsiniz'}
+                  </span>
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Duraklar {stopsData.length > 0 && `(${stopsData.length})`}
+            </h2>
+
+            {stopsData.length > 0 || excludedStops.length > 0 ? (
+              <div className="max-h-[600px] overflow-y-auto pr-2">
+                <StopsList
+                  stops={stopsData}
+                  excludedStops={excludedStops}
+                  optimizationStatus={optimizationStatus}
+                  onRemove={handleRemoveCustomer}
+                  onReorder={handleReorderStops}
+                  onUpdateStop={handleUpdateStop}
+                  onMoveExcludedToStops={handleMoveExcludedToStops}
+                />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-[500px] text-gray-400">
+                <div className="text-center">
+                  <MapPin className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg font-medium">Henüz durak eklenmedi</p>
+                  <p className="text-sm mt-2">Yukarıdan müşteri ekleyerek başlayın</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end space-x-3">
+          {onSaveAsDraft && (
+            <button
+              type="button"
+              onClick={handleSaveDraft}
+              disabled={loading || stopsData.length === 0}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors flex items-center"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              Taslak Kaydet
+            </button>
           )}
-        </button>
-      </div>
-    </form>
+
+          <button
+            type="submit"
+            disabled={loading || stopsData.length === 0 || optimizationStatus === 'none'}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Kaydediliyor...
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4 mr-2" />
+                {isEdit ? 'Güncelle' : 'Rota Oluştur'}
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+
+      {/* Müşteri Ekleme Modal'ı */}
+      <Modal
+        isOpen={showCustomerModal}
+        onClose={() => setShowCustomerModal(false)}
+        title="Yeni Müşteri Ekle"
+        size="xl"
+      >
+        <CustomerForm
+          onSubmit={handleCreateCustomer}
+          loading={savingCustomer}
+        />
+      </Modal>
+    </>
   );
 };
 
