@@ -61,57 +61,7 @@ const StopsList: React.FC<StopsListProps> = ({
   const [editData, setEditData] = useState<Partial<StopData>>({});
   const [hasTimeWindowOverride, setHasTimeWindowOverride] = useState(false);
   const [timeWindowError, setTimeWindowError] = useState<string>('');
-
-  // Time window validation ve auto-completion - YENİ
-  const validateAndFixTimeWindow = (start?: string, end?: string): { start: string; end: string } | undefined => {
-    // İkisi de boşsa undefined dön
-    if (!start && !end) {
-      setTimeWindowError('');
-      return undefined;
-    }
-
-    // 00:00 edge case kontrolü
-    if (start === '00:00') {
-      start = '00:01';
-      setTimeWindowError('Başlangıç saati 00:00 olamaz, 00:01 olarak ayarlandı.');
-    }
-
-    // Sadece başlangıç varsa, bitiş = başlangıç + 1 saat
-    if (start && !end) {
-      const [hours, minutes] = start.split(':').map(Number);
-      const endHours = (hours + 1) % 24;
-      end = `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-      setTimeWindowError(`Bitiş saati otomatik olarak ${end} olarak ayarlandı.`);
-    }
-    
-    // Sadece bitiş varsa, başlangıç = bitiş - 1 saat
-    if (!start && end) {
-      const [hours, minutes] = end.split(':').map(Number);
-      let startHours = hours - 1;
-      if (startHours < 0) startHours = 0;
-      start = `${startHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-      if (start === '00:00') start = '00:01';
-      setTimeWindowError(`Başlangıç saati otomatik olarak ${start} olarak ayarlandı.`);
-    }
-
-    // İkisi de doluysa, mantıklı olup olmadığını kontrol et
-    if (start && end) {
-      const startMinutes = parseInt(start.split(':')[0]) * 60 + parseInt(start.split(':')[1]);
-      const endMinutes = parseInt(end.split(':')[0]) * 60 + parseInt(end.split(':')[1]);
-      
-      if (startMinutes >= endMinutes) {
-        // Bitiş saatini başlangıçtan 1 saat sonraya ayarla
-        const [hours, minutes] = start.split(':').map(Number);
-        const newEndHours = (hours + 1) % 24;
-        end = `${newEndHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-        setTimeWindowError(`Bitiş saati başlangıçtan önce olamaz. Bitiş saati ${end} olarak ayarlandı.`);
-      } else {
-        setTimeWindowError('');
-      }
-    }
-
-    return { start, end };
-  };
+  const [initialTimeWindowSet, setInitialTimeWindowSet] = useState(false);
 
   // Drag handlers
   const handleDragStart = (e: React.DragEvent, index: number) => {
@@ -151,6 +101,7 @@ const StopsList: React.FC<StopsListProps> = ({
     const stop = stops[index];
     setEditingIndex(index);
     setTimeWindowError('');
+    setInitialTimeWindowSet(false);
     
     // Override varsa göster, yoksa boş başlat
     const hasOverride = !!(stop.overrideTimeWindow?.start || stop.overrideTimeWindow?.end);
@@ -170,17 +121,39 @@ const StopsList: React.FC<StopsListProps> = ({
     if (editingIndex !== null) {
       const updates = { ...editData };
       
-      // Time window validation ve auto-completion
+      // Time window validation
       if (hasTimeWindowOverride && updates.overrideTimeWindow) {
-        const validatedTimeWindow = validateAndFixTimeWindow(
-          updates.overrideTimeWindow.start,
-          updates.overrideTimeWindow.end
-        );
+        const { start, end } = updates.overrideTimeWindow;
         
-        if (validatedTimeWindow) {
-          updates.overrideTimeWindow = validatedTimeWindow;
-        } else {
-          delete updates.overrideTimeWindow;
+        // İkisi de dolu veya ikisi de boş olmalı
+        if ((start && !end) || (!start && end)) {
+          // Otomatik tamamla
+          if (start && !end) {
+            const [hours, minutes] = start.split(':').map(Number);
+            const endHours = (hours + 1) % 24;
+            updates.overrideTimeWindow.end = `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+          } else if (!start && end) {
+            const [hours, minutes] = end.split(':').map(Number);
+            let startHours = hours - 1;
+            if (startHours < 0) startHours = 23;
+            updates.overrideTimeWindow.start = `${startHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+          }
+        }
+        
+        // 00:00 kontrolü
+        if (updates.overrideTimeWindow.start === '00:00') {
+          updates.overrideTimeWindow.start = '00:01';
+        }
+        
+        // Mantık kontrolü
+        const startMinutes = parseInt(updates.overrideTimeWindow.start.split(':')[0]) * 60 + 
+                           parseInt(updates.overrideTimeWindow.start.split(':')[1]);
+        const endMinutes = parseInt(updates.overrideTimeWindow.end.split(':')[0]) * 60 + 
+                         parseInt(updates.overrideTimeWindow.end.split(':')[1]);
+        
+        if (startMinutes >= endMinutes) {
+          alert('Bitiş saati, başlangıç saatinden sonra olmalıdır!');
+          return;
         }
       } else {
         delete updates.overrideTimeWindow;
@@ -200,6 +173,7 @@ const StopsList: React.FC<StopsListProps> = ({
       setEditData({});
       setHasTimeWindowOverride(false);
       setTimeWindowError('');
+      setInitialTimeWindowSet(false);
     }
   };
 
@@ -208,19 +182,56 @@ const StopsList: React.FC<StopsListProps> = ({
     setEditData({});
     setHasTimeWindowOverride(false);
     setTimeWindowError('');
+    setInitialTimeWindowSet(false);
   };
 
-  // Time window input değişikliklerini handle et - YENİ
+  // Time window input değişikliklerini handle et - DÜZELTME
   const handleTimeWindowChange = (field: 'start' | 'end', value: string) => {
     const currentTimeWindow = editData.overrideTimeWindow || { start: '', end: '' };
     const newTimeWindow = { ...currentTimeWindow, [field]: value };
     
-    // Gerçek zamanlı validation
-    const validated = validateAndFixTimeWindow(newTimeWindow.start, newTimeWindow.end);
+    // 00:00 kontrolü
+    if (value === '00:00') {
+      setTimeWindowError('00:00 yerine 00:01 kullanmanız önerilir.');
+    } else {
+      setTimeWindowError('');
+    }
+    
+    // Otomatik tamamlama SADECE ilk değer girildiğinde ve diğer alan boşsa
+    if (!initialTimeWindowSet) {
+      if (field === 'start' && value && !currentTimeWindow.end) {
+        // İlk kez başlangıç girildi, end boş
+        const [hours, minutes] = value.split(':').map(Number);
+        const endHours = (hours + 1) % 24;
+        newTimeWindow.end = `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        setTimeWindowError('Bitiş saati otomatik ayarlandı. İstediğiniz gibi değiştirebilirsiniz.');
+        setInitialTimeWindowSet(true);
+      } else if (field === 'end' && value && !currentTimeWindow.start) {
+        // İlk kez bitiş girildi, start boş
+        const [hours, minutes] = value.split(':').map(Number);
+        let startHours = hours - 1;
+        if (startHours < 0) startHours = 23;
+        newTimeWindow.start = `${startHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        setTimeWindowError('Başlangıç saati otomatik ayarlandı. İstediğiniz gibi değiştirebilirsiniz.');
+        setInitialTimeWindowSet(true);
+      }
+    }
+    
+    // Mantık kontrolü - sadece ikisi de doluysa
+    if (newTimeWindow.start && newTimeWindow.end) {
+      const startMinutes = parseInt(newTimeWindow.start.split(':')[0]) * 60 + 
+                         parseInt(newTimeWindow.start.split(':')[1]);
+      const endMinutes = parseInt(newTimeWindow.end.split(':')[0]) * 60 + 
+                       parseInt(newTimeWindow.end.split(':')[1]);
+      
+      if (startMinutes >= endMinutes) {
+        setTimeWindowError('Bitiş saati, başlangıç saatinden sonra olmalıdır.');
+      }
+    }
     
     setEditData({
       ...editData,
-      overrideTimeWindow: validated || newTimeWindow
+      overrideTimeWindow: newTimeWindow
     });
   };
 
@@ -562,6 +573,7 @@ const StopsList: React.FC<StopsListProps> = ({
                             onChange={(e) => {
                               setHasTimeWindowOverride(e.target.checked);
                               setTimeWindowError('');
+                              setInitialTimeWindowSet(false);
                               if (!e.target.checked) {
                                 setEditData({
                                   ...editData,
@@ -619,10 +631,18 @@ const StopsList: React.FC<StopsListProps> = ({
                             </div>
                           </div>
                           
-                          {/* Time Window Validation Mesajı - YENİ */}
+                          {/* Time Window Validation Mesajı */}
                           {timeWindowError && (
-                            <div className="p-2 bg-yellow-50 border border-yellow-200 rounded">
-                              <p className="text-xs text-yellow-700 flex items-center">
+                            <div className={`p-2 rounded border ${
+                              timeWindowError.includes('sonra olmalıdır') 
+                                ? 'bg-red-50 border-red-200' 
+                                : 'bg-yellow-50 border-yellow-200'
+                            }`}>
+                              <p className={`text-xs flex items-center ${
+                                timeWindowError.includes('sonra olmalıdır')
+                                  ? 'text-red-700'
+                                  : 'text-yellow-700'
+                              }`}>
                                 <AlertCircle className="w-3 h-3 mr-1" />
                                 {timeWindowError}
                               </p>
