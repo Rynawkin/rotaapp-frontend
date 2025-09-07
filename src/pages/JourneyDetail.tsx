@@ -1003,15 +1003,20 @@ const JourneyDetail: React.FC = () => {
         <div className="divide-y">
           {normalStops.map((stop: JourneyStop, index: number) => {
             const stopStatusLower = stop.status?.toLowerCase() || 'pending';
+            
+            // Stop için fotoğraf ve imza bilgilerini al
+            const stopStatuses = journey.statuses?.filter(s => s.stopId === stop.id) || [];
+            const latestStatus = stopStatuses
+              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+              .find(s => s.status === 'Completed' || s.status === 'Cancelled');
 
             return (
               <div
                 key={stop.id}
-                className={`p-4 hover:bg-gray-50 transition-colors ${index === currentStopIndex ? 'bg-blue-50' : ''
-                  }`}
+                className={`p-4 hover:bg-gray-50 transition-colors ${index === currentStopIndex ? 'bg-blue-50' : ''}`}
               >
                 <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-4">
+                  <div className="flex items-start space-x-4 flex-1">
                     <div className="flex flex-col items-center">
                       {getStopStatusIcon(stop.status)}
                       {index < normalStops.length - 1 && (
@@ -1053,7 +1058,7 @@ const JourneyDetail: React.FC = () => {
 
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
                         {stop.routeStop?.customer?.phone && (
-                          <a
+                          
                             href={`tel:${stop.routeStop.customer.phone}`}
                             className="flex items-center hover:text-blue-600"
                           >
@@ -1067,7 +1072,6 @@ const JourneyDetail: React.FC = () => {
                             Tahmini: {formatTimeSpan(stop.estimatedArrivalTime)}
                           </span>
                         )}
-                        {/* ✅ Check-in/out zamanlarını göster */}
                         {stop.checkInTime && (
                           <span className="flex items-center text-green-600">
                             <Clock className="w-3 h-3 mr-1" />
@@ -1092,6 +1096,71 @@ const JourneyDetail: React.FC = () => {
                         <p className="text-sm text-gray-500 mt-2 italic">
                           Not: {stop.routeStop.notes}
                         </p>
+                      )}
+
+                      {/* ✅ YENİ: Tamamlanmış duraklar için fotoğraf ve imza butonları */}
+                      {(stopStatusLower === 'completed' || stopStatusLower === 'failed') && latestStatus && (
+                        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
+                          {/* @ts-ignore */}
+                          {latestStatus.signatureUrl && (
+                            <button
+                              onClick={() => {
+                                let url = getFullImageUrl(latestStatus.signatureUrl);
+                                if (url.includes('cloudinary.com') && !url.includes('/c_')) {
+                                  url = url.replace('/upload/', '/upload/q_auto,f_auto,w_600/');
+                                }
+                                setViewSignature(url);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm"
+                            >
+                              <Edit3 className="w-4 h-4 text-gray-600" />
+                              <span className="text-gray-700">İmza</span>
+                            </button>
+                          )}
+                          
+                          {/* @ts-ignore */}
+                          {latestStatus.photoUrl && (
+                            <button
+                              onClick={async () => {
+                                const photos = await loadStopPhotos(journey.id, stop.id);
+                                if (photos && photos.length > 0) {
+                                  setJourneyPhotos(photos);
+                                  setCurrentPhotoIndex(0);
+                                  setShowPhotoGallery(true);
+                                } else {
+                                  let url = getFullImageUrl(latestStatus.photoUrl);
+                                  if (url.includes('cloudinary.com') && !url.includes('/c_')) {
+                                    url = url.replace('/upload/', '/upload/q_auto,f_auto,w_800/');
+                                  }
+                                  setViewPhoto(url);
+                                }
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm"
+                            >
+                              <Camera className="w-4 h-4 text-gray-600" />
+                              <span className="text-gray-700">
+                                Fotoğraflar
+                                {/* Fotoğraf sayısını göster */}
+                              </span>
+                            </button>
+                          )}
+                          
+                          {/* @ts-ignore */}
+                          {latestStatus.notes && (
+                            <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                              <Package className="w-4 h-4" />
+                              <span className="italic">{latestStatus.notes}</span>
+                            </div>
+                          )}
+                          
+                          {/* @ts-ignore */}
+                          {stopStatusLower === 'failed' && latestStatus.failureReason && (
+                            <div className="flex items-center gap-1.5 text-sm text-red-600">
+                              <AlertCircle className="w-4 h-4" />
+                              <span>{latestStatus.failureReason}</span>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
