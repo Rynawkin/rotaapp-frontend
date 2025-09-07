@@ -57,11 +57,23 @@ export interface AssignRouteDto {
   name?: string; // ✅ YENİ EKLENEN
 }
 
+// ✅ YENİ: Stop detayları interface
+export interface StopDetails {
+  signatureUrl?: string;
+  photoUrl?: string;
+  receiverName?: string;
+  notes?: string;
+  failureReason?: string;
+  status?: string;
+  createdAt?: string;
+}
+
 export interface AddJourneyStatusDto {
   stopId: number;
   status: JourneyStatusType;
   notes?: string;
   failureReason?: string;
+  receiverName?: string; // ✅ YENİ EKLENEN
   signatureBase64?: string;
   photoBase64?: string;
   latitude?: number;
@@ -71,12 +83,14 @@ export interface AddJourneyStatusDto {
 
 export interface CompleteStopDto {
   notes?: string;
+  receiverName?: string; // ✅ YENİ EKLENEN
   signature?: File | Blob;  // Blob desteği
   photo?: File | Blob;      // Blob desteği
 }
 
 export interface CompleteStopWithFilesDto {
   notes?: string;
+  receiverName?: string; // ✅ YENİ EKLENEN
   signatureFile?: File;
   photoFile?: File;
 }
@@ -366,10 +380,42 @@ class JourneyService {
         createdAt: photo.CreatedAt || photo.createdAt
       }));
       
-      return photos;
+      // Duplicate fotoğrafları filtrele
+      const uniquePhotos = photos.filter((photo: StopPhoto, index: number, self: StopPhoto[]) =>
+        index === self.findIndex((p) => p.photoUrl === photo.photoUrl)
+      );
+      
+      return uniquePhotos;
     } catch (error) {
       console.error('Error fetching stop photos:', error);
       return [];
+    }
+  }
+
+  // ✅ YENİ: Stop detaylarını getir (imza, teslim alan kişi vs.)
+  async getStopDetails(journeyId: number, stopId: number): Promise<StopDetails | null> {
+    try {
+      const response = await api.get(`${this.baseUrl}/${journeyId}/stops/${stopId}/details`);
+      console.log('Stop details loaded:', response.data);
+      
+      // URL'leri normalize et
+      if (response.data) {
+        return {
+          ...response.data,
+          signatureUrl: this.normalizeImageUrl(response.data.signatureUrl || response.data.SignatureUrl),
+          photoUrl: this.normalizeImageUrl(response.data.photoUrl || response.data.PhotoUrl),
+          receiverName: response.data.receiverName || response.data.ReceiverName,
+          notes: response.data.notes || response.data.Notes,
+          failureReason: response.data.failureReason || response.data.FailureReason,
+          status: response.data.status || response.data.Status,
+          createdAt: response.data.createdAt || response.data.CreatedAt
+        };
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching stop details:', error);
+      return null;
     }
   }
 
@@ -461,7 +507,7 @@ class JourneyService {
     }
   }
 
-  // ✅ DÜZELTİLDİ: Direkt FormData alıyor
+  // ✅ DÜZELTİLDİ: Direkt FormData alıyor ve receiverName desteği eklendi
   async completeStopWithFiles(
     journeyId: string | number,
     stopId: string | number,
@@ -521,7 +567,7 @@ class JourneyService {
   async completeStop(
     journeyId: string | number,
     stopId: string | number,
-    data?: CompleteStopDto & { signatureBase64?: string; photoBase64?: string }
+    data?: CompleteStopDto & { signatureBase64?: string; photoBase64?: string; receiverName?: string }
   ): Promise<JourneyStatus> {
     try {
       console.warn('⚠️ completeStop() Base64 kullanıyor. Timeout riski var! completeStopWithFiles() kullanın.');
@@ -537,6 +583,7 @@ class JourneyService {
         stopId: Number(stopId),
         status: JourneyStatusType.Completed,
         notes: data?.notes || 'Teslimat tamamlandı',
+        receiverName: data?.receiverName, // ✅ YENİ EKLENEN
         signatureBase64: cleanBase64(data?.signatureBase64),
         photoBase64: cleanBase64(data?.photoBase64),
         latitude: 0,
@@ -566,6 +613,7 @@ class JourneyService {
         stopId: Number(stopId),
         status: statusData.status || JourneyStatusType.InTransit,
         notes: statusData.notes,
+        receiverName: statusData.receiverName, // ✅ YENİ EKLENEN
         failureReason: statusData.failureReason,
         signatureBase64: statusData.signatureBase64,
         photoBase64: statusData.photoBase64,

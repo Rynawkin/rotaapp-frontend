@@ -26,13 +26,15 @@ import {
   WifiOff,
   AlertTriangle,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  UserCheck
 } from 'lucide-react';
 import { Journey, JourneyStop, JourneyStatus } from '@/types';
 import { journeyService, CompleteStopDto } from '@/services/journey.service';
 import { toast } from 'react-hot-toast';
 import signalRService from '@/services/signalr.service';
 import { useSignalR, useJourneyTracking } from '@/hooks/useSignalR';
+import { api } from '@/services/api';
 
 const JourneyDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -46,6 +48,7 @@ const JourneyDetail: React.FC = () => {
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [showFailModal, setShowFailModal] = useState(false);
   const [deliveryNotes, setDeliveryNotes] = useState('');
+  const [receiverName, setReceiverName] = useState(''); // YENİ: Teslim alan kişi
   const [failureReason, setFailureReason] = useState('');
   const [failureNotes, setFailureNotes] = useState('');
   const [processingStopId, setProcessingStopId] = useState<number | null>(null);
@@ -400,9 +403,15 @@ const JourneyDetail: React.FC = () => {
     }
   };
 
-  // ✅ YENİ: Çoklu fotoğraf destekli complete
+  // ✅ YENİ: Çoklu fotoğraf destekli complete - Teslim alan eklendi
   const handleComplete = async () => {
     if (!journey || !selectedStop) return;
+
+    // Teslim alan kişi kontrolü
+    if (!receiverName || receiverName.trim().length < 3) {
+      toast.error('Teslim alan kişinin adını girmelisiniz (en az 3 karakter)');
+      return;
+    }
 
     setProcessingStopId(parseInt(selectedStop.id));
     try {
@@ -410,6 +419,9 @@ const JourneyDetail: React.FC = () => {
       if (deliveryNotes) {
         formData.append('notes', deliveryNotes);
       }
+
+      // Teslim alan kişi eklendi
+      formData.append('receiverName', receiverName);
 
       if (signatureFile) {
         formData.append('signature', signatureFile);
@@ -458,6 +470,7 @@ const JourneyDetail: React.FC = () => {
       setShowCompleteModal(false);
       setSelectedStop(null);
       setDeliveryNotes('');
+      setReceiverName(''); // Reset
       setSignatureFile(null);
       setPhotoFiles([]);
       setSignaturePreview('');
@@ -1049,28 +1062,67 @@ const JourneyDetail: React.FC = () => {
                         </p>
                       )}
 
-                      {/* ✅ DURAK TAMAMLANDIYSA DOĞRUDAN FOTOĞRAF/İMZA BUTONLARINI GÖSTER */}
+                      {/* ✅ DURAK TAMAMLANDIYSA İMZA VE FOTOĞRAF BUTONLARINI GÖSTER */}
                       {(stopStatusLower === 'completed' || stopStatusLower === 'failed') && (
                         <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
+                          {/* İmza butonu */}
                           <button
                             onClick={async () => {
                               const stopIdInt = parseInt(stop.id);
-                              console.log('Loading photos for journey:', journey.id, 'stop:', stopIdInt);
-                              
-                              const photos = await loadStopPhotos(journey.id, stopIdInt);
-                              console.log('Photos loaded:', photos);
-                              
-                              if (photos && photos.length > 0) {
-                                setJourneyPhotos(photos);
-                                setCurrentPhotoIndex(0);
-                                setShowPhotoGallery(true);
+                              try {
+                                const details = await journeyService.getStopDetails(journey.id, stopIdInt);
+                                
+                                if (details?.signatureUrl || details?.SignatureUrl) {
+                                  let url = getFullImageUrl(details.signatureUrl || details.SignatureUrl);
+                                  if (url.includes('cloudinary.com') && !url.includes('/c_')) {
+                                    url = url.replace('/upload/', '/upload/q_auto,f_auto,w_600/');
+                                  }
+                                  setViewSignature(url);
+                                } else {
+                                  toast.info('İmza bulunamadı');
+                                }
+                              } catch (error) {
+                                console.error('Error loading signature:', error);
+                                toast.error('İmza yüklenemedi');
                               }
                             }}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm"
                           >
-                            <Camera className="w-4 h-4 text-gray-600" />
-                            <span className="text-gray-700">Fotoğrafları Görüntüle</span>
+                            <Edit3 className="w-4 h-4 text-gray-600" />
+                            <span className="text-gray-700">İmza Görüntüle</span>
                           </button>
+                          
+                          {/* Fotoğraf butonu */}
+                          {stopStatusLower === 'completed' && (
+                            <button
+                              onClick={async () => {
+                                const stopIdInt = parseInt(stop.id);
+                                console.log('Loading photos for journey:', journey.id, 'stop:', stopIdInt);
+                                
+                                const photos = await loadStopPhotos(journey.id, stopIdInt);
+                                console.log('Photos loaded:', photos);
+                                
+                                if (photos && photos.length > 0) {
+                                  // Duplicate kontrolü
+                                  const uniquePhotos = photos.filter((photo, index, self) =>
+                                    index === self.findIndex((p) => 
+                                      (p.photoUrl || p.PhotoUrl) === (photo.photoUrl || photo.PhotoUrl)
+                                    )
+                                  );
+                                  
+                                  setJourneyPhotos(uniquePhotos);
+                                  setCurrentPhotoIndex(0);
+                                  setShowPhotoGallery(true);
+                                } else {
+                                  toast.info('Bu durak için fotoğraf bulunamadı');
+                                }
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm"
+                            >
+                              <Camera className="w-4 h-4 text-gray-600" />
+                              <span className="text-gray-700">Fotoğrafları Görüntüle</span>
+                            </button>
+                          )}
                           
                           {stopStatusLower === 'failed' && (
                             <div className="flex items-center gap-1.5 text-sm text-red-600">
@@ -1182,7 +1234,7 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-      {/* Complete Delivery Modal - ✅ YENİ: Çoklu fotoğraf desteği */}
+      {/* Complete Delivery Modal - ✅ YENİ: Teslim alan kişi eklendi */}
       {showCompleteModal && selectedStop && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -1190,6 +1242,23 @@ const JourneyDetail: React.FC = () => {
             <p className="text-gray-600 mb-4">
               <strong>{selectedStop.routeStop?.customer?.name || selectedStop.routeStop?.name || 'Durak'}</strong> teslimatı tamamlandı mı?
             </p>
+
+            {/* ✅ YENİ: Teslim Alan Kişi */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Teslim Alan Kişi <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={receiverName}
+                onChange={(e) => setReceiverName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Ad Soyad (Örn: Ahmet Yılmaz)"
+              />
+              {receiverName.trim().length > 0 && receiverName.trim().length < 3 && (
+                <p className="text-xs text-red-500 mt-1">En az 3 karakter girmelisiniz</p>
+              )}
+            </div>
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1278,6 +1347,7 @@ const JourneyDetail: React.FC = () => {
                   setShowCompleteModal(false);
                   setSelectedStop(null);
                   setDeliveryNotes('');
+                  setReceiverName('');
                   setSignatureFile(null);
                   setPhotoFiles([]);
                   setSignaturePreview('');
@@ -1289,7 +1359,7 @@ const JourneyDetail: React.FC = () => {
               </button>
               <button
                 onClick={handleComplete}
-                disabled={processingStopId !== null}
+                disabled={processingStopId !== null || !receiverName.trim() || receiverName.trim().length < 3}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
               >
                 {processingStopId !== null && (
@@ -1575,7 +1645,7 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-      {/* ✅ YENİ: Fotoğraf Galerisi Modal */}
+      {/* ✅ YENİ: Fotoğraf Galerisi Modal - Duplicate düzeltmesi */}
       {showPhotoGallery && journeyPhotos.length > 0 && (
         <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
           <div className="relative w-full h-full flex items-center justify-center">
