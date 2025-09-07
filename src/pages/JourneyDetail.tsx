@@ -960,24 +960,6 @@ const JourneyDetail: React.FC = () => {
         <div className="divide-y">
           {normalStops.map((stop: JourneyStop, index: number) => {
             const stopStatusLower = stop.status?.toLowerCase() || 'pending';
-            
-            // Debug için log ekleyelim
-            console.log('Stop ID:', stop.id, 'Type:', typeof stop.id);
-            console.log('Journey statuses:', journey.statuses?.length || 0);
-            
-            // Stop için fotoğraf ve imza bilgilerini al
-            const latestStatus = journey.statuses
-              ?.filter((s: any) => {
-                // Her iki tarafı da string'e çevir
-                const statusStopId = String(s.stopId || s.StopId);
-                const currentStopId = String(stop.id);
-                console.log(`Comparing: ${statusStopId} === ${currentStopId} = ${statusStopId === currentStopId}`);
-                return statusStopId === currentStopId;
-              })
-              ?.sort((a: any, b: any) => new Date(b.createdAt || b.CreatedAt).getTime() - new Date(a.createdAt || a.CreatedAt).getTime())
-              ?.[0]; // İlk elemanı al (en son status)
-
-            console.log('Latest status for stop', stop.id, ':', latestStatus);
 
             return (
               <div
@@ -1067,69 +1049,33 @@ const JourneyDetail: React.FC = () => {
                         </p>
                       )}
 
-                      {/* ✅ YENİ: Tamamlanmış duraklar için fotoğraf ve imza butonları */}
-                      {latestStatus && (
+                      {/* ✅ DURAK TAMAMLANDIYSA DOĞRUDAN FOTOĞRAF/İMZA BUTONLARINI GÖSTER */}
+                      {(stopStatusLower === 'completed' || stopStatusLower === 'failed') && (
                         <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
-                          {/* İmza butonu - büyük/küçük harf uyumlu */}
-                          {(latestStatus.signatureUrl || latestStatus.SignatureUrl) && (
-                            <button
-                              onClick={() => {
-                                let url = getFullImageUrl(latestStatus.signatureUrl || latestStatus.SignatureUrl);
-                                if (url.includes('cloudinary.com') && !url.includes('/c_')) {
-                                  url = url.replace('/upload/', '/upload/q_auto,f_auto,w_600/');
-                                }
-                                setViewSignature(url);
-                              }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm"
-                            >
-                              <Edit3 className="w-4 h-4 text-gray-600" />
-                              <span className="text-gray-700">İmza</span>
-                            </button>
-                          )}
+                          <button
+                            onClick={async () => {
+                              const stopIdInt = parseInt(stop.id);
+                              console.log('Loading photos for journey:', journey.id, 'stop:', stopIdInt);
+                              
+                              const photos = await loadStopPhotos(journey.id, stopIdInt);
+                              console.log('Photos loaded:', photos);
+                              
+                              if (photos && photos.length > 0) {
+                                setJourneyPhotos(photos);
+                                setCurrentPhotoIndex(0);
+                                setShowPhotoGallery(true);
+                              }
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm"
+                          >
+                            <Camera className="w-4 h-4 text-gray-600" />
+                            <span className="text-gray-700">Fotoğrafları Görüntüle</span>
+                          </button>
                           
-                          {/* Fotoğraf butonu - büyük/küçük harf uyumlu */}
-                          {(latestStatus.photoUrl || latestStatus.PhotoUrl) && (
-                            <button
-                              onClick={async () => {
-                                const stopIdInt = parseInt(stop.id);
-                                console.log('Loading photos for journey:', journey.id, 'stop:', stopIdInt);
-                                
-                                const photos = await loadStopPhotos(journey.id, stopIdInt);
-                                console.log('Photos loaded:', photos);
-                                
-                                if (photos && photos.length > 0) {
-                                  setJourneyPhotos(photos);
-                                  setCurrentPhotoIndex(0);
-                                  setShowPhotoGallery(true);
-                                } else {
-                                  // Tek fotoğraf varsa eski yöntemle göster
-                                  let url = getFullImageUrl(latestStatus.photoUrl || latestStatus.PhotoUrl);
-                                  if (url.includes('cloudinary.com') && !url.includes('/c_')) {
-                                    url = url.replace('/upload/', '/upload/q_auto,f_auto,w_800/');
-                                  }
-                                  setViewPhoto(url);
-                                }
-                              }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm"
-                            >
-                              <Camera className="w-4 h-4 text-gray-600" />
-                              <span className="text-gray-700">Fotoğraflar</span>
-                            </button>
-                          )}
-                          
-                          {/* Notlar - büyük/küçük harf uyumlu */}
-                          {(latestStatus.notes || latestStatus.Notes) && (
-                            <div className="flex items-center gap-1.5 text-sm text-gray-600">
-                              <Package className="w-4 h-4" />
-                              <span className="italic">{latestStatus.notes || latestStatus.Notes}</span>
-                            </div>
-                          )}
-                          
-                          {/* Başarısızlık nedeni - büyük/küçük harf uyumlu */}
-                          {stopStatusLower === 'failed' && (latestStatus.failureReason || latestStatus.FailureReason) && (
+                          {stopStatusLower === 'failed' && (
                             <div className="flex items-center gap-1.5 text-sm text-red-600">
                               <AlertCircle className="w-4 h-4" />
-                              <span>{latestStatus.failureReason || latestStatus.FailureReason}</span>
+                              <span>Teslimat başarısız</span>
                             </div>
                           )}
                         </div>
