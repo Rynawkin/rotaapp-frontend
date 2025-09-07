@@ -15,8 +15,7 @@ import {
   Navigation,
   Zap,
   XCircle,
-  RefreshCw,
-  Users
+  RefreshCw
 } from 'lucide-react';
 import CustomerSelector from './CustomerSelector';
 import StopsList from './StopsList';
@@ -440,9 +439,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
     } else {
       alert('Seçilen müşteriler zaten rotada mevcut!');
     }
-    
-    // Multi-select modunu kapat
-    setMultiSelectMode(false);
   };
 
   // Yeni müşteri oluşturma handler'ı
@@ -763,7 +759,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
     setExcludedStops([]);
     setOptimizedOrder([]);
     setStartTime('08:00');
-    setMultiSelectMode(false);
     
     // LocalStorage'ı da temizle
     localStorage.removeItem(STORAGE_KEY);
@@ -1143,20 +1138,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Müşteri Seçimi</h2>
             <div className="flex items-center space-x-3">
-              {/* Multi-select toggle */}
-              <button
-                type="button"
-                onClick={() => setMultiSelectMode(!multiSelectMode)}
-                className={`px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center ${
-                  multiSelectMode 
-                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <Users className="w-4 h-4 mr-1.5" />
-                {multiSelectMode ? 'Toplu Seçim Aktif' : 'Toplu Seçim'}
-              </button>
-              
               {stopsData.length > 0 && (
                 <>
                   <div className="text-sm text-gray-600">
