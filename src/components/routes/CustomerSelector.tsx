@@ -351,10 +351,10 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
 
       {/* Multi-Select Modal */}
       {showMultiSelectModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col" style={{ maxHeight: 'calc(100vh - 2rem)' }}>
             {/* Modal Header */}
-            <div className="bg-purple-600 text-white p-4 flex items-center justify-between">
+            <div className="bg-purple-600 text-white p-4 flex items-center justify-between rounded-t-lg">
               <div>
                 <h2 className="text-xl font-semibold">Toplu Müşteri Seçimi</h2>
                 <p className="text-purple-100 text-sm mt-1">
@@ -402,8 +402,8 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
               </div>
             </div>
 
-            {/* Modal Content */}
-            <div className="overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
+            {/* Modal Content - Scrollable */}
+            <div className="flex-1 overflow-y-auto">
               {modalCustomers.length > 0 ? (
                 modalCustomers.map(customer => {
                   const alreadySelected = isSelected(customer.id.toString());
@@ -412,10 +412,15 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
                   return (
                     <div
                       key={customer.id}
-                      onClick={() => !alreadySelected && handleToggleMultiSelect(customer.id.toString())}
+                      onClick={() => {
+                        // Sadece daha önce eklenmemiş olanlar seçilebilir
+                        if (!alreadySelected) {
+                          handleToggleMultiSelect(customer.id.toString());
+                        }
+                      }}
                       className={`p-4 border-b border-gray-100 transition-colors ${
                         alreadySelected 
-                          ? 'bg-gray-50 cursor-not-allowed opacity-50' 
+                          ? 'bg-gray-100 cursor-not-allowed' 
                           : inMultiSelectList 
                             ? 'bg-purple-50 hover:bg-purple-100 cursor-pointer' 
                             : 'hover:bg-gray-50 cursor-pointer'
@@ -424,7 +429,9 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
                       <div className="flex items-start">
                         <div className="mr-4 mt-1">
                           {alreadySelected ? (
-                            <CheckSquare className="w-5 h-5 text-gray-400" />
+                            <div className="w-5 h-5 bg-gray-300 rounded flex items-center justify-center">
+                              <Check className="w-3 h-3 text-white" />
+                            </div>
                           ) : inMultiSelectList ? (
                             <CheckSquare className="w-5 h-5 text-purple-600" />
                           ) : (
@@ -434,7 +441,7 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
                         
                         <div className="flex-1">
                           <div className="flex items-center mb-1">
-                            <h3 className="font-medium text-gray-900">
+                            <h3 className={`font-medium ${alreadySelected ? 'text-gray-500' : 'text-gray-900'}`}>
                               {customer.name}
                             </h3>
                             {customer.code && (
@@ -443,14 +450,13 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
                               </span>
                             )}
                             {alreadySelected && (
-                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                <Check className="w-3 h-3 mr-1" />
+                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-600">
                                 Rotada Mevcut
                               </span>
                             )}
                           </div>
 
-                          <div className="flex items-start text-sm text-gray-600">
+                          <div className={`flex items-start text-sm ${alreadySelected ? 'text-gray-400' : 'text-gray-600'}`}>
                             <MapPin className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" />
                             <span>{customer.address}</span>
                           </div>
@@ -458,13 +464,13 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
                           {(customer.phone || customer.estimatedServiceTime) && (
                             <div className="flex items-center space-x-4 text-sm mt-1">
                               {customer.phone && (
-                                <div className="flex items-center text-gray-500">
+                                <div className={`flex items-center ${alreadySelected ? 'text-gray-400' : 'text-gray-500'}`}>
                                   <Phone className="w-4 h-4 mr-1" />
                                   <span>{customer.phone}</span>
                                 </div>
                               )}
                               {customer.estimatedServiceTime && (
-                                <div className="flex items-center text-gray-500">
+                                <div className={`flex items-center ${alreadySelected ? 'text-gray-400' : 'text-gray-500'}`}>
                                   <Clock className="w-4 h-4 mr-1" />
                                   <span>{customer.estimatedServiceTime} dk</span>
                                 </div>
@@ -488,8 +494,8 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
               )}
             </div>
 
-            {/* Modal Footer */}
-            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+            {/* Modal Footer - Fixed at bottom */}
+            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3 rounded-b-lg">
               <button
                 onClick={() => {
                   setShowMultiSelectModal(false);
