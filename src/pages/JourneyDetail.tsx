@@ -910,60 +910,6 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-      {/* Status History - ✅ DÜZELTİLDİ */}
-      {journey.statuses && journey.statuses.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100">
-          <div className="p-6 border-b">
-            <h3 className="font-semibold text-gray-900">İşlem Geçmişi</h3>
-          </div>
-          <div className="divide-y max-h-64 overflow-y-auto">
-            {journey.statuses
-              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-              .map((status: JourneyStatus) => (
-                <div key={status.id} className="p-4 hover:bg-gray-50">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <span className={`px-2 py-0.5 text-xs rounded-full ${
-                          status.status === 'Completed' ? 'bg-green-100 text-green-700' :
-                          status.status === 'Cancelled' ? 'bg-red-100 text-red-700' :
-                          status.status === 'Arrived' ? 'bg-blue-100 text-blue-700' :
-                          'bg-gray-100 text-gray-700'
-                        }`}>
-                          {status.status === 'Completed' && 'Tamamlandı'}
-                          {status.status === 'Cancelled' && 'Başarısız'}
-                          {status.status === 'Arrived' && 'Varış'}
-                          {status.status === 'InTransit' && 'Yolda'}
-                          {status.status === 'Processing' && 'İşleniyor'}
-                          {status.status === 'Delayed' && 'Gecikme'}
-                          {status.status === 'OnHold' && 'Beklemede'}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {new Date(status.createdAt).toLocaleString('tr-TR')}
-                        </span>
-                      </div>
-
-                      {status.notes && (
-                        <p className="text-sm text-gray-600 mt-1">
-                          <strong>Not:</strong> {status.notes}
-                        </p>
-                      )}
-
-                      {/* @ts-ignore */}
-                      {status.failureReason && (
-                        <p className="text-sm text-red-600 mt-1">
-                          <strong>Başarısızlık Nedeni:</strong> {status.failureReason}
-                        </p>
-                      )}
-                      
-                      {/* FOTOĞRAF VE İMZA LİNKLERİ KALDIRILDI */}
-                    </div>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
 
       {/* Stops List - Sadece normal stops */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-100">
@@ -1062,74 +1008,123 @@ const JourneyDetail: React.FC = () => {
                         </p>
                       )}
 
-                      {/* ✅ DURAK TAMAMLANDIYSA İMZA VE FOTOĞRAF BUTONLARINI GÖSTER */}
+                      {/* ✅ DURAK TAMAMLANDIYSA DETAYLARI GÖSTER */}
                       {(stopStatusLower === 'completed' || stopStatusLower === 'failed') && (
-                        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
-                          {/* İmza butonu */}
-                          <button
-                            onClick={async () => {
-                              const stopIdInt = parseInt(stop.id);
-                              try {
-                                const details = await journeyService.getStopDetails(journey.id, stopIdInt);
-                                
-                                if (details?.signatureUrl || details?.SignatureUrl) {
-                                  let url = getFullImageUrl(details.signatureUrl || details.SignatureUrl);
-                                  if (url.includes('cloudinary.com') && !url.includes('/c_')) {
-                                    url = url.replace('/upload/', '/upload/q_auto,f_auto,w_600/');
-                                  }
-                                  setViewSignature(url);
-                                } else {
-                                  toast.info('İmza bulunamadı');
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          {/* Durak detayları için state */}
+                          {(() => {
+                            const [stopDetails, setStopDetails] = React.useState<any>(null);
+                            const [detailsLoading, setDetailsLoading] = React.useState(false);
+                            
+                            React.useEffect(() => {
+                              const loadDetails = async () => {
+                                setDetailsLoading(true);
+                                try {
+                                  const details = await journeyService.getStopDetails(journey.id, parseInt(stop.id));
+                                  setStopDetails(details);
+                                } catch (error) {
+                                  console.error('Error loading stop details:', error);
+                                } finally {
+                                  setDetailsLoading(false);
                                 }
-                              } catch (error) {
-                                console.error('Error loading signature:', error);
-                                toast.error('İmza yüklenemedi');
-                              }
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm"
-                          >
-                            <Edit3 className="w-4 h-4 text-gray-600" />
-                            <span className="text-gray-700">İmza Görüntüle</span>
-                          </button>
-                          
-                          {/* Fotoğraf butonu */}
-                          {stopStatusLower === 'completed' && (
-                            <button
-                              onClick={async () => {
-                                const stopIdInt = parseInt(stop.id);
-                                console.log('Loading photos for journey:', journey.id, 'stop:', stopIdInt);
-                                
-                                const photos = await loadStopPhotos(journey.id, stopIdInt);
-                                console.log('Photos loaded:', photos);
-                                
-                                if (photos && photos.length > 0) {
-                                  // Duplicate kontrolü
-                                  const uniquePhotos = photos.filter((photo, index, self) =>
-                                    index === self.findIndex((p) => 
-                                      (p.photoUrl || p.PhotoUrl) === (photo.photoUrl || photo.PhotoUrl)
-                                    )
-                                  );
+                              };
+                              
+                              loadDetails();
+                            }, [stop.id]);
+                            
+                            if (detailsLoading) {
+                              return (
+                                <div className="flex items-center justify-center py-2">
+                                  <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                                </div>
+                              );
+                            }
+                            
+                            return (
+                              <>
+                                {/* Teslim Alan Kişi ve Notlar */}
+                                <div className="space-y-2 mb-3">
+                                  {stopDetails?.receiverName && (
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <UserCheck className="w-4 h-4 text-gray-500" />
+                                      <span className="text-gray-600">Teslim Alan:</span>
+                                      <span className="font-medium text-gray-900">{stopDetails.receiverName}</span>
+                                    </div>
+                                  )}
                                   
-                                  setJourneyPhotos(uniquePhotos);
-                                  setCurrentPhotoIndex(0);
-                                  setShowPhotoGallery(true);
-                                } else {
-                                  toast.info('Bu durak için fotoğraf bulunamadı');
-                                }
-                              }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm"
-                            >
-                              <Camera className="w-4 h-4 text-gray-600" />
-                              <span className="text-gray-700">Fotoğrafları Görüntüle</span>
-                            </button>
-                          )}
-                          
-                          {stopStatusLower === 'failed' && (
-                            <div className="flex items-center gap-1.5 text-sm text-red-600">
-                              <AlertCircle className="w-4 h-4" />
-                              <span>Teslimat başarısız</span>
-                            </div>
-                          )}
+                                  {stopDetails?.notes && (
+                                    <div className="flex items-start gap-2 text-sm">
+                                      <Package className="w-4 h-4 text-gray-500 mt-0.5" />
+                                      <span className="text-gray-600">Teslimat Notu:</span>
+                                      <span className="text-gray-700">{stopDetails.notes}</span>
+                                    </div>
+                                  )}
+                                  
+                                  {stopStatusLower === 'failed' && stopDetails?.failureReason && (
+                                    <div className="flex items-start gap-2 text-sm">
+                                      <AlertCircle className="w-4 h-4 text-red-500 mt-0.5" />
+                                      <span className="text-red-600">Başarısızlık Nedeni:</span>
+                                      <span className="text-red-700">{stopDetails.failureReason}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* İmza ve Fotoğraf Butonları */}
+                                <div className="flex items-center gap-3">
+                                  {/* İmza butonu - Sadece imza varsa aktif */}
+                                  <button
+                                    onClick={async () => {
+                                      if (stopDetails?.signatureUrl) {
+                                        let url = getFullImageUrl(stopDetails.signatureUrl);
+                                        if (url.includes('cloudinary.com') && !url.includes('/c_')) {
+                                          url = url.replace('/upload/', '/upload/q_auto,f_auto,w_600/');
+                                        }
+                                        setViewSignature(url);
+                                      }
+                                    }}
+                                    disabled={!stopDetails?.signatureUrl}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors text-sm ${
+                                      stopDetails?.signatureUrl 
+                                        ? 'bg-gray-50 hover:bg-gray-100 cursor-pointer' 
+                                        : 'bg-gray-50 opacity-50 cursor-not-allowed'
+                                    }`}
+                                  >
+                                    <Edit3 className={`w-4 h-4 ${stopDetails?.signatureUrl ? 'text-gray-600' : 'text-gray-400'}`} />
+                                    <span className={stopDetails?.signatureUrl ? 'text-gray-700' : 'text-gray-400'}>
+                                      İmza {!stopDetails?.signatureUrl && '(Yok)'}
+                                    </span>
+                                  </button>
+                                  
+                                  {/* Fotoğraf butonu - Sadece completed durumda kontrol et */}
+                                  {stopStatusLower === 'completed' && (
+                                    <button
+                                      onClick={async () => {
+                                        const stopIdInt = parseInt(stop.id);
+                                        const photos = await loadStopPhotos(journey.id, stopIdInt);
+                                        
+                                        if (photos && photos.length > 0) {
+                                          const uniquePhotos = photos.filter((photo, index, self) =>
+                                            index === self.findIndex((p) => 
+                                              (p.photoUrl || p.PhotoUrl) === (photo.photoUrl || photo.PhotoUrl)
+                                            )
+                                          );
+                                          
+                                          setJourneyPhotos(uniquePhotos);
+                                          setCurrentPhotoIndex(0);
+                                          setShowPhotoGallery(true);
+                                        }
+                                      }}
+                                      disabled={detailsLoading}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm cursor-pointer"
+                                    >
+                                      <Camera className="w-4 h-4 text-gray-600" />
+                                      <span className="text-gray-700">Fotoğraflar</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>
