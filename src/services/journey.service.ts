@@ -109,6 +109,16 @@ export interface ImageTransformation {
   format?: 'auto' | 'jpg' | 'png' | 'webp';
 }
 
+// ✅ YENİ: Stop Photo interface
+export interface StopPhoto {
+  id: number;
+  photoUrl: string;
+  thumbnailUrl?: string;
+  caption?: string;
+  displayOrder: number;
+  createdAt: string;
+}
+
 class JourneyService {
   private baseUrl = '/workspace/journeys';
 
@@ -325,6 +335,30 @@ class JourneyService {
     } catch (error) {
       console.error('Error fetching journey statuses:', error);
       throw error;
+    }
+  }
+
+  // ✅ YENİ: Stop fotoğraflarını getir
+  async getStopPhotos(journeyId: string | number): Promise<StopPhoto[]> {
+    try {
+      const response = await api.get(`${this.baseUrl}/${journeyId}/photos`);
+      console.log('Journey photos loaded:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching journey photos:', error);
+      return [];
+    }
+  }
+
+  // ✅ YENİ: Belirli bir stop için fotoğrafları getir
+  async getStopPhotosForStatus(journeyId: number, stopId: number): Promise<StopPhoto[]> {
+    try {
+      const response = await api.get(`${this.baseUrl}/${journeyId}/stops/${stopId}/photos`);
+      console.log('Stop photos loaded:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching stop photos:', error);
+      return [];
     }
   }
 
