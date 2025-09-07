@@ -46,6 +46,8 @@ const StopDetailsSection: React.FC<{
 }> = ({ journeyId, stopId, stopStatus, onViewSignature, onViewPhotos }) => {
   const [details, setDetails] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [hasPhotos, setHasPhotos] = useState(false);
+  const [photosChecked, setPhotosChecked] = useState(false);
   
   // Helper function - URL'leri tam path'e çevir
   const getFullImageUrl = (url: string | null | undefined): string => {
@@ -72,17 +74,27 @@ const StopDetailsSection: React.FC<{
       try {
         const data = await journeyService.getStopDetails(journeyId, stopId);
         setDetails(data);
+        
+        // Fotoğrafları kontrol et
+        if (stopStatus === 'completed') {
+          const photos = await journeyService.getStopPhotosForStatus(journeyId, stopId);
+          setHasPhotos(photos && photos.length > 0);
+        }
+        setPhotosChecked(true);
       } catch (error) {
         console.error('Error loading stop details:', error);
+        setPhotosChecked(true);
       } finally {
         setLoading(false);
       }
     };
     
     loadDetails();
-  }, [journeyId, stopId]);
+  }, [journeyId, stopId, stopStatus]);
   
   const handleViewPhotos = async () => {
+    if (!hasPhotos) return;
+    
     try {
       const photos = await journeyService.getStopPhotosForStatus(journeyId, stopId);
       if (photos && photos.length > 0) {
@@ -164,14 +176,21 @@ const StopDetailsSection: React.FC<{
           </span>
         </button>
         
-        {/* Fotoğraf butonu - Sadece completed durumda */}
-        {stopStatus === 'completed' && (
+        {/* Fotoğraf butonu - Sadece completed durumda ve fotoğraf varsa aktif */}
+        {stopStatus === 'completed' && photosChecked && (
           <button
             onClick={handleViewPhotos}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm cursor-pointer"
+            disabled={!hasPhotos}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors text-sm ${
+              hasPhotos 
+                ? 'bg-gray-50 hover:bg-gray-100 cursor-pointer' 
+                : 'bg-gray-50 opacity-50 cursor-not-allowed'
+            }`}
           >
-            <Camera className="w-4 h-4 text-gray-600" />
-            <span className="text-gray-700">Fotoğraflar</span>
+            <Camera className={`w-4 h-4 ${hasPhotos ? 'text-gray-600' : 'text-gray-400'}`} />
+            <span className={hasPhotos ? 'text-gray-700' : 'text-gray-400'}>
+              Fotoğraflar {!hasPhotos && '(Yok)'}
+            </span>
           </button>
         )}
       </div>
