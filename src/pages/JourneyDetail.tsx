@@ -24,7 +24,9 @@ import {
   CheckSquare,
   Wifi,
   WifiOff,
-  AlertTriangle
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { Journey, JourneyStop, JourneyStatus } from '@/types';
 import { journeyService, CompleteStopDto } from '@/services/journey.service';
@@ -68,14 +70,19 @@ const JourneyDetail: React.FC = () => {
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [signatureFile, setSignatureFile] = useState<File | null>(null);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]); // Çoklu fotoğraf için array
   const [signaturePreview, setSignaturePreview] = useState('');
-  const [photoPreview, setPhotoPreview] = useState('');
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]); // Çoklu önizleme
   const [isDrawing, setIsDrawing] = useState(false);
 
   // ✅ Görüntüleme için
   const [viewSignature, setViewSignature] = useState<string | null>(null);
   const [viewPhoto, setViewPhoto] = useState<string | null>(null);
+
+  // ✅ YENİ: Çoklu fotoğraf galerisi için
+  const [journeyPhotos, setJourneyPhotos] = useState<any[]>([]);
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  const [showPhotoGallery, setShowPhotoGallery] = useState(false);
 
   // Canvas ve file input ref'leri
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -168,6 +175,7 @@ const JourneyDetail: React.FC = () => {
   useEffect(() => {
     if (id) {
       loadJourney();
+      loadJourneyPhotos(); // Fotoğrafları da yükle
     }
   }, [id]);
 
@@ -203,6 +211,29 @@ const JourneyDetail: React.FC = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ✅ YENİ: Fotoğrafları yükleme fonksiyonu
+  const loadJourneyPhotos = async () => {
+    if (!id) return;
+    
+    try {
+      const photos = await journeyService.getStopPhotos(id);
+      setJourneyPhotos(photos);
+    } catch (error) {
+      console.error('Error loading photos:', error);
+    }
+  };
+
+  // ✅ YENİ: Stop için fotoğrafları yükle
+  const loadStopPhotos = async (journeyId: number, stopId: number) => {
+    try {
+      const photos = await journeyService.getStopPhotosForStatus(journeyId, stopId);
+      return photos;
+    } catch (error) {
+      console.error('Error loading stop photos:', error);
+      return [];
     }
   };
 
@@ -280,20 +311,45 @@ const JourneyDetail: React.FC = () => {
     }, 'image/png');
   };
 
-  // Fotoğraf fonksiyonları...
+  // ✅ YENİ: Çoklu fotoğraf seçimi
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Dosya boyutu 5MB\'dan küçük olmalıdır');
+    const MAX_PHOTOS = 10;
+    const currentCount = photoFiles.length;
+    const availableSlots = MAX_PHOTOS - currentCount;
+
+    if (availableSlots <= 0) {
+      toast.error(`En fazla ${MAX_PHOTOS} fotoğraf ekleyebilirsiniz`);
       return;
     }
 
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
+    const newFiles: File[] = [];
+    const newPreviews: string[] = [];
+
+    for (let i = 0; i < Math.min(files.length, availableSlots); i++) {
+      const file = files[i];
+      
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name} dosyası 5MB'dan büyük`);
+        continue;
+      }
+
+      newFiles.push(file);
+      newPreviews.push(URL.createObjectURL(file));
+    }
+
+    setPhotoFiles(prev => [...prev, ...newFiles]);
+    setPhotoPreviews(prev => [...prev, ...newPreviews]);
     setShowPhotoModal(false);
-    toast.success('Fotoğraf eklendi');
+    toast.success(`${newFiles.length} fotoğraf eklendi`);
+  };
+
+  // ✅ YENİ: Fotoğraf silme
+  const handleRemovePhoto = (index: number) => {
+    setPhotoFiles(prev => prev.filter((_, i) => i !== index));
+    setPhotoPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   // Handler'lar...
@@ -344,6 +400,7 @@ const JourneyDetail: React.FC = () => {
     }
   };
 
+  // ✅ YENİ: Çoklu fotoğraf destekli complete
   const handleComplete = async () => {
     if (!journey || !selectedStop) return;
 
@@ -358,11 +415,17 @@ const JourneyDetail: React.FC = () => {
         formData.append('signature', signatureFile);
       }
 
-      if (photoFile) {
-        formData.append('photo', photoFile);
-      }
+      // Çoklu fotoğraf ekleme
+      photoFiles.forEach((file, index) => {
+        if (index === 0) {
+          // İlk fotoğraf için backward compatibility
+          formData.append('photo', file);
+        } else {
+          // Diğer fotoğraflar
+          formData.append('photos', file);
+        }
+      });
 
-      // ✅ DÜZELTİLDİ: Direkt FormData gönder
       await journeyService.completeStopWithFiles(journey.id, selectedStop.id, formData);
 
       setJourney(prev => {
@@ -396,14 +459,17 @@ const JourneyDetail: React.FC = () => {
       setSelectedStop(null);
       setDeliveryNotes('');
       setSignatureFile(null);
-      setPhotoFile(null);
+      setPhotoFiles([]);
       setSignaturePreview('');
-      setPhotoPreview('');
+      setPhotoPreviews([]);
 
       toast.success('Teslimat tamamlandı');
 
-      // Journey'yi yeniden yükle
-      setTimeout(() => loadJourney(), 1000);
+      // Journey'yi ve fotoğrafları yeniden yükle
+      setTimeout(() => {
+        loadJourney();
+        loadJourneyPhotos();
+      }, 1000);
 
     } catch (error) {
       console.error('Error completing stop:', error);
@@ -898,18 +964,26 @@ const JourneyDetail: React.FC = () => {
                         {/* @ts-ignore */}
                         {status.photoUrl && (
                           <button
-                            onClick={() => {
-                              let url = getFullImageUrl(status.photoUrl);
-                              // Cloudinary için optimize edilmiş görüntüleme URL'si
-                              if (url.includes('cloudinary.com') && !url.includes('/c_')) {
-                                url = url.replace('/upload/', '/upload/q_auto,f_auto,w_800/');
+                            onClick={async () => {
+                              // Tüm fotoğrafları yükle
+                              const photos = await loadStopPhotos(status.journeyId, status.stopId);
+                              if (photos && photos.length > 0) {
+                                setJourneyPhotos(photos);
+                                setCurrentPhotoIndex(0);
+                                setShowPhotoGallery(true);
+                              } else {
+                                // Tek fotoğraf varsa eski yöntemle göster
+                                let url = getFullImageUrl(status.photoUrl);
+                                if (url.includes('cloudinary.com') && !url.includes('/c_')) {
+                                  url = url.replace('/upload/', '/upload/q_auto,f_auto,w_800/');
+                                }
+                                setViewPhoto(url);
                               }
-                              setViewPhoto(url);
                             }}
                             className="flex items-center text-xs text-blue-600 hover:text-blue-700"
                           >
                             <Camera className="w-3 h-3 mr-1" />
-                            Teslimat fotoğrafı
+                            Teslimat fotoğrafları {journeyPhotos.length > 1 && `(${journeyPhotos.length})`}
                           </button>
                         )}
                       </div>
@@ -1082,7 +1156,7 @@ const JourneyDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* MODALS - Aynı kalacak */}
+      {/* MODALS */}
 
       {/* Check-in Modal */}
       {showCheckInModal && selectedStop && (
@@ -1121,7 +1195,7 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-      {/* Complete Delivery Modal */}
+      {/* Complete Delivery Modal - ✅ YENİ: Çoklu fotoğraf desteği */}
       {showCompleteModal && selectedStop && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -1144,66 +1218,72 @@ const JourneyDetail: React.FC = () => {
             </div>
 
             {/* İmza ve Fotoğraf Bölümü */}
-            <div className="flex justify-center space-x-4 mb-4">
-              <button
-                onClick={() => setShowSignatureModal(true)}
-                className="flex flex-col items-center p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 transition-colors"
-              >
-                <Edit3 className="w-8 h-8 text-gray-400 mb-2" />
-                <span className="text-sm text-gray-600">İmza</span>
-                {signaturePreview && (
-                  <span className="text-xs text-green-600 mt-1">✔ Eklendi</span>
-                )}
-              </button>
-
-              <button
-                onClick={() => setShowPhotoModal(true)}
-                className="flex flex-col items-center p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 transition-colors"
-              >
-                <Camera className="w-8 h-8 text-gray-400 mb-2" />
-                <span className="text-sm text-gray-600">Fotoğraf</span>
-                {photoPreview && (
-                  <span className="text-xs text-green-600 mt-1">✔ Eklendi</span>
-                )}
-              </button>
-            </div>
-
-            {/* Önizleme */}
-            {(signaturePreview || photoPreview) && (
-              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                <p className="text-xs text-gray-600 mb-2">Ekler:</p>
-                <div className="flex space-x-2">
+            <div className="mb-4">
+              <div className="flex justify-center space-x-4 mb-4">
+                <button
+                  onClick={() => setShowSignatureModal(true)}
+                  className="flex flex-col items-center p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 transition-colors"
+                >
+                  <Edit3 className="w-8 h-8 text-gray-400 mb-2" />
+                  <span className="text-sm text-gray-600">İmza</span>
                   {signaturePreview && (
-                    <div className="relative">
-                      <img src={signaturePreview} alt="İmza" className="h-16 border rounded" />
-                      <button
-                        onClick={() => {
-                          setSignatureFile(null);
-                          setSignaturePreview('');
-                        }}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
+                    <span className="text-xs text-green-600 mt-1">✓ Eklendi</span>
                   )}
-                  {photoPreview && (
-                    <div className="relative">
-                      <img src={photoPreview} alt="Fotoğraf" className="h-16 border rounded" />
-                      <button
-                        onClick={() => {
-                          setPhotoFile(null);
-                          setPhotoPreview('');
-                        }}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
+                </button>
+
+                <button
+                  onClick={() => setShowPhotoModal(true)}
+                  className="flex flex-col items-center p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 transition-colors"
+                >
+                  <Camera className="w-8 h-8 text-gray-400 mb-2" />
+                  <span className="text-sm text-gray-600">
+                    Fotoğraf ({photoFiles.length}/10)
+                  </span>
+                  {photoFiles.length > 0 && (
+                    <span className="text-xs text-green-600 mt-1">
+                      ✓ {photoFiles.length} fotoğraf
+                    </span>
                   )}
-                </div>
+                </button>
               </div>
-            )}
+
+              {/* Önizleme */}
+              {(signaturePreview || photoPreviews.length > 0) && (
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-xs text-gray-600 mb-2">Ekler:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {signaturePreview && (
+                      <div className="relative">
+                        <img src={signaturePreview} alt="İmza" className="h-16 border rounded" />
+                        <button
+                          onClick={() => {
+                            setSignatureFile(null);
+                            setSignaturePreview('');
+                          }}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                    {photoPreviews.map((preview, index) => (
+                      <div key={index} className="relative">
+                        <img src={preview} alt={`Fotoğraf ${index + 1}`} className="h-16 border rounded" />
+                        <button
+                          onClick={() => handleRemovePhoto(index)}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                        <span className="absolute bottom-0 left-0 bg-black bg-opacity-50 text-white text-xs px-1 rounded-tr">
+                          {index + 1}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="flex justify-end space-x-3">
               <button
@@ -1212,9 +1292,9 @@ const JourneyDetail: React.FC = () => {
                   setSelectedStop(null);
                   setDeliveryNotes('');
                   setSignatureFile(null);
-                  setPhotoFile(null);
+                  setPhotoFiles([]);
                   setSignaturePreview('');
-                  setPhotoPreview('');
+                  setPhotoPreviews([]);
                 }}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
@@ -1234,8 +1314,6 @@ const JourneyDetail: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Diğer modallar aynı kalacak... */}
 
       {/* Fail Modal */}
       {showFailModal && selectedStop && (
@@ -1351,11 +1429,13 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-      {/* Fotoğraf Modal */}
+      {/* ✅ YENİ: Çoklu Fotoğraf Modal */}
       {showPhotoModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Fotoğraf Ekle</h2>
+            <h2 className="text-xl font-bold mb-4">
+              Fotoğraf Ekle ({photoFiles.length}/10)
+            </h2>
 
             <div className="mb-4">
               <input
@@ -1363,6 +1443,7 @@ const JourneyDetail: React.FC = () => {
                 type="file"
                 accept="image/*"
                 capture="environment"
+                multiple
                 onChange={handlePhotoSelect}
                 className="hidden"
               />
@@ -1373,16 +1454,43 @@ const JourneyDetail: React.FC = () => {
               >
                 <Camera className="w-12 h-12 text-gray-400 mb-3" />
                 <span className="text-gray-600">Fotoğraf Seç veya Çek</span>
-                <span className="text-xs text-gray-500 mt-1">JPG, PNG, max 5MB</span>
+                <span className="text-xs text-gray-500 mt-1">
+                  JPG, PNG, max 5MB - Birden fazla seçebilirsiniz
+                </span>
               </button>
             </div>
+
+            {photoFiles.length > 0 && (
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  Seçilen fotoğraflar:
+                </p>
+                <div className="grid grid-cols-4 gap-2">
+                  {photoPreviews.map((preview, index) => (
+                    <div key={index} className="relative">
+                      <img
+                        src={preview}
+                        alt={`Fotoğraf ${index + 1}`}
+                        className="w-full h-20 object-cover rounded"
+                      />
+                      <button
+                        onClick={() => handleRemovePhoto(index)}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowPhotoModal(false)}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                İptal
+                Kapat
               </button>
             </div>
           </div>
@@ -1421,68 +1529,153 @@ const JourneyDetail: React.FC = () => {
                 rel="noopener noreferrer"
                 className="px-4 py-2 text-blue-600 hover:text-blue-700 flex items-center"
               >
-              <Eye className="w-4 h-4 mr-2" />
-              Tam Boyut
-            </a>
-            <button
-              onClick={() => setViewSignature(null)}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-            >
-              Kapat
-            </button>
+                <Eye className="w-4 h-4 mr-2" />
+                Tam Boyut
+              </a>
+              <button
+                onClick={() => setViewSignature(null)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Kapat
+              </button>
+            </div>
           </div>
         </div>
-        </div>
-  )
-}
+      )}
 
-{
-  viewPhoto && (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
-        <h2 className="text-xl font-bold mb-4">Teslimat Fotoğrafı</h2>
-        <div className="border rounded-lg p-4 bg-gray-50">
-          <img
-            src={viewPhoto}
-            alt="Teslimat Fotoğrafı"
-            className="w-full"
-            onError={(e) => {
-              console.error('Fotoğraf yüklenemedi:', viewPhoto);
-              // Cloudinary URL ise thumbnail versiyonunu dene
-              if (viewPhoto.includes('cloudinary.com')) {
-                const thumbnailUrl = viewPhoto.replace('/upload/', '/upload/c_limit,w_800,h_600/');
-                if (e.currentTarget.src !== thumbnailUrl) {
-                  e.currentTarget.src = thumbnailUrl;
-                  return;
-                }
-              }
-              // Fallback görsel
-              e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHRleHQtYW5jaG9yPSJtaWRkbGUiIHg9IjEwMCIgeT0iNTAiIGZpbGw9IiM5OTkiIGZvbnQtc2l6ZT0iMTQiPkZvdG/En3JhZiB5w7xrbGVuZW1lZGk8L3RleHQ+PC9zdmc+';
-            }}
-          />
+      {viewPhoto && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
+            <h2 className="text-xl font-bold mb-4">Teslimat Fotoğrafı</h2>
+            <div className="border rounded-lg p-4 bg-gray-50">
+              <img
+                src={viewPhoto}
+                alt="Teslimat Fotoğrafı"
+                className="w-full"
+                onError={(e) => {
+                  console.error('Fotoğraf yüklenemedi:', viewPhoto);
+                  // Cloudinary URL ise thumbnail versiyonunu dene
+                  if (viewPhoto.includes('cloudinary.com')) {
+                    const thumbnailUrl = viewPhoto.replace('/upload/', '/upload/c_limit,w_800,h_600/');
+                    if (e.currentTarget.src !== thumbnailUrl) {
+                      e.currentTarget.src = thumbnailUrl;
+                      return;
+                    }
+                  }
+                  // Fallback görsel
+                  e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHRleHQtYW5jaG9yPSJtaWRkbGUiIHg9IjEwMCIgeT0iNTAiIGZpbGw9IiM5OTkiIGZvbnQtc2l6ZT0iMTQiPkZvdG/En3JhZiB5w7xrbGVuZW1lZGk8L3RleHQ+PC9zdmc+';
+                }}
+              />
+            </div>
+            <div className="flex justify-between mt-4">
+              <a
+                href={viewPhoto}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 text-blue-600 hover:text-blue-700 flex items-center"
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                Tam Boyut
+              </a>
+              <button
+                onClick={() => setViewPhoto(null)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="flex justify-between mt-4">
-          <a
-            href={viewPhoto}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-4 py-2 text-blue-600 hover:text-blue-700 flex items-center"
-          >
-          <Eye className="w-4 h-4 mr-2" />
-          Tam Boyut
-        </a>
-        <button
-          onClick={() => setViewPhoto(null)}
-          className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-        >
-          Kapat
-        </button>
-      </div>
+      )}
+
+      {/* ✅ YENİ: Fotoğraf Galerisi Modal */}
+      {showPhotoGallery && journeyPhotos.length > 0 && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
+          <div className="relative w-full h-full flex items-center justify-center">
+            {/* Sol ok */}
+            {currentPhotoIndex > 0 && (
+              <button
+                onClick={() => setCurrentPhotoIndex(prev => prev - 1)}
+                className="absolute left-4 z-10 p-2 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-all"
+              >
+                <ChevronLeft className="w-8 h-8 text-white" />
+              </button>
+            )}
+            
+            {/* Fotoğraf */}
+            <div className="max-w-4xl max-h-[80vh] relative">
+              <img
+                src={getFullImageUrl(journeyPhotos[currentPhotoIndex].photoUrl || journeyPhotos[currentPhotoIndex].PhotoUrl || journeyPhotos[currentPhotoIndex])}
+                alt={`Teslimat fotoğrafı ${currentPhotoIndex + 1}`}
+                className="max-w-full max-h-full object-contain"
+                onError={(e) => {
+                  const url = journeyPhotos[currentPhotoIndex].photoUrl || journeyPhotos[currentPhotoIndex].PhotoUrl || journeyPhotos[currentPhotoIndex];
+                  if (url.includes('cloudinary.com')) {
+                    const thumbnailUrl = url.replace('/upload/', '/upload/c_limit,w_800,h_600/');
+                    if (e.currentTarget.src !== thumbnailUrl) {
+                      e.currentTarget.src = thumbnailUrl;
+                    }
+                  }
+                }}
+              />
+              
+              {/* Fotoğraf açıklaması */}
+              {journeyPhotos[currentPhotoIndex].caption && (
+                <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-4">
+                  <p>{journeyPhotos[currentPhotoIndex].caption}</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Sağ ok */}
+            {currentPhotoIndex < journeyPhotos.length - 1 && (
+              <button
+                onClick={() => setCurrentPhotoIndex(prev => prev + 1)}
+                className="absolute right-4 z-10 p-2 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-all"
+              >
+                <ChevronRight className="w-8 h-8 text-white" />
+              </button>
+            )}
+            
+            {/* Kapat butonu */}
+            <button
+              onClick={() => {
+                setShowPhotoGallery(false);
+                setJourneyPhotos([]);
+                setCurrentPhotoIndex(0);
+              }}
+              className="absolute top-4 right-4 p-2 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-all"
+            >
+              <X className="w-6 h-6 text-white" />
+            </button>
+            
+            {/* Sayaç */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 text-white px-4 py-2 rounded-full">
+              {currentPhotoIndex + 1} / {journeyPhotos.length}
+            </div>
+            
+            {/* Thumbnail strip */}
+            <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 flex gap-2 p-2 bg-black bg-opacity-50 rounded-lg max-w-[80vw] overflow-x-auto">
+              {journeyPhotos.map((photo, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentPhotoIndex(index)}
+                  className={`flex-shrink-0 w-16 h-16 rounded overflow-hidden border-2 transition-all ${
+                    index === currentPhotoIndex ? 'border-white' : 'border-transparent opacity-60 hover:opacity-100'
+                  }`}
+                >
+                  <img
+                    src={getFullImageUrl(photo.thumbnailUrl || photo.ThumbnailUrl || photo.photoUrl || photo.PhotoUrl || photo)}
+                    alt={`Thumbnail ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-        </div >
-      )
-}
-    </div >
   );
 };
 
