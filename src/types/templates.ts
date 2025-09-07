@@ -127,6 +127,7 @@ export const TEMPLATE_VARIABLES: Record<TemplateType, TemplateVariableGroup[]> =
       name: 'Teslimat',
       variables: [
         { key: 'completedTime', label: 'Tamamlanma Saati', example: '14:25' },
+        { key: 'receiverName', label: 'Teslim Alan Kişi', example: 'Mehmet Öz' }, // ✅ YENİ EKLENDİ
         { key: 'signatureUrl', label: 'İmza Görüntüsü', example: 'https://cdn.yolpilot.com/signature.png' },
         { key: 'photoUrl', label: 'Fotoğraf', example: 'https://cdn.yolpilot.com/photo.jpg' },
         { key: 'stop.notes', label: 'Teslimat Notları', example: 'Kapıcıya teslim edildi' },
