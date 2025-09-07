@@ -1058,7 +1058,7 @@ const JourneyDetail: React.FC = () => {
 
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
                         {stop.routeStop?.customer?.phone && (
-                          
+                          <a
                             href={`tel:${stop.routeStop.customer.phone}`}
                             className="flex items-center hover:text-blue-600"
                           >
