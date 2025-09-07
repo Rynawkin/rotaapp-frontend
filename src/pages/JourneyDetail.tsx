@@ -36,6 +36,149 @@ import signalRService from '@/services/signalr.service';
 import { useSignalR, useJourneyTracking } from '@/hooks/useSignalR';
 import { api } from '@/services/api';
 
+// Stop detayları için ayrı component
+const StopDetailsSection: React.FC<{
+  journeyId: number;
+  stopId: number;
+  stopStatus: string;
+  onViewSignature: (url: string) => void;
+  onViewPhotos: (photos: any[]) => void;
+}> = ({ journeyId, stopId, stopStatus, onViewSignature, onViewPhotos }) => {
+  const [details, setDetails] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  
+  // Helper function - URL'leri tam path'e çevir
+  const getFullImageUrl = (url: string | null | undefined): string => {
+    if (!url) return '';
+    
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    
+    if (url.startsWith('data:')) {
+      return url;
+    }
+    
+    if (url.includes('cloudinary.com')) {
+      return url;
+    }
+    
+    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5055';
+    return `${baseUrl}${url}`;
+  };
+  
+  useEffect(() => {
+    const loadDetails = async () => {
+      try {
+        const data = await journeyService.getStopDetails(journeyId, stopId);
+        setDetails(data);
+      } catch (error) {
+        console.error('Error loading stop details:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadDetails();
+  }, [journeyId, stopId]);
+  
+  const handleViewPhotos = async () => {
+    try {
+      const photos = await journeyService.getStopPhotosForStatus(journeyId, stopId);
+      if (photos && photos.length > 0) {
+        const uniquePhotos = photos.filter((photo: any, index: number, self: any[]) =>
+          index === self.findIndex((p) => 
+            (p.photoUrl || p.PhotoUrl) === (photo.photoUrl || photo.PhotoUrl)
+          )
+        );
+        onViewPhotos(uniquePhotos);
+      }
+    } catch (error) {
+      console.error('Error loading photos:', error);
+    }
+  };
+  
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-gray-500">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        <span>Detaylar yükleniyor...</span>
+      </div>
+    );
+  }
+  
+  if (!details) return null;
+  
+  return (
+    <>
+      {/* Teslim Alan Kişi ve Notlar */}
+      <div className="space-y-2 mb-3">
+        {details.receiverName && (
+          <div className="flex items-center gap-2 text-sm">
+            <UserCheck className="w-4 h-4 text-gray-500" />
+            <span className="text-gray-600">Teslim Alan:</span>
+            <span className="font-medium text-gray-900">{details.receiverName}</span>
+          </div>
+        )}
+        
+        {details.notes && (
+          <div className="flex items-start gap-2 text-sm">
+            <Package className="w-4 h-4 text-gray-500 mt-0.5" />
+            <span className="text-gray-600">Teslimat Notu:</span>
+            <span className="text-gray-700">{details.notes}</span>
+          </div>
+        )}
+        
+        {stopStatus === 'failed' && details.failureReason && (
+          <div className="flex items-start gap-2 text-sm">
+            <AlertCircle className="w-4 h-4 text-red-500 mt-0.5" />
+            <span className="text-red-600">Başarısızlık Nedeni:</span>
+            <span className="text-red-700">{details.failureReason}</span>
+          </div>
+        )}
+      </div>
+      
+      {/* İmza ve Fotoğraf Butonları */}
+      <div className="flex items-center gap-3">
+        {/* İmza butonu - Sadece imza varsa aktif */}
+        <button
+          onClick={() => {
+            if (details.signatureUrl) {
+              let url = getFullImageUrl(details.signatureUrl);
+              if (url.includes('cloudinary.com') && !url.includes('/c_')) {
+                url = url.replace('/upload/', '/upload/q_auto,f_auto,w_600/');
+              }
+              onViewSignature(url);
+            }
+          }}
+          disabled={!details.signatureUrl}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors text-sm ${
+            details.signatureUrl 
+              ? 'bg-gray-50 hover:bg-gray-100 cursor-pointer' 
+              : 'bg-gray-50 opacity-50 cursor-not-allowed'
+          }`}
+        >
+          <Edit3 className={`w-4 h-4 ${details.signatureUrl ? 'text-gray-600' : 'text-gray-400'}`} />
+          <span className={details.signatureUrl ? 'text-gray-700' : 'text-gray-400'}>
+            İmza {!details.signatureUrl && '(Yok)'}
+          </span>
+        </button>
+        
+        {/* Fotoğraf butonu - Sadece completed durumda */}
+        {stopStatus === 'completed' && (
+          <button
+            onClick={handleViewPhotos}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm cursor-pointer"
+          >
+            <Camera className="w-4 h-4 text-gray-600" />
+            <span className="text-gray-700">Fotoğraflar</span>
+          </button>
+        )}
+      </div>
+    </>
+  );
+};
+
 const JourneyDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -584,6 +727,17 @@ const JourneyDetail: React.FC = () => {
     return timespan;
   };
 
+  // Fotoğraf galerisi handler'ları
+  const handleViewPhotos = (photos: any[]) => {
+    setJourneyPhotos(photos);
+    setCurrentPhotoIndex(0);
+    setShowPhotoGallery(true);
+  };
+
+  const handleViewSignature = (url: string) => {
+    setViewSignature(url);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -910,7 +1064,6 @@ const JourneyDetail: React.FC = () => {
         </div>
       )}
 
-
       {/* Stops List - Sadece normal stops */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-100">
         <div className="p-6 border-b">
@@ -1009,122 +1162,15 @@ const JourneyDetail: React.FC = () => {
                       )}
 
                       {/* ✅ DURAK TAMAMLANDIYSA DETAYLARI GÖSTER */}
-                      {(stopStatusLower === 'completed' || stopStatusLower === 'failed') && (
+                      {(stopStatusLower === 'completed' || stopStatusLower === 'failed') && journey && (
                         <div className="mt-3 pt-3 border-t border-gray-100">
-                          {/* Durak detayları için state */}
-                          {(() => {
-                            const [stopDetails, setStopDetails] = React.useState<any>(null);
-                            const [detailsLoading, setDetailsLoading] = React.useState(false);
-                            
-                            React.useEffect(() => {
-                              const loadDetails = async () => {
-                                setDetailsLoading(true);
-                                try {
-                                  const details = await journeyService.getStopDetails(journey.id, parseInt(stop.id));
-                                  setStopDetails(details);
-                                } catch (error) {
-                                  console.error('Error loading stop details:', error);
-                                } finally {
-                                  setDetailsLoading(false);
-                                }
-                              };
-                              
-                              loadDetails();
-                            }, [stop.id]);
-                            
-                            if (detailsLoading) {
-                              return (
-                                <div className="flex items-center justify-center py-2">
-                                  <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                                </div>
-                              );
-                            }
-                            
-                            return (
-                              <>
-                                {/* Teslim Alan Kişi ve Notlar */}
-                                <div className="space-y-2 mb-3">
-                                  {stopDetails?.receiverName && (
-                                    <div className="flex items-center gap-2 text-sm">
-                                      <UserCheck className="w-4 h-4 text-gray-500" />
-                                      <span className="text-gray-600">Teslim Alan:</span>
-                                      <span className="font-medium text-gray-900">{stopDetails.receiverName}</span>
-                                    </div>
-                                  )}
-                                  
-                                  {stopDetails?.notes && (
-                                    <div className="flex items-start gap-2 text-sm">
-                                      <Package className="w-4 h-4 text-gray-500 mt-0.5" />
-                                      <span className="text-gray-600">Teslimat Notu:</span>
-                                      <span className="text-gray-700">{stopDetails.notes}</span>
-                                    </div>
-                                  )}
-                                  
-                                  {stopStatusLower === 'failed' && stopDetails?.failureReason && (
-                                    <div className="flex items-start gap-2 text-sm">
-                                      <AlertCircle className="w-4 h-4 text-red-500 mt-0.5" />
-                                      <span className="text-red-600">Başarısızlık Nedeni:</span>
-                                      <span className="text-red-700">{stopDetails.failureReason}</span>
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                {/* İmza ve Fotoğraf Butonları */}
-                                <div className="flex items-center gap-3">
-                                  {/* İmza butonu - Sadece imza varsa aktif */}
-                                  <button
-                                    onClick={async () => {
-                                      if (stopDetails?.signatureUrl) {
-                                        let url = getFullImageUrl(stopDetails.signatureUrl);
-                                        if (url.includes('cloudinary.com') && !url.includes('/c_')) {
-                                          url = url.replace('/upload/', '/upload/q_auto,f_auto,w_600/');
-                                        }
-                                        setViewSignature(url);
-                                      }
-                                    }}
-                                    disabled={!stopDetails?.signatureUrl}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors text-sm ${
-                                      stopDetails?.signatureUrl 
-                                        ? 'bg-gray-50 hover:bg-gray-100 cursor-pointer' 
-                                        : 'bg-gray-50 opacity-50 cursor-not-allowed'
-                                    }`}
-                                  >
-                                    <Edit3 className={`w-4 h-4 ${stopDetails?.signatureUrl ? 'text-gray-600' : 'text-gray-400'}`} />
-                                    <span className={stopDetails?.signatureUrl ? 'text-gray-700' : 'text-gray-400'}>
-                                      İmza {!stopDetails?.signatureUrl && '(Yok)'}
-                                    </span>
-                                  </button>
-                                  
-                                  {/* Fotoğraf butonu - Sadece completed durumda kontrol et */}
-                                  {stopStatusLower === 'completed' && (
-                                    <button
-                                      onClick={async () => {
-                                        const stopIdInt = parseInt(stop.id);
-                                        const photos = await loadStopPhotos(journey.id, stopIdInt);
-                                        
-                                        if (photos && photos.length > 0) {
-                                          const uniquePhotos = photos.filter((photo, index, self) =>
-                                            index === self.findIndex((p) => 
-                                              (p.photoUrl || p.PhotoUrl) === (photo.photoUrl || photo.PhotoUrl)
-                                            )
-                                          );
-                                          
-                                          setJourneyPhotos(uniquePhotos);
-                                          setCurrentPhotoIndex(0);
-                                          setShowPhotoGallery(true);
-                                        }
-                                      }}
-                                      disabled={detailsLoading}
-                                      className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm cursor-pointer"
-                                    >
-                                      <Camera className="w-4 h-4 text-gray-600" />
-                                      <span className="text-gray-700">Fotoğraflar</span>
-                                    </button>
-                                  )}
-                                </div>
-                              </>
-                            );
-                          })()}
+                          <StopDetailsSection
+                            journeyId={journey.id}
+                            stopId={parseInt(stop.id)}
+                            stopStatus={stopStatusLower}
+                            onViewSignature={handleViewSignature}
+                            onViewPhotos={handleViewPhotos}
+                          />
                         </div>
                       )}
                     </div>
@@ -1190,7 +1236,7 @@ const JourneyDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* MODALS */}
+      {/* MODALS - Geri kalan modal'lar aynı kalacak */}
 
       {/* Check-in Modal */}
       {showCheckInModal && selectedStop && (
