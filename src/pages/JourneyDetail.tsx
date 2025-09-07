@@ -961,24 +961,29 @@ const JourneyDetail: React.FC = () => {
           {normalStops.map((stop: JourneyStop, index: number) => {
             const stopStatusLower = stop.status?.toLowerCase() || 'pending';
             
-            // Stop için fotoğraf ve imza bilgilerini al
-            // parseInt ile tip dönüşümü yap
-            const stopStatuses = journey.statuses?.filter(s => 
-              parseInt(s.stopId) === parseInt(stop.id)
-            ) || [];
+            // Debug için log ekleyelim
+            console.log('Stop ID:', stop.id, 'Type:', typeof stop.id);
+            console.log('Journey statuses:', journey.statuses?.length || 0);
             
-            // En son status'u al (photoUrl veya signatureUrl olan)
-            const latestStatus = stopStatuses
-              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-              .find(s => 
-                s.status === 'Completed' || 
-                s.status === 'Cancelled' ||
-                s.photoUrl ||
-                s.signatureUrl
-              );
+            // Stop için fotoğraf ve imza bilgilerini al
+            const latestStatus = journey.statuses
+              ?.filter((s: any) => {
+                // Her iki tarafı da string'e çevir
+                const statusStopId = String(s.stopId || s.StopId);
+                const currentStopId = String(stop.id);
+                console.log(`Comparing: ${statusStopId} === ${currentStopId} = ${statusStopId === currentStopId}`);
+                return statusStopId === currentStopId;
+              })
+              ?.sort((a: any, b: any) => new Date(b.createdAt || b.CreatedAt).getTime() - new Date(a.createdAt || a.CreatedAt).getTime())
+              ?.[0]; // İlk elemanı al (en son status)
+
+            console.log('Latest status for stop', stop.id, ':', latestStatus);
 
             return (
-              <div key={stop.id} className={`p-4 hover:bg-gray-50 transition-colors ${index === currentStopIndex ? 'bg-blue-50' : ''}`}>
+              <div
+                key={stop.id}
+                className={`p-4 hover:bg-gray-50 transition-colors ${index === currentStopIndex ? 'bg-blue-50' : ''}`}
+              >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-4 flex-1">
                     <div className="flex flex-col items-center">
@@ -1063,13 +1068,13 @@ const JourneyDetail: React.FC = () => {
                       )}
 
                       {/* ✅ YENİ: Tamamlanmış duraklar için fotoğraf ve imza butonları */}
-                      {(stopStatusLower === 'completed' || stopStatusLower === 'failed') && latestStatus && (
+                      {latestStatus && (
                         <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
-                          {/* @ts-ignore */}
-                          {latestStatus.signatureUrl && (
+                          {/* İmza butonu - büyük/küçük harf uyumlu */}
+                          {(latestStatus.signatureUrl || latestStatus.SignatureUrl) && (
                             <button
                               onClick={() => {
-                                let url = getFullImageUrl(latestStatus.signatureUrl);
+                                let url = getFullImageUrl(latestStatus.signatureUrl || latestStatus.SignatureUrl);
                                 if (url.includes('cloudinary.com') && !url.includes('/c_')) {
                                   url = url.replace('/upload/', '/upload/q_auto,f_auto,w_600/');
                                 }
@@ -1082,13 +1087,12 @@ const JourneyDetail: React.FC = () => {
                             </button>
                           )}
                           
-                          {/* @ts-ignore */}
-                          {latestStatus.photoUrl && (
+                          {/* Fotoğraf butonu - büyük/küçük harf uyumlu */}
+                          {(latestStatus.photoUrl || latestStatus.PhotoUrl) && (
                             <button
                               onClick={async () => {
-                                // Stop ID'yi integer'a çevir
                                 const stopIdInt = parseInt(stop.id);
-                                console.log('Loading photos for stop:', journey.id, stopIdInt);
+                                console.log('Loading photos for journey:', journey.id, 'stop:', stopIdInt);
                                 
                                 const photos = await loadStopPhotos(journey.id, stopIdInt);
                                 console.log('Photos loaded:', photos);
@@ -1099,7 +1103,7 @@ const JourneyDetail: React.FC = () => {
                                   setShowPhotoGallery(true);
                                 } else {
                                   // Tek fotoğraf varsa eski yöntemle göster
-                                  let url = getFullImageUrl(latestStatus.photoUrl);
+                                  let url = getFullImageUrl(latestStatus.photoUrl || latestStatus.PhotoUrl);
                                   if (url.includes('cloudinary.com') && !url.includes('/c_')) {
                                     url = url.replace('/upload/', '/upload/q_auto,f_auto,w_800/');
                                   }
@@ -1109,25 +1113,23 @@ const JourneyDetail: React.FC = () => {
                               className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm"
                             >
                               <Camera className="w-4 h-4 text-gray-600" />
-                              <span className="text-gray-700">
-                                Fotoğraflar
-                              </span>
+                              <span className="text-gray-700">Fotoğraflar</span>
                             </button>
                           )}
                           
-                          {/* @ts-ignore */}
-                          {latestStatus.notes && (
+                          {/* Notlar - büyük/küçük harf uyumlu */}
+                          {(latestStatus.notes || latestStatus.Notes) && (
                             <div className="flex items-center gap-1.5 text-sm text-gray-600">
                               <Package className="w-4 h-4" />
-                              <span className="italic">{latestStatus.notes}</span>
+                              <span className="italic">{latestStatus.notes || latestStatus.Notes}</span>
                             </div>
                           )}
                           
-                          {/* @ts-ignore */}
-                          {stopStatusLower === 'failed' && latestStatus.failureReason && (
+                          {/* Başarısızlık nedeni - büyük/küçük harf uyumlu */}
+                          {stopStatusLower === 'failed' && (latestStatus.failureReason || latestStatus.FailureReason) && (
                             <div className="flex items-center gap-1.5 text-sm text-red-600">
                               <AlertCircle className="w-4 h-4" />
-                              <span>{latestStatus.failureReason}</span>
+                              <span>{latestStatus.failureReason || latestStatus.FailureReason}</span>
                             </div>
                           )}
                         </div>
