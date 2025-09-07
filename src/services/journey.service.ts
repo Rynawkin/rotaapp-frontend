@@ -21,27 +21,27 @@ export interface JourneySummary {
   routeName: string;
   date: string;
   status: string;
-  
+
   // Sürücü
   driverId?: string;
   driverName: string;
-  
+
   // Araç
   vehicleId?: string;
   vehiclePlateNumber: string;
-  
+
   // Metrikler
   totalStops: number;
   completedStops: number;
   failedStops: number; // ✅ EKLENDI
   totalDistance: number;
   totalDuration: number;
-  
+
   // Zamanlar
   startedAt?: Date;
   completedAt?: Date;
   createdAt: Date;
-  
+
   // Live location
   liveLocation?: {
     latitude: number;
@@ -129,24 +129,24 @@ class JourneyService {
 
   getOptimizedImageUrl(url: string, transformation: ImageTransformation): string {
     if (!url || !this.isCloudinaryUrl(url)) return url;
-    
+
     // Cloudinary URL format: https://res.cloudinary.com/{cloud-name}/image/upload/{transformations}/{public-id}.{format}
     const transformParts: string[] = [];
-    
+
     if (transformation.width) transformParts.push(`w_${transformation.width}`);
     if (transformation.height) transformParts.push(`h_${transformation.height}`);
     if (transformation.crop) transformParts.push(`c_${transformation.crop}`);
     if (transformation.quality) transformParts.push(`q_${transformation.quality}`);
     if (transformation.format) transformParts.push(`f_${transformation.format}`);
-    
+
     const transformString = transformParts.join(',');
-    
+
     // URL'de zaten transformation varsa değiştir, yoksa ekle
     if (url.includes('/upload/')) {
       // Check if there's already a transformation
       const parts = url.split('/upload/');
       const afterUpload = parts[1];
-      
+
       // Check if first part after upload starts with v{number} (version)
       const segments = afterUpload.split('/');
       if (segments[0].match(/^v\d+$/)) {
@@ -162,7 +162,7 @@ class JourneyService {
         return `${parts[0]}/upload/${transformString}/${afterUpload}`;
       }
     }
-    
+
     return url;
   }
 
@@ -209,22 +209,22 @@ class JourneyService {
   // ✅ YENİ: URL'leri normalize et (Base64, Cloudinary, Local desteği)
   normalizeImageUrl(url: string | null | undefined): string {
     if (!url) return '';
-    
+
     // Base64 data URL ise direkt döndür
     if (url.startsWith('data:')) {
       return url;
     }
-    
+
     // Tam URL ise direkt döndür
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return url;
     }
-    
+
     // Cloudinary URL kontrolü
     if (url.includes('cloudinary.com')) {
       return url;
     }
-    
+
     // Relative URL ise base URL ekle (legacy local storage desteği)
     const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5055';
     return `${baseUrl}${url}`;
@@ -235,7 +235,7 @@ class JourneyService {
       const params: any = {};
       if (from) params.from = from.toISOString();
       if (to) params.to = to.toISOString();
-      
+
       const response = await api.get(`${this.baseUrl}/summary`, { params });
       console.log('Journey summaries loaded:', response.data);
       return response.data;
@@ -259,11 +259,11 @@ class JourneyService {
   async getAll(from?: Date, to?: Date): Promise<Journey[]> {
     try {
       console.warn('⚠️ getAll() tüm detayları çekiyor. Eğer sadece liste için kullanıyorsanız getAllSummary() kullanın!');
-      
+
       const params: any = {};
       if (from) params.from = from.toISOString();
       if (to) params.to = to.toISOString();
-      
+
       const response = await api.get(this.baseUrl, { params });
       console.log('Full journeys loaded:', response.data);
       return response.data;
@@ -282,12 +282,12 @@ class JourneyService {
       throw error;
     }
   }
-  
+
   async getById(id: string | number): Promise<Journey> {
     try {
       const response = await api.get(`${this.baseUrl}/${id}`);
       console.log('Journey detail loaded:', response.data);
-      
+
       // ✅ YENİ: Image URL'lerini normalize et
       if (response.data && response.data.statuses) {
         response.data.statuses = response.data.statuses.map((status: any) => ({
@@ -296,7 +296,7 @@ class JourneyService {
           photoUrl: this.normalizeImageUrl(status.photoUrl)
         }));
       }
-      
+
       return response.data;
     } catch (error) {
       console.error('Error fetching journey:', error);
@@ -308,11 +308,11 @@ class JourneyService {
     try {
       const summaries = await this.getAllSummary();
       const summary = summaries.find(j => j.routeId === Number(routeId));
-      
+
       if (summary) {
         return await this.getById(summary.id);
       }
-      
+
       return null;
     } catch (error) {
       console.error('Error fetching journey by route:', error);
@@ -323,14 +323,14 @@ class JourneyService {
   async getStatuses(journeyId: string | number): Promise<JourneyStatus[]> {
     try {
       const response = await api.get(`${this.baseUrl}/${journeyId}/statuses`);
-      
+
       // ✅ YENİ: Image URL'lerini normalize et
       const statuses = response.data.map((status: any) => ({
         ...status,
         signatureUrl: this.normalizeImageUrl(status.signatureUrl),
         photoUrl: this.normalizeImageUrl(status.photoUrl)
       }));
-      
+
       return statuses;
     } catch (error) {
       console.error('Error fetching journey statuses:', error);
@@ -355,7 +355,18 @@ class JourneyService {
     try {
       const response = await api.get(`${this.baseUrl}/${journeyId}/stops/${stopId}/photos`);
       console.log('Stop photos loaded:', response.data);
-      return response.data;
+      
+      // Property isimlerini normalize et (backend C# PascalCase döndürüyor)
+      const photos = response.data.map((photo: any) => ({
+        id: photo.Id || photo.id,
+        photoUrl: photo.PhotoUrl || photo.photoUrl,
+        thumbnailUrl: photo.ThumbnailUrl || photo.thumbnailUrl,
+        caption: photo.Caption || photo.caption,
+        displayOrder: photo.DisplayOrder || photo.displayOrder,
+        createdAt: photo.CreatedAt || photo.createdAt
+      }));
+      
+      return photos;
     } catch (error) {
       console.error('Error fetching stop photos:', error);
       return [];
@@ -366,10 +377,10 @@ class JourneyService {
   async startFromRoute(routeId: string | number, driverId?: number, name?: string): Promise<Journey> {
     try {
       console.log('Starting journey from route:', routeId, 'with driver:', driverId, 'name:', name);
-      
+
       const route = await api.get(`/workspace/routes/${routeId}`);
       console.log('Route data:', route.data);
-      
+
       if (!route.data.driverId && !driverId) {
         throw new Error('Sefer başlatmak için sürücü atamanız gerekiyor');
       }
@@ -387,7 +398,7 @@ class JourneyService {
       console.log('Assigning route:', assignDto);
       const assignResponse = await api.post(`${this.baseUrl}/assignment`, assignDto);
       console.log('Journey created:', assignResponse.data);
-      
+
       return assignResponse.data;
     } catch (error: any) {
       console.error('Error starting journey from route:', error);
@@ -458,7 +469,7 @@ class JourneyService {
   ): Promise<boolean> {
     try {
       console.log('Completing stop with files:', journeyId, stopId);
-      
+
       const response = await api.post(
         `${this.baseUrl}/${journeyId}/stops/${stopId}/complete`,
         formData,
@@ -468,7 +479,7 @@ class JourneyService {
           }
         }
       );
-      
+
       console.log('Complete stop response:', response.data);
       return response.data;
     } catch (error: any) {
@@ -486,17 +497,17 @@ class JourneyService {
   ): Promise<boolean> {
     try {
       console.log('Failing stop:', journeyId, stopId, reason, notes);
-      
+
       const requestData: FailStopDto = {
         failureReason: reason,
         notes: notes
       };
-      
+
       const response = await api.post(
         `${this.baseUrl}/${journeyId}/stops/${stopId}/fail`,
         requestData
       );
-      
+
       console.log('Fail stop response:', response.data);
       return response.data;
     } catch (error: any) {
@@ -508,20 +519,20 @@ class JourneyService {
 
   // ✅ Legacy method - Base64 desteği için korundu
   async completeStop(
-    journeyId: string | number, 
-    stopId: string | number, 
+    journeyId: string | number,
+    stopId: string | number,
     data?: CompleteStopDto & { signatureBase64?: string; photoBase64?: string }
   ): Promise<JourneyStatus> {
     try {
       console.warn('⚠️ completeStop() Base64 kullanıyor. Timeout riski var! completeStopWithFiles() kullanın.');
       console.log('Completing stop (legacy):', journeyId, stopId, data);
-      
+
       const cleanBase64 = (base64String?: string) => {
         if (!base64String) return undefined;
         const base64Prefix = /^data:image\/[a-z]+;base64,/;
         return base64String.replace(base64Prefix, '');
       };
-      
+
       const statusData: AddJourneyStatusDto = {
         stopId: Number(stopId),
         status: JourneyStatusType.Completed,
@@ -531,7 +542,7 @@ class JourneyService {
         latitude: 0,
         longitude: 0
       };
-      
+
       const response = await api.post(
         `${this.baseUrl}/${journeyId}/status`,
         statusData
@@ -546,8 +557,8 @@ class JourneyService {
   }
 
   async addStopStatus(
-    journeyId: string | number, 
-    stopId: string | number, 
+    journeyId: string | number,
+    stopId: string | number,
     statusData: Partial<AddJourneyStatusDto>
   ): Promise<JourneyStatus> {
     try {
@@ -562,7 +573,7 @@ class JourneyService {
         longitude: statusData.longitude || 0,
         additionalValues: statusData.additionalValues
       };
-      
+
       console.log('Adding stop status:', journeyId, fullStatusData);
       const response = await api.post(
         `${this.baseUrl}/${journeyId}/status`,
@@ -647,18 +658,18 @@ class JourneyService {
       throw new Error(error.response?.data?.message || 'Toplu silme işlemi başarısız');
     }
   }
-  
+
   async base64ToFile(base64String: string, filename: string): Promise<File> {
     const base64Data = base64String.replace(/^data:image\/\w+;base64,/, '');
-    
+
     const binaryString = atob(base64Data);
     const bytes = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
-    
+
     const blob = new Blob([bytes], { type: 'image/png' });
-    
+
     return new File([blob], filename, { type: 'image/png' });
   }
 }

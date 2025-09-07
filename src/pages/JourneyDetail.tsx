@@ -911,11 +911,12 @@ const JourneyDetail: React.FC = () => {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-1">
-                        <span className={`px-2 py-0.5 text-xs rounded-full ${status.status === 'Completed' ? 'bg-green-100 text-green-700' :
-                            status.status === 'Cancelled' ? 'bg-red-100 text-red-700' :
-                              status.status === 'Arrived' ? 'bg-blue-100 text-blue-700' :
-                                'bg-gray-100 text-gray-700'
-                          }`}>
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${
+                          status.status === 'Completed' ? 'bg-green-100 text-green-700' :
+                          status.status === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                          status.status === 'Arrived' ? 'bg-blue-100 text-blue-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
                           {status.status === 'Completed' && 'Tamamlandı'}
                           {status.status === 'Cancelled' && 'Başarısız'}
                           {status.status === 'Arrived' && 'Varış'}
@@ -941,52 +942,8 @@ const JourneyDetail: React.FC = () => {
                           <strong>Başarısızlık Nedeni:</strong> {status.failureReason}
                         </p>
                       )}
-
-                      <div className="flex items-center space-x-4 mt-2">
-                        {/* ✅ DÜZELTME: URL'leri tam path'e çevir */}
-                        {/* @ts-ignore */}
-                        {status.signatureUrl && (
-                          <button
-                            onClick={() => {
-                              let url = getFullImageUrl(status.signatureUrl);
-                              // Cloudinary için optimize edilmiş görüntüleme URL'si
-                              if (url.includes('cloudinary.com') && !url.includes('/c_')) {
-                                url = url.replace('/upload/', '/upload/q_auto,f_auto,w_600/');
-                              }
-                              setViewSignature(url);
-                            }}
-                            className="flex items-center text-xs text-blue-600 hover:text-blue-700"
-                          >
-                            <Edit3 className="w-3 h-3 mr-1" />
-                            İmza görüntüle
-                          </button>
-                        )}
-                        {/* @ts-ignore */}
-                        {status.photoUrl && (
-                          <button
-                            onClick={async () => {
-                              // Tüm fotoğrafları yükle
-                              const photos = await loadStopPhotos(status.journeyId, status.stopId);
-                              if (photos && photos.length > 0) {
-                                setJourneyPhotos(photos);
-                                setCurrentPhotoIndex(0);
-                                setShowPhotoGallery(true);
-                              } else {
-                                // Tek fotoğraf varsa eski yöntemle göster
-                                let url = getFullImageUrl(status.photoUrl);
-                                if (url.includes('cloudinary.com') && !url.includes('/c_')) {
-                                  url = url.replace('/upload/', '/upload/q_auto,f_auto,w_800/');
-                                }
-                                setViewPhoto(url);
-                              }
-                            }}
-                            className="flex items-center text-xs text-blue-600 hover:text-blue-700"
-                          >
-                            <Camera className="w-3 h-3 mr-1" />
-                            Teslimat fotoğrafları {journeyPhotos.length > 1 && `(${journeyPhotos.length})`}
-                          </button>
-                        )}
-                      </div>
+                      
+                      {/* FOTOĞRAF VE İMZA LİNKLERİ KALDIRILDI */}
                     </div>
                   </div>
                 </div>
@@ -1122,12 +1079,19 @@ const JourneyDetail: React.FC = () => {
                           {latestStatus.photoUrl && (
                             <button
                               onClick={async () => {
-                                const photos = await loadStopPhotos(journey.id, stop.id);
+                                // Stop ID'yi integer'a çevir
+                                const stopIdInt = parseInt(stop.id);
+                                console.log('Loading photos for stop:', journey.id, stopIdInt);
+                                
+                                const photos = await loadStopPhotos(journey.id, stopIdInt);
+                                console.log('Photos loaded:', photos);
+                                
                                 if (photos && photos.length > 0) {
                                   setJourneyPhotos(photos);
                                   setCurrentPhotoIndex(0);
                                   setShowPhotoGallery(true);
                                 } else {
+                                  // Tek fotoğraf varsa eski yöntemle göster
                                   let url = getFullImageUrl(latestStatus.photoUrl);
                                   if (url.includes('cloudinary.com') && !url.includes('/c_')) {
                                     url = url.replace('/upload/', '/upload/q_auto,f_auto,w_800/');
@@ -1140,7 +1104,6 @@ const JourneyDetail: React.FC = () => {
                               <Camera className="w-4 h-4 text-gray-600" />
                               <span className="text-gray-700">
                                 Fotoğraflar
-                                {/* Fotoğraf sayısını göster */}
                               </span>
                             </button>
                           )}
