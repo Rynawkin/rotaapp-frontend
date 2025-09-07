@@ -170,7 +170,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [depots, setDepots] = useState<Depot[]>([]);
   const [loadingLists, setLoadingLists] = useState(true);
-  const [multiSelectMode, setMultiSelectMode] = useState(false);
 
   const [stopsData, setStopsData] = useState<StopData[]>(() => {
     if (savedData?.stops && savedData.stops.length > 0) {
@@ -1225,7 +1224,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
             onSelect={handleAddCustomer}
             onMultiSelect={handleAddMultipleCustomers}
             onCreateNew={() => setShowCustomerModal(true)}
-            multiSelectMode={multiSelectMode}
           />
         </div>
 
