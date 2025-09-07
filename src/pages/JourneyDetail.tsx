@@ -962,16 +962,23 @@ const JourneyDetail: React.FC = () => {
             const stopStatusLower = stop.status?.toLowerCase() || 'pending';
             
             // Stop için fotoğraf ve imza bilgilerini al
-            const stopStatuses = journey.statuses?.filter(s => s.stopId === stop.id) || [];
+            // parseInt ile tip dönüşümü yap
+            const stopStatuses = journey.statuses?.filter(s => 
+              parseInt(s.stopId) === parseInt(stop.id)
+            ) || [];
+            
+            // En son status'u al (photoUrl veya signatureUrl olan)
             const latestStatus = stopStatuses
               .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-              .find(s => s.status === 'Completed' || s.status === 'Cancelled');
+              .find(s => 
+                s.status === 'Completed' || 
+                s.status === 'Cancelled' ||
+                s.photoUrl ||
+                s.signatureUrl
+              );
 
             return (
-              <div
-                key={stop.id}
-                className={`p-4 hover:bg-gray-50 transition-colors ${index === currentStopIndex ? 'bg-blue-50' : ''}`}
-              >
+              <div key={stop.id} className={`p-4 hover:bg-gray-50 transition-colors ${index === currentStopIndex ? 'bg-blue-50' : ''}`}>
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-4 flex-1">
                     <div className="flex flex-col items-center">
