@@ -265,11 +265,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
               className={`flex items-center ${!sidebarOpen && 'justify-center'}`}
               onClick={() => setMobileMenuOpen(false)}
             >
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center">
-                <Route className="w-6 h-6 text-white" />
-              </div>
-              {sidebarOpen && (
-                <span className="ml-3 text-xl font-bold text-gray-800">RotaApp</span>
+              {sidebarOpen ? (
+                <img 
+                  src="/yolpilot-logo.png" 
+                  alt="YolPilot" 
+                  className="h-10 w-auto"
+                />
+              ) : (
+                <img 
+                  src="/yolpilot-logo.png" 
+                  alt="YolPilot" 
+                  className="h-8 w-8 object-contain"
+                />
               )}
             </Link>
             <button
