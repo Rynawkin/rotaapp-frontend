@@ -20,7 +20,8 @@ import {
   Package,
   Settings,
   Shield,
-  Bug
+  Bug,
+  MapPinOff
 } from 'lucide-react';
 import { api } from '@/services/api';
 
@@ -42,6 +43,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
+  const [pendingLocationRequests, setPendingLocationRequests] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -77,6 +79,37 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
   };
 
   const currentRole = getUserRole();
+
+  // Bekleyen konum güncelleme taleplerini kontrol et
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null;
+
+    const checkPendingLocationRequests = async () => {
+      if (userInfo.isAdmin || userInfo.isDispatcher || userInfo.isSuperAdmin) {
+        try {
+          const response = await api.get('/workspace/location-update-requests/pending');
+          setPendingLocationRequests(response.data.length || 0);
+        } catch (error) {
+          console.error('Error fetching pending location requests:', error);
+          setPendingLocationRequests(0);
+        }
+      }
+    };
+
+    // İlk yükleme
+    checkPendingLocationRequests();
+
+    // Her 30 saniyede bir kontrol et
+    if (userInfo.isAdmin || userInfo.isDispatcher || userInfo.isSuperAdmin) {
+      intervalId = setInterval(checkPendingLocationRequests, 30000);
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [userInfo.isAdmin, userInfo.isDispatcher, userInfo.isSuperAdmin]);
 
   // Tüm menü öğeleri ve hangi roller erişebilir
   const allMenuItems: MenuItem[] = [
@@ -130,6 +163,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
       roles: ['driver', 'dispatcher', 'admin', 'superadmin'] // Herkes erişebilir
     },
     { 
+      icon: MapPinOff, 
+      label: 'Konum Talepleri', 
+      path: '/location-requests', 
+      badge: pendingLocationRequests > 0 ? pendingLocationRequests.toString() : null,
+      roles: ['dispatcher', 'admin', 'superadmin'] // Sadece yöneticiler
+    },
+    { 
       icon: Navigation, 
       label: 'Canlı Takip', 
       path: '/tracking', 
@@ -177,6 +217,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
     { id: 3, title: 'Haftalık rapor hazır', time: '1 saat önce', unread: false },
   ];
 
+  // Bekleyen konum talepleri varsa bildirim ekle
+  if (pendingLocationRequests > 0) {
+    notifications.unshift({
+      id: 999,
+      title: `${pendingLocationRequests} bekleyen konum güncelleme talebi var`,
+      time: 'Şimdi',
+      unread: true
+    });
+  }
+
   // Get current page title
   const getCurrentPageTitle = () => {
     const currentItem = menuItems.find(item => item.path === location.pathname);
@@ -213,6 +263,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
   const handleNotificationClick = (notificationId: number) => {
     console.log('Notification clicked:', notificationId);
     setNotificationMenuOpen(false);
+    
+    // Konum talebi bildirimine tıklandıysa yönlendir
+    if (notificationId === 999) {
+      navigate('/location-requests');
+    }
   };
 
   // Rol isimlendirmesi
@@ -325,13 +380,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                         ? 'bg-green-100 text-green-600 animate-pulse' 
                         : item.badge === 'SUPER'
                         ? 'bg-purple-100 text-purple-600'
+                        : item.path === '/location-requests' && pendingLocationRequests > 0
+                        ? 'bg-orange-100 text-orange-600'
                         : 'bg-gray-100 text-gray-600'}
                     `}>
                       {item.badge}
                     </span>
                   )}
                   {!sidebarOpen && item.badge && (
-                    <span className="absolute top-2 right-2 w-2 h-2 bg-primary-600 rounded-full"></span>
+                    <span className={`absolute top-2 right-2 w-2 h-2 rounded-full ${
+                      item.path === '/location-requests' && pendingLocationRequests > 0
+                        ? 'bg-orange-600 animate-pulse'
+                        : 'bg-primary-600'
+                    }`}></span>
                   )}
                 </Link>
               );
@@ -386,6 +447,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                     <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
                     <span className="text-sm text-gray-600">5 Planlanmış Rota</span>
                   </div>
+                  {pendingLocationRequests > 0 && (
+                    <div className="flex items-center">
+                      <div className="w-2 h-2 bg-orange-500 rounded-full mr-2 animate-pulse"></div>
+                      <span className="text-sm text-gray-600">{pendingLocationRequests} Konum Talebi</span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -409,7 +476,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                   className="p-2 rounded-lg hover:bg-gray-100 relative"
                 >
                   <Bell className="w-5 h-5 text-gray-600" />
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                  {(notifications.some(n => n.unread) || pendingLocationRequests > 0) && (
+                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                  )}
                 </button>
 
                 {notificationMenuOpen && (
