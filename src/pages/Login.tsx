@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Route, Lock, Mail, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -13,7 +13,6 @@ const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Eğer zaten giriş yapılmışsa dashboard'a yönlendir
     if (isAuthenticated) {
       navigate('/dashboard');
     }
@@ -26,11 +25,8 @@ const Login: React.FC = () => {
 
     try {
       console.log('Login attempt with:', { email, password: '***' });
-      
       await login(email, password);
-      
       console.log('Login successful, redirecting...');
-      // AuthContext içinde yönlendirme yapılıyor
     } catch (err: any) {
       console.error('Login error:', err);
       setError(err.message || 'Giriş başarısız. Lütfen bilgilerinizi kontrol edin.');
@@ -39,13 +35,11 @@ const Login: React.FC = () => {
     }
   };
 
-  // Test kullanıcıları için hızlı giriş
   const quickLogin = (email: string, password: string) => {
     setEmail(email);
     setPassword(password);
   };
 
-  // Debug bilgileri
   useEffect(() => {
     console.log('=== Login Page Mounted ===');
     console.log('Current localStorage:', {
@@ -61,14 +55,16 @@ const Login: React.FC = () => {
       <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
         {/* Logo */}
         <div className="flex justify-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg">
-            <Route className="w-10 h-10 text-white" />
-          </div>
+          <img 
+            src="/yolpilot-logo.png" 
+            alt="YolPilot" 
+            className="h-20 w-auto"
+          />
         </div>
         
         {/* Başlık */}
         <h2 className="text-3xl font-bold text-center text-gray-800 mb-2">
-          RotaApp'e Hoş Geldiniz
+          YolPilot'a Hoş Geldiniz
         </h2>
         <p className="text-center text-gray-600 mb-8">
           Devam etmek için giriş yapın
@@ -199,28 +195,28 @@ const Login: React.FC = () => {
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => quickLogin('super@rotaapp.com', 'super123')}
+                onClick={() => quickLogin('super@yolpilot.com', 'super123')}
                 className="text-xs bg-purple-50 text-purple-700 px-2 py-1.5 rounded hover:bg-purple-100 transition-colors"
               >
                 Super Admin
               </button>
               <button
                 type="button"
-                onClick={() => quickLogin('admin@rotaapp.com', 'admin123')}
+                onClick={() => quickLogin('admin@yolpilot.com', 'admin123')}
                 className="text-xs bg-blue-50 text-blue-700 px-2 py-1.5 rounded hover:bg-blue-100 transition-colors"
               >
                 Admin
               </button>
               <button
                 type="button"
-                onClick={() => quickLogin('manager@rotaapp.com', 'manager123')}
+                onClick={() => quickLogin('manager@yolpilot.com', 'manager123')}
                 className="text-xs bg-green-50 text-green-700 px-2 py-1.5 rounded hover:bg-green-100 transition-colors"
               >
                 Dispatcher
               </button>
               <button
                 type="button"
-                onClick={() => quickLogin('driver@rotaapp.com', 'driver123')}
+                onClick={() => quickLogin('driver@yolpilot.com', 'driver123')}
                 className="text-xs bg-orange-50 text-orange-700 px-2 py-1.5 rounded hover:bg-orange-100 transition-colors"
               >
                 Driver
