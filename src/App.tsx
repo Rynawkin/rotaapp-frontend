@@ -42,34 +42,35 @@ import IssuesManagement from './pages/superadmin/IssuesManagement';
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
 import TermsOfService from './pages/legal/TermsOfService';
 import DeleteAccount from './pages/DeleteAccount';
+import LocationUpdateRequests from '@/pages/LocationUpdateRequests';
 
 // Layout wrapper for protected routes - useAuth hook'unu kullanacak şekilde güncellendi
-const ProtectedLayout: React.FC<{ 
-  children: React.ReactNode; 
+const ProtectedLayout: React.FC<{
+  children: React.ReactNode;
   requireAdmin?: boolean;
   requireSuperAdmin?: boolean;
   requireDispatcher?: boolean;
   requireDriver?: boolean;
-}> = ({ 
-  children, 
+}> = ({
+  children,
   requireAdmin = false,
   requireSuperAdmin = false,
   requireDispatcher = false,
   requireDriver = false
 }) => {
-  const { logout } = useAuth(); // AuthContext'ten logout fonksiyonunu al
+    const { logout } = useAuth(); // AuthContext'ten logout fonksiyonunu al
 
-  return (
-    <ProtectedRoute 
-      requireAdmin={requireAdmin}
-      requireSuperAdmin={requireSuperAdmin}
-      requireDispatcher={requireDispatcher}
-      requireDriver={requireDriver}
-    >
-      <MainLayout onLogout={logout}>{children}</MainLayout>
-    </ProtectedRoute>
-  );
-};
+    return (
+      <ProtectedRoute
+        requireAdmin={requireAdmin}
+        requireSuperAdmin={requireSuperAdmin}
+        requireDispatcher={requireDispatcher}
+        requireDriver={requireDriver}
+      >
+        <MainLayout onLogout={logout}>{children}</MainLayout>
+      </ProtectedRoute>
+    );
+  };
 
 // App Routes Component - AuthProvider içinde olması gerek
 const AppRoutes: React.FC = () => {
@@ -93,13 +94,13 @@ const AppRoutes: React.FC = () => {
           <Dashboard />
         </ProtectedLayout>
       } />
-      
+
       <Route path="/dashboard" element={
         <ProtectedLayout>
           <Dashboard />
         </ProtectedLayout>
       } />
-      
+
       {/* Routes Module */}
       <Route path="/routes" element={
         <ProtectedLayout>
@@ -121,7 +122,7 @@ const AppRoutes: React.FC = () => {
           <EditRoute />
         </ProtectedLayout>
       } />
-      
+
       {/* Customers Module */}
       <Route path="/customers" element={
         <ProtectedLayout>
@@ -143,7 +144,7 @@ const AppRoutes: React.FC = () => {
           <EditCustomer />
         </ProtectedLayout>
       } />
-      
+
       {/* Drivers Module */}
       <Route path="/drivers" element={
         <ProtectedLayout>
@@ -165,7 +166,7 @@ const AppRoutes: React.FC = () => {
           <EditDriver />
         </ProtectedLayout>
       } />
-      
+
       {/* Vehicles Module */}
       <Route path="/vehicles" element={
         <ProtectedLayout>
@@ -187,7 +188,7 @@ const AppRoutes: React.FC = () => {
           <EditVehicle />
         </ProtectedLayout>
       } />
-      
+
       {/* Depots Module */}
       <Route path="/depots" element={
         <ProtectedLayout>
@@ -209,7 +210,7 @@ const AppRoutes: React.FC = () => {
           <EditDepot />
         </ProtectedLayout>
       } />
-      
+
       {/* Journeys Module */}
       <Route path="/journeys" element={
         <ProtectedLayout>
@@ -221,28 +222,35 @@ const AppRoutes: React.FC = () => {
           <JourneyDetail />
         </ProtectedLayout>
       } />
-      
+
       {/* Live Tracking */}
       <Route path="/tracking" element={
         <ProtectedLayout>
           <LiveTracking />
         </ProtectedLayout>
       } />
-      
+
       {/* Reports */}
       <Route path="/reports" element={
         <ProtectedLayout>
           <Reports />
         </ProtectedLayout>
       } />
-      
+
       {/* Settings */}
       <Route path="/settings" element={
         <ProtectedLayout>
           <Settings />
         </ProtectedLayout>
       } />
-      
+
+      {/* Location Update Requests - Dispatcher ve Admin için */}
+      <Route path="/location-requests" element={
+        <ProtectedLayout requireDispatcher={true}>
+          <LocationUpdateRequests />
+        </ProtectedLayout>
+      } />
+
       {/* Super Admin Routes - Require SuperAdmin Role */}
       <Route path="/super-admin" element={
         <ProtectedLayout requireSuperAdmin={true}>
@@ -264,7 +272,7 @@ const AppRoutes: React.FC = () => {
           <WorkspaceEdit />
         </ProtectedLayout>
       } />
-      
+
       {/* Catch all - redirect to dashboard */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
