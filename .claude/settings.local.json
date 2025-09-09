@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Projects/RotaAppMobile/**)",
+      "Bash(npm install:*)",
+      "Bash(npx react-native start:*)",
+      "Read(//c/Projects/**)",
+      "Read(//c/Users/QP/Desktop/monolith-master2/src/Monolith.WebAPI/Controllers/**)",
+      "Read(//c/Users/QP/Desktop/monolith-master2/src/Monolith.WebAPI/**)",
+      "Read(//c/Users/QP/Desktop/monolith-master2/**)",
+      "Bash(dotnet build)",
+      "Bash(dotnet build:*)",
+      "Bash(npx tsc:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

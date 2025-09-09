@@ -26,6 +26,7 @@ import { Customer } from '@/types';
 import { customerService } from '@/services/customer.service';
 import { journeyService } from '@/services/journey.service';
 import { routeService } from '@/services/route.service';
+import MapComponent from '@/components/maps/MapComponent';
 
 const CustomerDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -362,6 +363,55 @@ const CustomerDetail: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Interactive Map */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <MapPin className="w-5 h-5 mr-2" />
+                  Konum Haritası
+                </h2>
+                <button
+                  onClick={handleOpenInMaps}
+                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                >
+                  <ExternalLink className="w-4 h-4 mr-1" />
+                  Google Maps'te Aç
+                </button>
+              </div>
+            </div>
+            <div className="p-4">
+              <MapComponent
+                center={{ lat: customer.latitude, lng: customer.longitude }}
+                zoom={16}
+                height="300px"
+                markers={[{
+                  position: { lat: customer.latitude, lng: customer.longitude },
+                  title: customer.name,
+                  customerId: customer.id.toString(),
+                  label: "1"
+                }]}
+                customers={[customer]}
+              />
+              <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Enlem:</span>
+                    <span className="ml-2 font-mono text-gray-900">{customer.latitude.toFixed(6)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Boylam:</span>
+                    <span className="ml-2 font-mono text-gray-900">{customer.longitude.toFixed(6)}</span>
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <span className="text-gray-600">Tam Adres:</span>
+                  <span className="ml-2 text-gray-900">{customer.address}</span>
+                </div>
+              </div>
             </div>
           </div>
 
