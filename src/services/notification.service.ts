@@ -146,6 +146,17 @@ class NotificationService {
         createdAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(), // 1 saat önce
         userId: 'current-user',
         relatedEntityType: 'report'
+      },
+      {
+        id: 4,
+        title: 'Teslimat tamamlandı',
+        message: 'Müşteri ABC Ltd. teslimatı başarıyla tamamlandı.',
+        type: 'success',
+        isRead: false,
+        createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 dk önce
+        userId: 'current-user',
+        relatedEntityType: 'delivery',
+        relatedEntityId: 5
       }
     ];
   }

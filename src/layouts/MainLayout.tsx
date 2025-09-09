@@ -489,41 +489,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
             </div>
 
             <div className="flex items-center space-x-4">
-              {/* Quick Stats - Dispatcher ve üstü roller için */}
-              {(userInfo.isDispatcher || userInfo.isAdmin || userInfo.isSuperAdmin) && (
-                <div className="hidden lg:flex items-center space-x-6 mr-6">
-                  <div className="flex items-center">
-                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-                    <span className="text-sm text-gray-600">{activeJourneyCount} Aktif Sefer</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
-                    <span className="text-sm text-gray-600">{routeCount} Planlanmış Rota</span>
-                  </div>
-                  {pendingLocationRequests > 0 && (
-                    <div className="flex items-center">
-                      <div className="w-2 h-2 bg-orange-500 rounded-full mr-2 animate-pulse"></div>
-                      <span className="text-sm text-gray-600">{pendingLocationRequests} Konum Talebi</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Driver için özel bilgiler */}
-              {userInfo.isDriver && (
-                <div className="hidden lg:flex items-center space-x-6 mr-6">
-                  <div className="flex items-center">
-                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-                    <span className="text-sm text-gray-600">
-                      {activeJourneyCount > 0 ? 'Aktif Sefer' : 'Sefer Bekliyor'}
-                    </span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="text-sm text-gray-600">Bugün: {journeyCount} Sefer</span>
-                  </div>
-                </div>
-              )}
-
               {/* Notifications */}
               <div className="relative">
                 <button 
@@ -547,35 +512,42 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                         <h3 className="font-semibold text-gray-900">Bildirimler</h3>
                       </div>
                       <div className="max-h-80 overflow-y-auto">
-                        {displayNotifications.map(notification => (
-                          <button
-                            key={notification.id}
-                            onClick={() => handleNotificationClick(notification.id)}
-                            className={`w-full px-4 py-3 hover:bg-gray-50 text-left border-b border-gray-100 last:border-b-0 ${
-                              !notification.isRead ? 'bg-blue-50' : ''
-                            }`}
-                          >
-                            <div className="flex justify-between items-start">
-                              <p className={`text-sm ${!notification.isRead ? 'font-semibold' : ''} text-gray-900`}>
-                                {notification.title}
+                        {displayNotifications.length > 0 ? (
+                          displayNotifications.map(notification => (
+                            <button
+                              key={notification.id}
+                              onClick={() => handleNotificationClick(notification.id)}
+                              className={`w-full px-4 py-3 hover:bg-gray-50 text-left border-b border-gray-100 last:border-b-0 ${
+                                !notification.isRead ? 'bg-blue-50' : ''
+                              }`}
+                            >
+                              <div className="flex justify-between items-start">
+                                <p className={`text-sm ${!notification.isRead ? 'font-semibold' : ''} text-gray-900`}>
+                                  {notification.title}
+                                </p>
+                                {!notification.isRead && (
+                                  <span className="w-2 h-2 bg-blue-600 rounded-full mt-1"></span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {notification.id === 999 
+                                  ? 'Şimdi' 
+                                  : new Date(notification.createdAt).toLocaleString('tr-TR', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      day: '2-digit',
+                                      month: '2-digit'
+                                    })
+                                }
                               </p>
-                              {!notification.isRead && (
-                                <span className="w-2 h-2 bg-blue-600 rounded-full mt-1"></span>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {notification.id === 999 
-                                ? 'Şimdi' 
-                                : new Date(notification.createdAt).toLocaleString('tr-TR', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    day: '2-digit',
-                                    month: '2-digit'
-                                  })
-                              }
-                            </p>
-                          </button>
-                        ))}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-4 py-8 text-center text-gray-500">
+                            <Bell className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                            <p className="text-sm">Henüz bildirim bulunmuyor</p>
+                          </div>
+                        )}
                       </div>
                       <div className="px-4 py-2 border-t border-gray-200">
                         <button className="text-sm text-primary-600 hover:text-primary-700">
