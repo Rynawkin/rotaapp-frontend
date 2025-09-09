@@ -288,12 +288,24 @@ const Reports: React.FC = () => {
       };
     });
 
-    // Saatlik dağılım
+    // Saatlik dağılım - gerçek journey verilerinden hesaplanır
     const hourlyDistribution = [];
     for (let hour = 0; hour < 24; hour++) {
       const hourStr = `${hour.toString().padStart(2, '0')}:00`;
-      const deliveries = Math.floor(Math.random() * 50) + 10; // Mock veri
-      hourlyDistribution.push({ hour: hourStr, deliveries });
+      
+      // Bu saatte başlayan veya tamamlanan journey'leri say
+      const journeysInHour = filteredJourneys.filter(journey => {
+        if (journey.startedAt) {
+          const journeyHour = new Date(journey.startedAt).getHours();
+          return journeyHour === hour;
+        }
+        return false;
+      }).length;
+      
+      hourlyDistribution.push({ 
+        hour: hourStr, 
+        deliveries: journeysInHour 
+      });
     }
 
     // Rota verimliliği

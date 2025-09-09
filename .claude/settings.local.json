@@ -10,7 +10,11 @@
       "Read(//c/Users/QP/Desktop/monolith-master2/**)",
       "Bash(dotnet build)",
       "Bash(dotnet build:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(dotnet run:*)",
+      "Bash(timeout:*)",
+      "Bash(curl:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

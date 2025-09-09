@@ -25,14 +25,7 @@ import {
 } from 'lucide-react';
 import { Vehicle } from '@/types';
 import { vehicleService } from '@/services/vehicle.service';
-
-// Mock route service - Routes modülü entegre edilince gerçek servis kullanılacak
-const mockRouteService = {
-  getByVehicleId: async (vehicleId: string) => {
-    // Şimdilik boş array döndür
-    return [];
-  }
-};
+import { routeService } from '@/services/route.service';
 
 const VehicleDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -58,8 +51,8 @@ const VehicleDetail: React.FC = () => {
       if (vehicleData) {
         setVehicle(vehicleData);
         
-        // Load vehicle's routes - şimdilik mock
-        const vehicleRoutes = await mockRouteService.getByVehicleId(id);
+        // Load vehicle's routes using real API
+        const vehicleRoutes = await routeService.getByVehicleId(id);
         setRoutes(vehicleRoutes);
       } else {
         alert('Araç bulunamadı');

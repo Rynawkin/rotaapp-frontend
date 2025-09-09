@@ -535,6 +535,37 @@ class RouteService {
     return this.create(newRoute);
   }
 
+  async getByVehicleId(vehicleId: string | number): Promise<Route[]> {
+    try {
+      const response = await api.get(`${this.baseUrl}?vehicleId=${vehicleId}`);
+      
+      const customers = await this.loadCustomersSafely();
+      
+      const routes = response.data.map((route: any) => ({
+        ...route,
+        stops: route.stops?.map((stop: any) => {
+          const customer = customers.find(c => c.id.toString() === stop.customerId.toString());
+          return {
+            ...stop,
+            serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+            estimatedArrivalTime: stop.estimatedArrivalTime,
+            estimatedDepartureTime: stop.estimatedDepartureTime,
+            customer: customer || undefined
+          };
+        }) || [],
+        totalDistance: route.totalDistance || 0,
+        totalDuration: route.totalDuration || 0,
+        completedDeliveries: route.completedDeliveries || 0,
+        totalDeliveries: route.totalDeliveries || route.stops?.length || 0
+      }));
+      
+      return routes;
+    } catch (error) {
+      console.error('Error fetching routes by vehicle ID:', error);
+      return []; // Return empty array instead of throwing for better UX
+    }
+  }
+
   async getByDepot(depotId: string | number): Promise<Route[]> {
     try {
       const response = await api.get(`${this.baseUrl}?depotId=${depotId}`);

@@ -657,10 +657,6 @@ class JourneyService {
     }
   }
 
-  async simulateMovement(journeyId: string | number): Promise<void> {
-    console.warn('simulateMovement is a mock function for testing only');
-  }
-
   async bulkCancel(journeyIds: number[], reason?: string): Promise<BulkOperationResult> {
     try {
       console.log('Bulk cancelling journeys:', journeyIds);
