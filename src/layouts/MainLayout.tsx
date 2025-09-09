@@ -24,6 +24,9 @@ import {
   MapPinOff
 } from 'lucide-react';
 import { api } from '@/services/api';
+import { routeService } from '@/services/route.service';
+import { customerService } from '@/services/customer.service';
+import { journeyService } from '@/services/journey.service';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -44,6 +47,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
   const [pendingLocationRequests, setPendingLocationRequests] = useState(0);
+  const [routeCount, setRouteCount] = useState(0);
+  const [customerCount, setCustomerCount] = useState(0);
+  const [journeyCount, setJourneyCount] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -111,6 +117,34 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
     };
   }, [userInfo.isAdmin, userInfo.isDispatcher, userInfo.isSuperAdmin]);
 
+  // Sidebar sayıları için API verilerini yükle
+  useEffect(() => {
+    const loadCounts = async () => {
+      try {
+        // Kullanıcı yetkisine göre veri yükle
+        if (userInfo.isDispatcher || userInfo.isAdmin || userInfo.isSuperAdmin) {
+          // Rotalar count
+          const routesResponse = await routeService.getAll();
+          setRouteCount(routesResponse.length);
+
+          // Müşteriler count
+          const customersResponse = await customerService.getAll();
+          setCustomerCount(customersResponse.length);
+        }
+
+        // Seferler count (tüm roller için)
+        const journeysResponse = await journeyService.getAllSummary();
+        setJourneyCount(journeysResponse.length);
+
+      } catch (error) {
+        console.error('Error loading sidebar counts:', error);
+        // Hata durumunda 0 olarak kalsın
+      }
+    };
+
+    loadCounts();
+  }, [userInfo.isDispatcher, userInfo.isAdmin, userInfo.isSuperAdmin]);
+
   // Tüm menü öğeleri ve hangi roller erişebilir
   const allMenuItems: MenuItem[] = [
     { 
@@ -124,14 +158,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
       icon: Route, 
       label: 'Rotalar', 
       path: '/routes', 
-      badge: '3',
+      badge: routeCount > 0 ? routeCount.toString() : null,
       roles: ['dispatcher', 'admin', 'superadmin'] // Driver erişemez
     },
     { 
       icon: MapPin, 
       label: 'Müşteriler', 
       path: '/customers', 
-      badge: '125',
+      badge: customerCount > 0 ? customerCount.toString() : null,
       roles: ['dispatcher', 'admin', 'superadmin'] // Driver erişemez
     },
     { 
@@ -159,7 +193,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
       icon: Package, 
       label: 'Seferler', 
       path: '/journeys', 
-      badge: '5',
+      badge: journeyCount > 0 ? journeyCount.toString() : null,
       roles: ['driver', 'dispatcher', 'admin', 'superadmin'] // Herkes erişebilir
     },
     { 
@@ -324,13 +358,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                 <img 
                   src="/yolpilot-logo.png" 
                   alt="YolPilot" 
-                  className="h-10 w-auto"
+                  className="h-14 w-auto"
                 />
               ) : (
                 <img 
                   src="/yolpilot-logo.png" 
                   alt="YolPilot" 
-                  className="h-8 w-8 object-contain"
+                  className="h-12 w-12 object-contain"
                 />
               )}
             </Link>
