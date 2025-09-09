@@ -258,16 +258,14 @@ const LocationUpdateRequests: React.FC = () => {
         <span className="font-mono text-sm text-gray-800">
           {formatCoordRaw(lat)}, {formatCoordRaw(lng)}
         </span>
-        <a
+        <button
           className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs font-medium"
-          href={gmapsLink(lat, lng)}
-          target="_blank"
-          rel="noreferrer"
-          title="Haritada aç"
+          onClick={() => window.open(gmapsLink(lat, lng), '_blank')}
+          type="button"
         >
           <ExternalLink className="w-3 h-3" />
-          Harita
-        </a>
+          <span>Harita</span>
+        </button>
       </div>
     </div>
   );
