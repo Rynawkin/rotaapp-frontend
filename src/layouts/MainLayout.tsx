@@ -348,24 +348,28 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
       `}>
         <div className="flex flex-col h-full">
           {/* Logo Section */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <Link 
               to="/" 
-              className={`flex items-center ${!sidebarOpen && 'justify-center'}`}
+              className={`flex items-center ${!sidebarOpen ? 'justify-center w-full' : 'flex-1'}`}
               onClick={() => setMobileMenuOpen(false)}
             >
               {sidebarOpen ? (
-                <img 
-                  src="/yolpilot-logo.png" 
-                  alt="YolPilot" 
-                  className="h-14 w-auto"
-                />
+                <div className="flex items-center justify-center w-full">
+                  <img 
+                    src="/yolpilot-logo.png" 
+                    alt="YolPilot" 
+                    className="h-16 w-auto max-w-[200px] object-contain"
+                  />
+                </div>
               ) : (
-                <img 
-                  src="/yolpilot-logo.png" 
-                  alt="YolPilot" 
-                  className="h-12 w-12 object-contain"
-                />
+                <div className="flex items-center justify-center">
+                  <img 
+                    src="/yolpilot-logo.png" 
+                    alt="YolPilot" 
+                    className="h-14 w-14 object-contain"
+                  />
+                </div>
               )}
             </Link>
             <button
