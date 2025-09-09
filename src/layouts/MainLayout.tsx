@@ -27,6 +27,7 @@ import { api } from '@/services/api';
 import { routeService } from '@/services/route.service';
 import { customerService } from '@/services/customer.service';
 import { journeyService } from '@/services/journey.service';
+import { notificationService, Notification } from '@/services/notification.service';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -50,6 +51,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
   const [routeCount, setRouteCount] = useState(0);
   const [customerCount, setCustomerCount] = useState(0);
   const [journeyCount, setJourneyCount] = useState(0);
+  const [activeJourneyCount, setActiveJourneyCount] = useState(0);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -135,6 +138,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
         // Seferler count (tüm roller için)
         const journeysResponse = await journeyService.getAllSummary();
         setJourneyCount(journeysResponse.length);
+
+        // Aktif seferler count (InTransit status olanlar)
+        const activeJourneys = journeysResponse.filter(journey => 
+          journey.status === 'InTransit' || journey.status === 'InProgress'
+        );
+        setActiveJourneyCount(activeJourneys.length);
+
+        // Bildirimler
+        const notificationsResponse = await notificationService.getAll();
+        setNotifications(notificationsResponse);
 
       } catch (error) {
         console.error('Error loading sidebar counts:', error);
@@ -245,19 +258,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
     item.roles ? item.roles.includes(currentRole) : true
   );
 
-  const notifications = [
-    { id: 1, title: 'Yeni rota oluşturuldu', time: '5 dk önce', unread: true },
-    { id: 2, title: 'Sürücü Ali Yılmaz sefere başladı', time: '15 dk önce', unread: true },
-    { id: 3, title: 'Haftalık rapor hazır', time: '1 saat önce', unread: false },
-  ];
-
   // Bekleyen konum talepleri varsa bildirim ekle
+  const displayNotifications = [...notifications];
   if (pendingLocationRequests > 0) {
-    notifications.unshift({
+    displayNotifications.unshift({
       id: 999,
       title: `${pendingLocationRequests} bekleyen konum güncelleme talebi var`,
-      time: 'Şimdi',
-      unread: true
+      message: `${pendingLocationRequests} bekleyen konum güncelleme talebi bulunuyor.`,
+      type: 'warning' as const,
+      isRead: false,
+      createdAt: new Date().toISOString(),
+      userId: 'current-user'
     });
   }
 
@@ -479,11 +490,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                 <div className="hidden lg:flex items-center space-x-6 mr-6">
                   <div className="flex items-center">
                     <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-                    <span className="text-sm text-gray-600">3 Aktif Sefer</span>
+                    <span className="text-sm text-gray-600">{activeJourneyCount} Aktif Sefer</span>
                   </div>
                   <div className="flex items-center">
                     <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
-                    <span className="text-sm text-gray-600">5 Planlanmış Rota</span>
+                    <span className="text-sm text-gray-600">{routeCount} Planlanmış Rota</span>
                   </div>
                   {pendingLocationRequests > 0 && (
                     <div className="flex items-center">
@@ -499,10 +510,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                 <div className="hidden lg:flex items-center space-x-6 mr-6">
                   <div className="flex items-center">
                     <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-                    <span className="text-sm text-gray-600">Aktif Sefer</span>
+                    <span className="text-sm text-gray-600">
+                      {activeJourneyCount > 0 ? 'Aktif Sefer' : 'Sefer Bekliyor'}
+                    </span>
                   </div>
                   <div className="flex items-center">
-                    <span className="text-sm text-gray-600">Bugün: 12 Teslimat</span>
+                    <span className="text-sm text-gray-600">Bugün: {journeyCount} Sefer</span>
                   </div>
                 </div>
               )}
@@ -514,7 +527,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                   className="p-2 rounded-lg hover:bg-gray-100 relative"
                 >
                   <Bell className="w-5 h-5 text-gray-600" />
-                  {(notifications.some(n => n.unread) || pendingLocationRequests > 0) && (
+                  {(notifications.some(n => !n.isRead) || pendingLocationRequests > 0) && (
                     <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                   )}
                 </button>
@@ -530,23 +543,33 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                         <h3 className="font-semibold text-gray-900">Bildirimler</h3>
                       </div>
                       <div className="max-h-80 overflow-y-auto">
-                        {notifications.map(notification => (
+                        {displayNotifications.map(notification => (
                           <button
                             key={notification.id}
                             onClick={() => handleNotificationClick(notification.id)}
                             className={`w-full px-4 py-3 hover:bg-gray-50 text-left border-b border-gray-100 last:border-b-0 ${
-                              notification.unread ? 'bg-blue-50' : ''
+                              !notification.isRead ? 'bg-blue-50' : ''
                             }`}
                           >
                             <div className="flex justify-between items-start">
-                              <p className={`text-sm ${notification.unread ? 'font-semibold' : ''} text-gray-900`}>
+                              <p className={`text-sm ${!notification.isRead ? 'font-semibold' : ''} text-gray-900`}>
                                 {notification.title}
                               </p>
-                              {notification.unread && (
+                              {!notification.isRead && (
                                 <span className="w-2 h-2 bg-blue-600 rounded-full mt-1"></span>
                               )}
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">{notification.time}</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {notification.id === 999 
+                                ? 'Şimdi' 
+                                : new Date(notification.createdAt).toLocaleString('tr-TR', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    day: '2-digit',
+                                    month: '2-digit'
+                                  })
+                              }
+                            </p>
                           </button>
                         ))}
                       </div>
