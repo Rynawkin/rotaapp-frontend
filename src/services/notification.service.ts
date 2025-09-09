@@ -66,10 +66,11 @@ class NotificationService {
   async getAll(): Promise<Notification[]> {
     try {
       const response = await api.get(this.baseUrl);
-      return response.data;
+      return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
       console.error('Error fetching notifications:', error);
-      return [];
+      // Backend yoksa mock data döndür
+      return this.generateMockNotifications();
     }
   }
 

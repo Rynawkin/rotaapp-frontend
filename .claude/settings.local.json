@@ -14,7 +14,8 @@
       "Bash(dotnet run:*)",
       "Bash(timeout:*)",
       "Bash(curl:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []

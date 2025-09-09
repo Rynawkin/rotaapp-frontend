@@ -128,26 +128,30 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
         if (userInfo.isDispatcher || userInfo.isAdmin || userInfo.isSuperAdmin) {
           // Rotalar count
           const routesResponse = await routeService.getAll();
-          setRouteCount(routesResponse.length);
+          const routes = Array.isArray(routesResponse) ? routesResponse : [];
+          setRouteCount(routes.length);
 
           // Müşteriler count
           const customersResponse = await customerService.getAll();
-          setCustomerCount(customersResponse.length);
+          const customers = Array.isArray(customersResponse) ? customersResponse : [];
+          setCustomerCount(customers.length);
         }
 
         // Seferler count (tüm roller için)
         const journeysResponse = await journeyService.getAllSummary();
-        setJourneyCount(journeysResponse.length);
+        const journeys = Array.isArray(journeysResponse) ? journeysResponse : [];
+        setJourneyCount(journeys.length);
 
         // Aktif seferler count (InTransit status olanlar)
-        const activeJourneys = journeysResponse.filter(journey => 
+        const activeJourneys = journeys.filter(journey => 
           journey.status === 'InTransit' || journey.status === 'InProgress'
         );
         setActiveJourneyCount(activeJourneys.length);
 
         // Bildirimler
         const notificationsResponse = await notificationService.getAll();
-        setNotifications(notificationsResponse);
+        const notificationsList = Array.isArray(notificationsResponse) ? notificationsResponse : [];
+        setNotifications(notificationsList);
 
       } catch (error) {
         console.error('Error loading sidebar counts:', error);
@@ -259,7 +263,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
   );
 
   // Bekleyen konum talepleri varsa bildirim ekle
-  const displayNotifications = [...notifications];
+  const displayNotifications = [...(notifications || [])];
   if (pendingLocationRequests > 0) {
     displayNotifications.unshift({
       id: 999,
