@@ -137,7 +137,7 @@ const LocationUpdateRequests: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [errorText, setErrorText] = useState<string>('');
   const [search, setSearch] = useState<string>('');
-  const [selected, setSelected] = useState
+  const [selected, setSelected] = useState<
     PendingLocationUpdateRequestDto | HistoryLocationUpdateRequestDto | null
   >(null);
   const [approveOpen, setApproveOpen] = useState(false);
