@@ -11,15 +11,14 @@ declare global {
 }
 
 export interface Notification {
-  id: number;
+  id: string; // Backend uses Guid
   title: string;
   message: string;
-  type: 'info' | 'success' | 'warning' | 'error';
+  type: string; // Backend uses enum string like "JOURNEY_ASSIGNED"
   isRead: boolean;
   createdAt: string;
-  userId: string;
-  relatedEntityId?: number;
-  relatedEntityType?: string;
+  readAt?: string;
+  data?: any;
 }
 
 export interface NotificationStats {
@@ -66,7 +65,11 @@ class NotificationService {
   async getAll(): Promise<Notification[]> {
     try {
       const response = await api.get(this.baseUrl);
-      return Array.isArray(response.data) ? response.data : [];
+      // Backend returns NotificationsListResponse with notifications array
+      if (response.data && Array.isArray(response.data.notifications)) {
+        return response.data.notifications;
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching notifications:', error);
       // Backend yoksa mock data döndür
@@ -77,16 +80,16 @@ class NotificationService {
   async getUnreadCount(): Promise<number> {
     try {
       const response = await api.get(`${this.baseUrl}/unread-count`);
-      return response.data.count || 0;
+      return response.data.unreadCount || 0;
     } catch (error) {
       console.error('Error fetching unread notification count:', error);
       return 0;
     }
   }
 
-  async markAsRead(notificationId: number): Promise<void> {
+  async markAsRead(notificationId: string): Promise<void> {
     try {
-      await api.put(`${this.baseUrl}/${notificationId}/read`);
+      await api.put(`${this.baseUrl}/${notificationId}/mark-read`);
     } catch (error) {
       console.error('Error marking notification as read:', error);
       throw error;
@@ -116,47 +119,37 @@ class NotificationService {
   generateMockNotifications(): Notification[] {
     return [
       {
-        id: 1,
-        title: 'Yeni rota oluşturuldu',
-        message: 'Rota #RT001 başarıyla oluşturuldu.',
-        type: 'success',
+        id: '550e8400-e29b-41d4-a716-446655440001',
+        title: 'Yeni sefer atandı',
+        message: 'Size yeni bir sefer atandı: Rota #RT001.',
+        type: 'JOURNEY_ASSIGNED',
         isRead: false,
         createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(), // 5 dk önce
-        userId: 'current-user',
-        relatedEntityType: 'route',
-        relatedEntityId: 1
       },
       {
-        id: 2,
-        title: 'Sürücü sefere başladı',
-        message: 'Ali Yılmaz RT001 rotasına başladı.',
-        type: 'info',
+        id: '550e8400-e29b-41d4-a716-446655440002',
+        title: 'Sefer durumu değişti',
+        message: 'Rota RT001 seferi başlatıldı.',
+        type: 'JOURNEY_STATUS_CHANGED',
         isRead: false,
         createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(), // 15 dk önce
-        userId: 'current-user',
-        relatedEntityType: 'journey',
-        relatedEntityId: 2
       },
       {
-        id: 3,
-        title: 'Haftalık rapor hazır',
+        id: '550e8400-e29b-41d4-a716-446655440003',
+        title: 'Sistem duyurusu',
         message: 'Haftalık performans raporu hazırlandı.',
-        type: 'info',
+        type: 'SYSTEM_ANNOUNCEMENT',
         isRead: true,
         createdAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(), // 1 saat önce
-        userId: 'current-user',
-        relatedEntityType: 'report'
+        readAt: new Date(Date.now() - 50 * 60 * 1000).toISOString()
       },
       {
-        id: 4,
-        title: 'Teslimat tamamlandı',
-        message: 'Müşteri ABC Ltd. teslimatı başarıyla tamamlandı.',
-        type: 'success',
+        id: '550e8400-e29b-41d4-a716-446655440004',
+        title: 'Termin hatırlatması',
+        message: 'Müşteri ABC Ltd. teslimat termini yaklaşıyor.',
+        type: 'DEADLINE_REMINDER',
         isRead: false,
         createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 dk önce
-        userId: 'current-user',
-        relatedEntityType: 'delivery',
-        relatedEntityId: 5
       }
     ];
   }
