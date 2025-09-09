@@ -1,7 +1,10 @@
 // frontend/src/pages/LocationUpdateRequests.tsx
-import React, { useState, useEffect } from 'react';
+
+import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '@/services/api';
-import { MapPin, User, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { MapPin, User, Clock, CheckCircle, XCircle, RefreshCcw } from 'lucide-react';
+
+type ISODateString = string;
 
 interface LocationUpdateRequest {
   id: number;
@@ -9,107 +12,71 @@ interface LocationUpdateRequest {
   journeyName: string;
   customerId: number;
   customerName: string;
-  currentLatitude?: number;
-  currentLongitude?: number;
+  currentLatitude: number;
+  currentLongitude: number;
   currentAddress: string;
-  requestedLatitude?: number;
-  requestedLongitude?: number;
+  requestedLatitude: number;
+  requestedLongitude: number;
   requestedAddress: string;
   reason: string;
   requestedByName: string;
-  createdAt: string;
+  createdAt: ISODateString;
 }
+
+const formatDate = (iso: ISODateString) => {
+  try {
+    return new Date(iso).toLocaleString();
+  } catch {
+    return iso;
+  }
+};
 
 const LocationUpdateRequests: React.FC = () => {
   const [requests, setRequests] = useState<LocationUpdateRequest[]>([]);
   const [loading, setLoading] = useState(false);
-  const [errorText, setErrorText] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+
+  // Reject modal state
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  const toNum = (v: any): number | undefined =>
-    v === null || v === undefined || v === '' ? undefined : Number(v);
+  // Per-row "future stops" switch (default true)
+  const [updateFutureStopsMap, setUpdateFutureStopsMap] = useState<Record<number, boolean>>({});
 
-  const extractArray = (payload: any): any[] => {
-    if (Array.isArray(payload)) return payload;
-    if (Array.isArray(payload?.items)) return payload.items;
-    if (Array.isArray(payload?.data)) return payload.data;
-    if (Array.isArray(payload?.result)) return payload.result;
-    // Bazı API’lar { value: [...] } kullanır
-    if (Array.isArray(payload?.value)) return payload.value;
-    return [];
-  };
-
-  const norm = (raw: any): LocationUpdateRequest => {
-    const id = raw.id ?? raw.Id;
-    const journeyId = raw.journeyId ?? raw.JourneyId;
-    const customerId = raw.customerId ?? raw.CustomerId;
-
-    const journeyName =
-      raw.journeyName ??
-      raw.JourneyName ??
-      raw.journey?.name ??
-      raw.Journey?.Name ??
-      (journeyId != null ? `Sefer #${journeyId}` : 'Sefer');
-
-    const customerName =
-      raw.customerName ??
-      raw.CustomerName ??
-      raw.customer?.name ??
-      raw.Customer?.Name ??
-      (customerId != null ? `Müşteri #${customerId}` : 'Müşteri');
-
-    const requestedByName =
-      raw.requestedByName ??
-      raw.RequestedByName ??
-      raw.requestedBy?.name ??
-      raw.RequestedBy?.Name ??
-      '—';
-
-    const createdAt = raw.createdAt ?? raw.CreatedAt ?? new Date().toISOString();
-
-    return {
-      id,
-      journeyId,
-      journeyName,
-      customerId,
-      customerName,
-      currentLatitude: toNum(raw.currentLatitude ?? raw.CurrentLatitude),
-      currentLongitude: toNum(raw.currentLongitude ?? raw.CurrentLongitude),
-      currentAddress: raw.currentAddress ?? raw.CurrentAddress ?? '—',
-      requestedLatitude: toNum(raw.requestedLatitude ?? raw.RequestedLatitude),
-      requestedLongitude: toNum(raw.requestedLongitude ?? raw.RequestedLongitude),
-      requestedAddress: raw.requestedAddress ?? raw.RequestedAddress ?? '—',
-      reason: raw.reason ?? raw.Reason ?? '—',
-      requestedByName,
-      createdAt,
-    };
+  const setDefaultFutureStopsIfMissing = (items: LocationUpdateRequest[]) => {
+    setUpdateFutureStopsMap(prev => {
+      const next = { ...prev };
+      for (const r of items) {
+        if (next[r.id] === undefined) next[r.id] = true;
+      }
+      return next;
+    });
   };
 
   const loadRequests = async () => {
     setLoading(true);
-    setErrorText(null);
+    setError(null);
     try {
-      const response = await api.get('/workspace/location-update-requests/pending');
-      // Ham yanıtı konsola yazalım ki ağ/şekil sorunlarında görebilelim
-      // (prod’da isterseniz kaldırın)
-      // eslint-disable-next-line no-console
-      console.log('pending response:', response);
-
-      const body = response?.data ?? response; // axios ise .data’dır
-      const rows = extractArray(body).map(norm);
-
-      setRequests(rows);
-    } catch (error: any) {
-      // eslint-disable-next-line no-console
-      console.error('Talepler yüklenemedi:', error);
-      setErrorText(
-        error?.response?.data?.message ||
-          error?.message ||
-          'Talepler yüklenemedi. Lütfen tekrar deneyin.'
-      );
-      setRequests([]);
+      // BE: GET /api/workspace/location-update-requests/pending
+      const res = await api.get('/workspace/location-update-requests/pending');
+      const data = Array.isArray(res?.data) ? res.data as LocationUpdateRequest[] : [];
+      setRequests(data);
+      setDefaultFutureStopsIfMissing(data);
+      setLastUpdatedAt(new Date());
+    } catch (err: any) {
+      // Axios-vari error decode
+      const status = err?.response?.status;
+      const msg =
+        status === 401
+          ? 'Yetkisiz. Lütfen giriş yapın.'
+          : status === 403
+          ? 'Bu sayfayı görüntüleme yetkiniz yok (dispatcher/admin).'
+          : `Talepler yüklenemedi. Sunucu hatası${status ? ` (HTTP ${status})` : ''}.`;
+      setError(msg);
+      // Loglamak istersen:
+      // console.error('Error fetching pending location requests:', err);
     } finally {
       setLoading(false);
     }
@@ -117,165 +84,247 @@ const LocationUpdateRequests: React.FC = () => {
 
   useEffect(() => {
     loadRequests();
-    const interval = setInterval(loadRequests, 30000);
-    return () => clearInterval(interval);
+    // 30 sn'de bir yenile
+    const int = setInterval(loadRequests, 30000);
+    return () => clearInterval(int);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleApprove = async (requestId: number, updateFutureStops: boolean) => {
+  const openRejectModal = (requestId: number) => {
+    setSelectedRequestId(requestId);
+    setRejectReason('');
+    setRejectModalOpen(true);
+  };
+
+  const closeRejectModal = () => {
+    setRejectModalOpen(false);
+    setSelectedRequestId(null);
+    setRejectReason('');
+  };
+
+  const handleApprove = async (requestId: number) => {
     try {
+      const updateFutureStops = !!updateFutureStopsMap[requestId];
       await api.post(`/workspace/location-update-requests/${requestId}/approve`, {
         updateFutureStops,
       });
-      alert('Konum güncelleme talebi onaylandı');
+      // Basit bildirim
+      alert('Konum güncelleme talebi onaylandı.');
+      // Listeyi tazele
       loadRequests();
-    } catch (error: any) {
-      // eslint-disable-next-line no-console
-      console.error('Onay hatası:', error);
-      alert(error?.response?.data?.message || 'Talep onaylanamadı');
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const msg =
+        status === 400
+          ? 'Talep onaylanamadı (geçersiz istek).'
+          : status === 404
+          ? 'Talep bulunamadı.'
+          : `Talep onaylanamadı${status ? ` (HTTP ${status})` : ''}.`;
+      alert(msg);
     }
   };
 
   const handleReject = async () => {
     if (!selectedRequestId) return;
-
+    if (!rejectReason.trim()) {
+      alert('Lütfen red sebebi giriniz.');
+      return;
+    }
     try {
       await api.post(`/workspace/location-update-requests/${selectedRequestId}/reject`, {
         reason: rejectReason,
       });
-      alert('Talep reddedildi');
-      setRejectModalOpen(false);
-      setRejectReason('');
-      setSelectedRequestId(null);
+      alert('Talep reddedildi.');
+      closeRejectModal();
       loadRequests();
-    } catch (error: any) {
-      // eslint-disable-next-line no-console
-      console.error('Reddetme hatası:', error);
-      alert(error?.response?.data?.message || 'Talep reddedilemedi');
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const msg =
+        status === 400
+          ? 'Talep reddedilemedi (geçersiz istek).'
+          : status === 404
+          ? 'Talep bulunamadı.'
+          : `Talep reddedilemedi${status ? ` (HTTP ${status})` : ''}.`;
+      alert(msg);
     }
   };
 
-  const openRejectModal = (requestId: number) => {
-    setSelectedRequestId(requestId);
-    setRejectModalOpen(true);
-  };
+  const googleMapsLink = (lat: number, lng: number) =>
+    `https://www.google.com/maps?q=${lat},${lng}`;
 
-  const formatCoord = (n?: number) =>
-    typeof n === 'number' && !Number.isNaN(n) ? n.toFixed(6) : '—';
+  const hasData = requests.length > 0;
 
-  if (loading && requests.length === 0) {
+  const headerRight = useMemo(() => {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Konum Güncelleme Talepleri ({requests.length})
-        </h1>
+      <div className="flex items-center gap-2">
+        {lastUpdatedAt && (
+          <span className="text-xs text-gray-500">
+            Son güncelleme: {lastUpdatedAt.toLocaleTimeString()}
+          </span>
+        )}
         <button
           onClick={loadRequests}
-          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+          className="inline-flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+          title="Yenile"
         >
+          <RefreshCcw className="w-4 h-4" />
           Yenile
         </button>
       </div>
+    );
+  }, [lastUpdatedAt]);
 
-      {errorText && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{errorText}</p>
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">
+          Konum Güncelleme Talepleri {hasData ? `(${requests.length})` : ''}
+        </h1>
+        {headerRight}
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+          {error}
         </div>
       )}
 
-      {requests.length === 0 && !errorText ? (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-blue-800">Bekleyen konum güncelleme talebi bulunmuyor.</p>
+      {/* Loading skeleton */}
+      {loading && !hasData && !error && (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
         </div>
-      ) : (
-        <div className="space-y-4">
-          {requests.map((request) => (
-            <div key={request.id} className="bg-white rounded-lg shadow-md p-6">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {request.customerName}
-                  </h3>
-                  <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                    <span className="flex items-center gap-1">
-                      <User className="w-4 h-4" />
-                      {request.requestedByName}
-                    </span>
-                    <span className="flex items-center gap-1">
+      )}
+
+      {/* Empty state */}
+      {!loading && !error && !hasData && (
+        <div className="rounded-lg border border-gray-200 bg-white p-10 text-center">
+          <p className="text-gray-600">Bekleyen konum güncelleme talebi bulunmuyor.</p>
+        </div>
+      )}
+
+      {/* List */}
+      {!loading && !error && hasData && (
+        <div className="grid grid-cols-1 gap-4">
+          {requests.map((r) => (
+            <div
+              key={r.id}
+              className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-500">
+                    <span className="font-medium text-gray-900">Talep #{r.id}</span> •{' '}
+                    <span className="inline-flex items-center gap-1">
                       <Clock className="w-4 h-4" />
-                      {new Date(request.createdAt).toLocaleString('tr-TR')}
+                      {formatDate(r.createdAt)}
                     </span>
                   </div>
+
+                  <div className="text-sm text-gray-700">
+                    <div>
+                      <span className="font-medium">Sefer:</span>{' '}
+                      {r.journeyName || `Journey #${r.journeyId}`}
+                    </div>
+                    <div className="inline-flex items-center gap-2">
+                      <User className="w-4 h-4 text-gray-500" />
+                      <span className="font-medium">Müşteri:</span> {r.customerName || `#${r.customerId}`}
+                    </div>
+                    <div className="inline-flex items-center gap-2">
+                      <User className="w-4 h-4 text-gray-500" />
+                      <span className="font-medium">Talep Eden:</span> {r.requestedByName}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="rounded-lg bg-gray-50 p-3">
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <MapPin className="w-4 h-4" />
+                        <span className="font-semibold">Mevcut Konum</span>
+                      </div>
+                      <div className="mt-1 text-sm text-gray-700">
+                        <div>{r.currentAddress}</div>
+                        <div className="text-gray-500">
+                          ({r.currentLatitude.toFixed(6)}, {r.currentLongitude.toFixed(6)})
+                        </div>
+                        <a
+                          className="text-blue-600 hover:underline"
+                          href={googleMapsLink(r.currentLatitude, r.currentLongitude)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Haritada aç
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg bg-gray-50 p-3">
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <MapPin className="w-4 h-4" />
+                        <span className="font-semibold">Önerilen Yeni Konum</span>
+                      </div>
+                      <div className="mt-1 text-sm text-gray-700">
+                        <div>{r.requestedAddress}</div>
+                        <div className="text-gray-500">
+                          ({r.requestedLatitude.toFixed(6)}, {r.requestedLongitude.toFixed(6)})
+                        </div>
+                        <a
+                          className="text-blue-600 hover:underline"
+                          href={googleMapsLink(r.requestedLatitude, r.requestedLongitude)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Haritada aç
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
+                  {r.reason && (
+                    <div className="text-sm text-gray-700">
+                      <span className="font-medium">Sebep:</span> {r.reason}
+                    </div>
+                  )}
                 </div>
-                <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
-                  Bekliyor
-                </span>
-              </div>
 
-              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm font-medium text-gray-700 mb-1">Güncelleme Nedeni:</p>
-                <p className="text-gray-900">{request.reason}</p>
-              </div>
+                <div className="w-full md:w-64 shrink-0">
+                  <div className="rounded-lg border border-gray-200 p-3">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={!!updateFutureStopsMap[r.id]}
+                        onChange={(e) =>
+                          setUpdateFutureStopsMap((prev) => ({
+                            ...prev,
+                            [r.id]: e.target.checked,
+                          }))
+                        }
+                      />
+                      Gelecek durakları da güncelle
+                    </label>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-700 mb-2 flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-red-500" />
-                    Mevcut Konum
-                  </h4>
-                  <p className="text-sm text-gray-900 mb-1">{request.currentAddress}</p>
-                  <p className="text-xs text-gray-500">
-                    Lat: {formatCoord(request.currentLatitude)}, Lng:{' '}
-                    {formatCoord(request.currentLongitude)}
-                  </p>
-                </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => handleApprove(r.id)}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-white hover:bg-green-700"
+                        title="Onayla"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Onayla
+                      </button>
 
-                <div className="border border-green-200 bg-green-50 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-700 mb-2 flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-green-600" />
-                    Talep Edilen Konum
-                  </h4>
-                  <p className="text-sm text-gray-900 mb-1">{request.requestedAddress}</p>
-                  <p className="text-xs text-gray-500">
-                    Lat: {formatCoord(request.requestedLatitude)}, Lng:{' '}
-                    {formatCoord(request.requestedLongitude)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                <label className="flex items-center gap-2 text-sm text-gray-600">
-                  <input type="checkbox" defaultChecked id={`future-${request.id}`} className="rounded" />
-                  <span>Gelecekteki rotaları da güncelle</span>
-                </label>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      const checkbox = document.getElementById(
-                        `future-${request.id}`
-                      ) as HTMLInputElement | null;
-                      handleApprove(request.id, checkbox?.checked || false);
-                    }}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    Onayla
-                  </button>
-                  <button
-                    onClick={() => openRejectModal(request.id)}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    Reddet
-                  </button>
+                      <button
+                        onClick={() => openRejectModal(r.id)}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-white hover:bg-red-700"
+                        title="Reddet"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        Reddet
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -285,30 +334,36 @@ const LocationUpdateRequests: React.FC = () => {
 
       {/* Reject Modal */}
       {rejectModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Talebi Reddet</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={closeRejectModal}
+            aria-hidden
+          />
+          <div className="relative z-10 w-full max-w-md rounded-xl bg-white p-5 shadow-lg">
+            <h2 className="text-lg font-semibold text-gray-900">Talebi Reddet</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Lütfen red sebebini belirtiniz.
+            </p>
+
             <textarea
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="mt-3 w-full rounded-lg border border-gray-300 p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
               rows={4}
-              placeholder="Reddetme nedenini girin..."
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Red sebebi..."
             />
-            <div className="flex justify-end gap-2 mt-4">
+
+            <div className="mt-4 flex justify-end gap-2">
               <button
-                onClick={() => {
-                  setRejectModalOpen(false);
-                  setRejectReason('');
-                  setSelectedRequestId(null);
-                }}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                onClick={closeRejectModal}
+                className="rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200"
               >
-                İptal
+                Vazgeç
               </button>
               <button
                 onClick={handleReject}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
               >
                 Reddet
               </button>
