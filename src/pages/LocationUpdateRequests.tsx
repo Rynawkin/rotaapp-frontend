@@ -1,5 +1,4 @@
 // frontend/src/pages/LocationUpdateRequests.tsx
-
 import React, { useState, useEffect } from 'react';
 import { api } from '@/services/api';
 import { MapPin, User, Clock, CheckCircle, XCircle } from 'lucide-react';
@@ -10,11 +9,11 @@ interface LocationUpdateRequest {
   journeyName: string;
   customerId: number;
   customerName: string;
-  currentLatitude: number;
-  currentLongitude: number;
+  currentLatitude?: number;
+  currentLongitude?: number;
   currentAddress: string;
-  requestedLatitude: number;
-  requestedLongitude: number;
+  requestedLatitude?: number;
+  requestedLongitude?: number;
   requestedAddress: string;
   reason: string;
   requestedByName: string;
@@ -24,17 +23,93 @@ interface LocationUpdateRequest {
 const LocationUpdateRequests: React.FC = () => {
   const [requests, setRequests] = useState<LocationUpdateRequest[]>([]);
   const [loading, setLoading] = useState(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
+  const toNum = (v: any): number | undefined =>
+    v === null || v === undefined || v === '' ? undefined : Number(v);
+
+  const extractArray = (payload: any): any[] => {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.items)) return payload.items;
+    if (Array.isArray(payload?.data)) return payload.data;
+    if (Array.isArray(payload?.result)) return payload.result;
+    // Bazı API’lar { value: [...] } kullanır
+    if (Array.isArray(payload?.value)) return payload.value;
+    return [];
+  };
+
+  const norm = (raw: any): LocationUpdateRequest => {
+    const id = raw.id ?? raw.Id;
+    const journeyId = raw.journeyId ?? raw.JourneyId;
+    const customerId = raw.customerId ?? raw.CustomerId;
+
+    const journeyName =
+      raw.journeyName ??
+      raw.JourneyName ??
+      raw.journey?.name ??
+      raw.Journey?.Name ??
+      (journeyId != null ? `Sefer #${journeyId}` : 'Sefer');
+
+    const customerName =
+      raw.customerName ??
+      raw.CustomerName ??
+      raw.customer?.name ??
+      raw.Customer?.Name ??
+      (customerId != null ? `Müşteri #${customerId}` : 'Müşteri');
+
+    const requestedByName =
+      raw.requestedByName ??
+      raw.RequestedByName ??
+      raw.requestedBy?.name ??
+      raw.RequestedBy?.Name ??
+      '—';
+
+    const createdAt = raw.createdAt ?? raw.CreatedAt ?? new Date().toISOString();
+
+    return {
+      id,
+      journeyId,
+      journeyName,
+      customerId,
+      customerName,
+      currentLatitude: toNum(raw.currentLatitude ?? raw.CurrentLatitude),
+      currentLongitude: toNum(raw.currentLongitude ?? raw.CurrentLongitude),
+      currentAddress: raw.currentAddress ?? raw.CurrentAddress ?? '—',
+      requestedLatitude: toNum(raw.requestedLatitude ?? raw.RequestedLatitude),
+      requestedLongitude: toNum(raw.requestedLongitude ?? raw.RequestedLongitude),
+      requestedAddress: raw.requestedAddress ?? raw.RequestedAddress ?? '—',
+      reason: raw.reason ?? raw.Reason ?? '—',
+      requestedByName,
+      createdAt,
+    };
+  };
+
   const loadRequests = async () => {
     setLoading(true);
+    setErrorText(null);
     try {
       const response = await api.get('/workspace/location-update-requests/pending');
-      setRequests(response.data);
-    } catch (error) {
+      // Ham yanıtı konsola yazalım ki ağ/şekil sorunlarında görebilelim
+      // (prod’da isterseniz kaldırın)
+      // eslint-disable-next-line no-console
+      console.log('pending response:', response);
+
+      const body = response?.data ?? response; // axios ise .data’dır
+      const rows = extractArray(body).map(norm);
+
+      setRequests(rows);
+    } catch (error: any) {
+      // eslint-disable-next-line no-console
       console.error('Talepler yüklenemedi:', error);
+      setErrorText(
+        error?.response?.data?.message ||
+          error?.message ||
+          'Talepler yüklenemedi. Lütfen tekrar deneyin.'
+      );
+      setRequests([]);
     } finally {
       setLoading(false);
     }
@@ -42,7 +117,6 @@ const LocationUpdateRequests: React.FC = () => {
 
   useEffect(() => {
     loadRequests();
-    // Her 30 saniyede bir yenile
     const interval = setInterval(loadRequests, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -50,29 +124,33 @@ const LocationUpdateRequests: React.FC = () => {
   const handleApprove = async (requestId: number, updateFutureStops: boolean) => {
     try {
       await api.post(`/workspace/location-update-requests/${requestId}/approve`, {
-        updateFutureStops
+        updateFutureStops,
       });
       alert('Konum güncelleme talebi onaylandı');
       loadRequests();
-    } catch (error) {
-      alert('Talep onaylanamadı');
+    } catch (error: any) {
+      // eslint-disable-next-line no-console
+      console.error('Onay hatası:', error);
+      alert(error?.response?.data?.message || 'Talep onaylanamadı');
     }
   };
 
   const handleReject = async () => {
     if (!selectedRequestId) return;
-    
+
     try {
       await api.post(`/workspace/location-update-requests/${selectedRequestId}/reject`, {
-        reason: rejectReason
+        reason: rejectReason,
       });
       alert('Talep reddedildi');
       setRejectModalOpen(false);
       setRejectReason('');
       setSelectedRequestId(null);
       loadRequests();
-    } catch (error) {
-      alert('Talep reddedilemedi');
+    } catch (error: any) {
+      // eslint-disable-next-line no-console
+      console.error('Reddetme hatası:', error);
+      alert(error?.response?.data?.message || 'Talep reddedilemedi');
     }
   };
 
@@ -80,6 +158,9 @@ const LocationUpdateRequests: React.FC = () => {
     setSelectedRequestId(requestId);
     setRejectModalOpen(true);
   };
+
+  const formatCoord = (n?: number) =>
+    typeof n === 'number' && !Number.isNaN(n) ? n.toFixed(6) : '—';
 
   if (loading && requests.length === 0) {
     return (
@@ -103,13 +184,19 @@ const LocationUpdateRequests: React.FC = () => {
         </button>
       </div>
 
-      {requests.length === 0 ? (
+      {errorText && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800">{errorText}</p>
+        </div>
+      )}
+
+      {requests.length === 0 && !errorText ? (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-blue-800">Bekleyen konum güncelleme talebi bulunmuyor.</p>
         </div>
       ) : (
         <div className="space-y-4">
-          {requests.map(request => (
+          {requests.map((request) => (
             <div key={request.id} className="bg-white rounded-lg shadow-md p-6">
               <div className="flex justify-between items-start mb-4">
                 <div>
@@ -145,7 +232,8 @@ const LocationUpdateRequests: React.FC = () => {
                   </h4>
                   <p className="text-sm text-gray-900 mb-1">{request.currentAddress}</p>
                   <p className="text-xs text-gray-500">
-                    Lat: {request.currentLatitude.toFixed(6)}, Lng: {request.currentLongitude.toFixed(6)}
+                    Lat: {formatCoord(request.currentLatitude)}, Lng:{' '}
+                    {formatCoord(request.currentLongitude)}
                   </p>
                 </div>
 
@@ -156,26 +244,24 @@ const LocationUpdateRequests: React.FC = () => {
                   </h4>
                   <p className="text-sm text-gray-900 mb-1">{request.requestedAddress}</p>
                   <p className="text-xs text-gray-500">
-                    Lat: {request.requestedLatitude.toFixed(6)}, Lng: {request.requestedLongitude.toFixed(6)}
+                    Lat: {formatCoord(request.requestedLatitude)}, Lng:{' '}
+                    {formatCoord(request.requestedLongitude)}
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                 <label className="flex items-center gap-2 text-sm text-gray-600">
-                  <input 
-                    type="checkbox" 
-                    defaultChecked 
-                    id={`future-${request.id}`}
-                    className="rounded"
-                  />
+                  <input type="checkbox" defaultChecked id={`future-${request.id}`} className="rounded" />
                   <span>Gelecekteki rotaları da güncelle</span>
                 </label>
 
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
-                      const checkbox = document.getElementById(`future-${request.id}`) as HTMLInputElement;
+                      const checkbox = document.getElementById(
+                        `future-${request.id}`
+                      ) as HTMLInputElement | null;
                       handleApprove(request.id, checkbox?.checked || false);
                     }}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
