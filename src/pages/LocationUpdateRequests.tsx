@@ -2,11 +2,11 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '@/services/api';
-import { MapPin, User, Clock, CheckCircle, XCircle, RefreshCcw } from 'lucide-react';
+import { MapPin, User, Clock, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 
-type ISODateString = string;
+type StatusTab = 'Pending' | 'Approved' | 'Rejected';
 
-interface LocationUpdateRequest {
+type BaseItem = {
   id: number;
   journeyId: number;
   journeyName: string;
@@ -14,356 +14,330 @@ interface LocationUpdateRequest {
   customerName: string;
   currentLatitude: number;
   currentLongitude: number;
-  currentAddress: string;
+  currentAddress: string; // Talep sırasında sürücünün yazdığı/gelmiş olan adres – koordinat gibi görünüyorsa gizlenecek
   requestedLatitude: number;
   requestedLongitude: number;
-  requestedAddress: string;
   reason: string;
   requestedByName: string;
-  createdAt: ISODateString;
-}
+  createdAt: string; // ISO
+};
 
-const formatDate = (iso: ISODateString) => {
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
+type HistoryExtras = {
+  status: 'Approved' | 'Rejected';
+  approvedByName?: string;
+  rejectionReason?: string;
+  processedAt?: string; // ISO
+};
+
+type RequestItem = BaseItem & Partial<HistoryExtras>;
+
+const fmtCoord = (n: number) =>
+  // TR formatında virgüllü göster (ekranda); backend’e hep number (.) gider
+  n.toLocaleString('tr-TR', { minimumFractionDigits: 6, maximumFractionDigits: 6 });
+
+const looksLikeLatLngText = (s?: string) => {
+  if (!s) return false;
+  const t = s.trim();
+  // "41.12345, 29.12345" veya virgüllü ondalık "41,123 - 29,123" gibi varyasyonları yakala
+  return /^-?\d+([.,]\d+)?\s*,\s*-?\d+([.,]\d+)?$/.test(t);
+};
+
+const safeAddress = (s?: string) => (s && !looksLikeLatLngText(s) ? s : '—');
+
+const StatusPill: React.FC<{ status: StatusTab | 'Approved' | 'Rejected' }> = ({ status }) => {
+  if (status === 'Pending') {
+    return <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">Bekliyor</span>;
   }
+  if (status === 'Approved') {
+    return <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">Onaylandı</span>;
+  }
+  return <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">Reddedildi</span>;
 };
 
 const LocationUpdateRequests: React.FC = () => {
-  const [requests, setRequests] = useState<LocationUpdateRequest[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [active, setActive] = useState<StatusTab>('Pending');
 
-  // Reject modal state
+  const [pending, setPending] = useState<RequestItem[]>([]);
+  const [approved, setApproved] = useState<RequestItem[]>([]);
+  const [rejected, setRejected] = useState<RequestItem[]>([]);
+  const [loading, setLoading] = useState(false);
+
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [applyFutureStops, setApplyFutureStops] = useState(true); // onay tikinin varsayılanı
 
-  // Per-row "future stops" switch (default true)
-  const [updateFutureStopsMap, setUpdateFutureStopsMap] = useState<Record<number, boolean>>({});
+  const list = useMemo(() => {
+    if (active === 'Pending') return pending;
+    if (active === 'Approved') return approved;
+    return rejected;
+  }, [active, pending, approved, rejected]);
 
-  const setDefaultFutureStopsIfMissing = (items: LocationUpdateRequest[]) => {
-    setUpdateFutureStopsMap(prev => {
-      const next = { ...prev };
-      for (const r of items) {
-        if (next[r.id] === undefined) next[r.id] = true;
-      }
-      return next;
-    });
-  };
-
-  const loadRequests = async () => {
+  const load = async (which: StatusTab = active) => {
     setLoading(true);
-    setError(null);
     try {
-      // BE: GET /api/workspace/location-update-requests/pending
-      const res = await api.get('/workspace/location-update-requests/pending');
-      const data = Array.isArray(res?.data) ? res.data as LocationUpdateRequest[] : [];
-      setRequests(data);
-      setDefaultFutureStopsIfMissing(data);
-      setLastUpdatedAt(new Date());
-    } catch (err: any) {
-      // Axios-vari error decode
-      const status = err?.response?.status;
-      const msg =
-        status === 401
-          ? 'Yetkisiz. Lütfen giriş yapın.'
-          : status === 403
-          ? 'Bu sayfayı görüntüleme yetkiniz yok (dispatcher/admin).'
-          : `Talepler yüklenemedi. Sunucu hatası${status ? ` (HTTP ${status})` : ''}.`;
-      setError(msg);
-      // Loglamak istersen:
-      // console.error('Error fetching pending location requests:', err);
+      if (which === 'Pending') {
+        // mevcut endpoint
+        const res = await api.get('/workspace/location-update-requests/pending');
+        setPending(res.data as RequestItem[]);
+      } else {
+        // history endpoint (backend’de /history?status=Approved|Rejected)
+        const res = await api.get('/workspace/location-update-requests/history', {
+          params: { status: which },
+        });
+        const data = (res.data ?? []) as RequestItem[];
+        if (which === 'Approved') setApproved(data);
+        if (which === 'Rejected') setRejected(data);
+      }
+    } catch (err) {
+      console.error('Talepler yüklenemedi:', err);
+      if (which === 'Pending') setPending([]);
+      if (which === 'Approved') setApproved([]);
+      if (which === 'Rejected') setRejected([]);
     } finally {
       setLoading(false);
     }
   };
 
+  // ilk yükleme + 30sn’de bir sadece aktif sekmeyi yenile
   useEffect(() => {
-    loadRequests();
-    // 30 sn'de bir yenile
-    const int = setInterval(loadRequests, 30000);
-    return () => clearInterval(int);
+    load(active);
+    const id = setInterval(() => load(active), 30000);
+    return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const openRejectModal = (requestId: number) => {
-    setSelectedRequestId(requestId);
-    setRejectReason('');
-    setRejectModalOpen(true);
-  };
-
-  const closeRejectModal = () => {
-    setRejectModalOpen(false);
-    setSelectedRequestId(null);
-    setRejectReason('');
-  };
+  }, [active]);
 
   const handleApprove = async (requestId: number) => {
     try {
-      const updateFutureStops = !!updateFutureStopsMap[requestId];
       await api.post(`/workspace/location-update-requests/${requestId}/approve`, {
-        updateFutureStops,
+        updateFutureStops: applyFutureStops,
       });
-      // Basit bildirim
-      alert('Konum güncelleme talebi onaylandı.');
-      // Listeyi tazele
-      loadRequests();
-    } catch (err: any) {
-      const status = err?.response?.status;
-      const msg =
-        status === 400
-          ? 'Talep onaylanamadı (geçersiz istek).'
-          : status === 404
-          ? 'Talep bulunamadı.'
-          : `Talep onaylanamadı${status ? ` (HTTP ${status})` : ''}.`;
-      alert(msg);
+      alert('Konum güncelleme talebi onaylandı');
+      // onay sonrası bekleyen listeden düşer; aktif sekme Approved ise onu da yenileyelim
+      await Promise.all([load('Pending'), active === 'Approved' ? load('Approved') : Promise.resolve()]);
+    } catch (error) {
+      alert('Talep onaylanamadı');
     }
   };
 
-  const handleReject = async () => {
+  const handleRejectConfirm = async () => {
     if (!selectedRequestId) return;
-    if (!rejectReason.trim()) {
-      alert('Lütfen red sebebi giriniz.');
-      return;
-    }
     try {
       await api.post(`/workspace/location-update-requests/${selectedRequestId}/reject`, {
         reason: rejectReason,
       });
-      alert('Talep reddedildi.');
-      closeRejectModal();
-      loadRequests();
-    } catch (err: any) {
-      const status = err?.response?.status;
-      const msg =
-        status === 400
-          ? 'Talep reddedilemedi (geçersiz istek).'
-          : status === 404
-          ? 'Talep bulunamadı.'
-          : `Talep reddedilemedi${status ? ` (HTTP ${status})` : ''}.`;
-      alert(msg);
+      alert('Talep reddedildi');
+      setRejectModalOpen(false);
+      setRejectReason('');
+      setSelectedRequestId(null);
+      await Promise.all([load('Pending'), active === 'Rejected' ? load('Rejected') : Promise.resolve()]);
+    } catch (error) {
+      alert('Talep reddedilemedi');
     }
   };
 
-  const googleMapsLink = (lat: number, lng: number) =>
-    `https://www.google.com/maps?q=${lat},${lng}`;
-
-  const hasData = requests.length > 0;
-
-  const headerRight = useMemo(() => {
-    return (
-      <div className="flex items-center gap-2">
-        {lastUpdatedAt && (
-          <span className="text-xs text-gray-500">
-            Son güncelleme: {lastUpdatedAt.toLocaleTimeString()}
-          </span>
-        )}
-        <button
-          onClick={loadRequests}
-          className="inline-flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-          title="Yenile"
-        >
-          <RefreshCcw className="w-4 h-4" />
-          Yenile
-        </button>
-      </div>
-    );
-  }, [lastUpdatedAt]);
+  const openRejectModal = (requestId: number) => {
+    setSelectedRequestId(requestId);
+    setRejectModalOpen(true);
+  };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Başlık + yenile */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Konum Güncelleme Talepleri {hasData ? `(${requests.length})` : ''}
-        </h1>
-        {headerRight}
+        <h1 className="text-2xl font-bold text-gray-900">Konum Güncelleme Talepleri</h1>
+        <button
+          onClick={() => load(active)}
+          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 inline-flex items-center gap-2"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Yenile
+        </button>
       </div>
 
-      {/* Error */}
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
-          {error}
+      {/* Sekmeler */}
+      <div className="flex gap-2">
+        {(['Pending', 'Approved', 'Rejected'] as StatusTab[]).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActive(tab)}
+            className={[
+              'px-4 py-2 rounded-lg text-sm font-medium',
+              active === tab ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+            ].join(' ')}
+          >
+            {tab === 'Pending' ? 'Bekleyen' : tab === 'Approved' ? 'Onaylanan' : 'Reddedilen'}
+          </button>
+        ))}
+      </div>
+
+      {/* Açıklama satırı */}
+      {active === 'Pending' && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-sm">
+          <p className="mb-1">
+            <b>“Sonraki rotalara uygula”</b> tikliyse, onay sırasında **şimdiden oluşturulmuş** gelecekteki durakların
+            koordinatları da güncellenmesi için backende <code>UpdateFutureStops=true</code> gönderilir. Müşteri kaydı
+            zaten güncelleneceği için yeni oluşturulacak rotalar otomatik doğru koordinatla oluşur.
+          </p>
         </div>
       )}
 
-      {/* Loading skeleton */}
-      {loading && !hasData && !error && (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!loading && !error && !hasData && (
-        <div className="rounded-lg border border-gray-200 bg-white p-10 text-center">
-          <p className="text-gray-600">Bekleyen konum güncelleme talebi bulunmuyor.</p>
-        </div>
-      )}
-
-      {/* List */}
-      {!loading && !error && hasData && (
-        <div className="grid grid-cols-1 gap-4">
-          {requests.map((r) => (
-            <div
-              key={r.id}
-              className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-2">
-                  <div className="text-sm text-gray-500">
-                    <span className="font-medium text-gray-900">Talep #{r.id}</span> •{' '}
-                    <span className="inline-flex items-center gap-1">
+      {/* Liste */}
+      <div className="space-y-4">
+        {loading && list.length === 0 ? (
+          <div className="flex items-center justify-center h-48">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+          </div>
+        ) : list.length === 0 ? (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-blue-800">
+              {active === 'Pending'
+                ? 'Bekleyen konum güncelleme talebi bulunmuyor.'
+                : active === 'Approved'
+                ? 'Onaylanan talep bulunmuyor.'
+                : 'Reddedilen talep bulunmuyor.'}
+            </p>
+          </div>
+        ) : (
+          list.map((r) => (
+            <div key={r.id} className="bg-white rounded-lg shadow p-6">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">{r.customerName}</h3>
+                  <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-gray-600">
+                    <span className="flex items-center gap-1">
+                      <User className="w-4 h-4" />
+                      {r.requestedByName}
+                    </span>
+                    <span className="flex items-center gap-1">
                       <Clock className="w-4 h-4" />
-                      {formatDate(r.createdAt)}
+                      {new Date(r.createdAt).toLocaleString('tr-TR')}
                     </span>
                   </div>
+                  {r.journeyName && (
+                    <p className="text-sm text-gray-500 mt-1">Rota: {r.journeyName}</p>
+                  )}
+                </div>
+                <StatusPill status={(r as any).status ?? active} />
+              </div>
 
-                  <div className="text-sm text-gray-700">
-                    <div>
-                      <span className="font-medium">Sefer:</span>{' '}
-                      {r.journeyName || `Journey #${r.journeyId}`}
-                    </div>
-                    <div className="inline-flex items-center gap-2">
-                      <User className="w-4 h-4 text-gray-500" />
-                      <span className="font-medium">Müşteri:</span> {r.customerName || `#${r.customerId}`}
-                    </div>
-                    <div className="inline-flex items-center gap-2">
-                      <User className="w-4 h-4 text-gray-500" />
-                      <span className="font-medium">Talep Eden:</span> {r.requestedByName}
+              {/* Neden */}
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm font-medium text-gray-700 mb-1">Güncelleme Nedeni</p>
+                <p className="text-gray-900">{r.reason || '—'}</p>
+              </div>
+
+              {/* Koordinatlar */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-gray-600 mb-2 text-sm">
+                    <MapPin className="w-4 h-4" />
+                    Sürücünün bulunduğu konum
+                  </div>
+                  <div className="text-gray-900 font-mono">
+                    {fmtCoord(r.currentLatitude)}, {fmtCoord(r.currentLongitude)}
+                  </div>
+                  {/* Adres alanı koordinat gibi ise göstermiyoruz */}
+                  <div className="text-sm text-gray-500 mt-1">Adres: {safeAddress(r.currentAddress)}</div>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-gray-600 mb-2 text-sm">
+                    <MapPin className="w-4 h-4" />
+                    Talep edilen yeni konum
+                  </div>
+                  <div className="text-gray-900 font-mono">
+                    {fmtCoord(r.requestedLatitude)}, {fmtCoord(r.requestedLongitude)}
+                  </div>
+                  {/* NOT: İstenmediği için talep edilen adresi göstermiyoruz */}
+                </div>
+              </div>
+
+              {/* Onay/Red butonları sadece Bekleyen'de */}
+              {active === 'Pending' && (
+                <div className="mt-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                  <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      checked={applyFutureStops}
+                      onChange={(e) => setApplyFutureStops(e.target.checked)}
+                    />
+                    Sonraki rotalara da uygula (varsa, önceden planlanmış durakların koordinatlarını günceller)
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleApprove(r.id)}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 inline-flex items-center gap-2"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Onayla
+                    </button>
+                    <button
+                      onClick={() => openRejectModal(r.id)}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 inline-flex items-center gap-2"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      Reddet
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Onaylanan/Reddedilen detayları */}
+              {active !== 'Pending' && (
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="text-gray-600 mb-1">İşlem Tarihi</div>
+                    <div className="text-gray-900">
+                      {(r.processedAt && new Date(r.processedAt).toLocaleString('tr-TR')) || '—'}
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="rounded-lg bg-gray-50 p-3">
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <MapPin className="w-4 h-4" />
-                        <span className="font-semibold">Mevcut Konum</span>
-                      </div>
-                      <div className="mt-1 text-sm text-gray-700">
-                        <div>{r.currentAddress}</div>
-                        <div className="text-gray-500">
-                          ({r.currentLatitude.toFixed(6)}, {r.currentLongitude.toFixed(6)})
-                        </div>
-                        <a
-                          className="text-blue-600 hover:underline"
-                          href={googleMapsLink(r.currentLatitude, r.currentLongitude)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Haritada aç
-                        </a>
-                      </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="text-gray-600 mb-1">
+                      {active === 'Approved' ? 'Onaylayan' : 'İşlemi Yapan'}
                     </div>
-
-                    <div className="rounded-lg bg-gray-50 p-3">
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <MapPin className="w-4 h-4" />
-                        <span className="font-semibold">Önerilen Yeni Konum</span>
-                      </div>
-                      <div className="mt-1 text-sm text-gray-700">
-                        <div>{r.requestedAddress}</div>
-                        <div className="text-gray-500">
-                          ({r.requestedLatitude.toFixed(6)}, {r.requestedLongitude.toFixed(6)})
-                        </div>
-                        <a
-                          className="text-blue-600 hover:underline"
-                          href={googleMapsLink(r.requestedLatitude, r.requestedLongitude)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Haritada aç
-                        </a>
-                      </div>
-                    </div>
+                    <div className="text-gray-900">{r.approvedByName || '—'}</div>
                   </div>
-
-                  {r.reason && (
-                    <div className="text-sm text-gray-700">
-                      <span className="font-medium">Sebep:</span> {r.reason}
+                  {active === 'Rejected' && (
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <div className="text-gray-600 mb-1">Red Nedeni</div>
+                      <div className="text-gray-900">{r.rejectionReason || '—'}</div>
                     </div>
                   )}
                 </div>
-
-                <div className="w-full md:w-64 shrink-0">
-                  <div className="rounded-lg border border-gray-200 p-3">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={!!updateFutureStopsMap[r.id]}
-                        onChange={(e) =>
-                          setUpdateFutureStopsMap((prev) => ({
-                            ...prev,
-                            [r.id]: e.target.checked,
-                          }))
-                        }
-                      />
-                      Gelecek durakları da güncelle
-                    </label>
-
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => handleApprove(r.id)}
-                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-white hover:bg-green-700"
-                        title="Onayla"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        Onayla
-                      </button>
-
-                      <button
-                        onClick={() => openRejectModal(r.id)}
-                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-white hover:bg-red-700"
-                        title="Reddet"
-                      >
-                        <XCircle className="w-4 h-4" />
-                        Reddet
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </div>
 
-      {/* Reject Modal */}
+      {/* Red Modal */}
       {rejectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={closeRejectModal}
-            aria-hidden
-          />
-          <div className="relative z-10 w-full max-w-md rounded-xl bg-white p-5 shadow-lg">
-            <h2 className="text-lg font-semibold text-gray-900">Talebi Reddet</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Lütfen red sebebini belirtiniz.
-            </p>
-
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Talebi Reddet</h3>
             <textarea
-              className="mt-3 w-full rounded-lg border border-gray-300 p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
               rows={4}
+              placeholder="Reddetme nedenini girin."
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="Red sebebi..."
             />
-
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="flex justify-end gap-2 mt-4">
               <button
-                onClick={closeRejectModal}
-                className="rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200"
+                onClick={() => {
+                  setRejectModalOpen(false);
+                  setRejectReason('');
+                  setSelectedRequestId(null);
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
               >
-                Vazgeç
+                İptal
               </button>
               <button
-                onClick={handleReject}
-                className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+                onClick={handleRejectConfirm}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
                 Reddet
               </button>
