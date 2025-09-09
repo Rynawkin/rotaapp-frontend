@@ -1,339 +1,522 @@
+// frontend/src/pages/LocationUpdateRequests.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import api from "@/services/api";
-import { Check, X, RotateCw } from "lucide-react";
+import { api } from "@/services/api";
+import {
+  MapPin,
+  User,
+  Clock,
+  CheckCircle,
+  XCircle,
+  RefreshCcw,
+  ExternalLink,
+} from "lucide-react";
 
-/**
- * LocationUpdateRequests
- * - Bekleyen / Onaylanan / Reddedilen talepler sekmeleri
- * - Onayla / Reddet aksiyonları
- * - Geçmiş için işleyen kişi, tarih, red sebebi gibi alanları gösterir
- * - "Sonraki rotalara uygula" ve "adres metni" kaldırıldı. Onay, sadece müşteri koordinatlarını günceller.
- */
-
-type StatusTab = "Pending" | "Approved" | "Rejected";
-
-type LocationUpdateRequest = {
+type PendingDto = {
   id: number;
   journeyId: number;
-  journeyName?: string;
-
-  journeyStopId?: number;
-
+  journeyName: string;
   customerId: number;
-  customerName?: string;
-
-  currentLatitude: number;
-  currentLongitude: number;
-  currentAddress?: string | null;
-
-  requestedLatitude: number;
-  requestedLongitude: number;
-  requestedAddress?: string | null;
-
+  customerName: string;
+  currentLatitude: number | string;
+  currentLongitude: number | string;
+  currentAddress: string;
+  requestedLatitude: number | string;
+  requestedLongitude: number | string;
+  requestedAddress: string | null;
   reason: string;
-
   requestedByName: string;
-  createdAt: string; // ISO
-
-  // Yalnız geçmişte dolu olur
-  approvedByName?: string | null; // hem onay hem red için işleyen kişi
-  processedAt?: string | null; // hem onay hem red tarihi
-  rejectionReason?: string | null;
-
-  status?: StatusTab;
+  createdAt: string; // ISO (UTC)
 };
 
-function trNumber(n: number) {
-  // Ekranda virgüllü göstermek için
+type HistoryDto = {
+  id: number;
+  journeyId: number;
+  journeyName: string;
+  customerId: number;
+  customerName: string;
+  currentLatitude: number | string;
+  currentLongitude: number | string;
+  currentAddress: string;
+  requestedLatitude: number | string;
+  requestedLongitude: number | string;
+  requestedAddress: string | null;
+  reason: string;
+  requestedByName: string;
+  createdAt: string; // ISO (UTC)
+  status: "Approved" | "Rejected";
+  processedAt?: string | null;
+  approvedByName?: string | null;
+  rejectedByName?: string | null;
+  rejectionReason?: string | null;
+};
+
+type TabKey = "pending" | "approved" | "rejected";
+
+const tzOptions: Intl.DateTimeFormatOptions = {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+};
+
+function formatDateTR(value?: string | Date | null) {
+  if (!value) return "-";
+  const d = typeof value === "string" ? new Date(value) : value;
   try {
-    return n.toLocaleString("tr-TR", {
-      minimumFractionDigits: 6,
-      maximumFractionDigits: 6,
-    });
+    return new Intl.DateTimeFormat("tr-TR", {
+      ...tzOptions,
+      timeZone: "Europe/Istanbul",
+    }).format(d);
   } catch {
-    return String(n);
+    return d.toLocaleString("tr-TR");
   }
 }
 
-export default function LocationUpdateRequests() {
-  const [activeTab, setActiveTab] = useState<StatusTab>("Pending");
-  const [items, setItems] = useState<LocationUpdateRequest[]>([]);
+/** Virgülü noktaya çevirip 6 haneye yuvarlar (harita URL’leri için). */
+function normalizeCoord(input: number | string): string {
+  if (typeof input === "number") return input.toFixed(6);
+  const s = (input ?? "").toString().trim().replace(",", ".");
+  const n = Number.parseFloat(s);
+  if (Number.isFinite(n)) return n.toFixed(6);
+  return s;
+}
+
+function googleMapsUrl(lat: number | string, lon: number | string) {
+  const la = normalizeCoord(lat);
+  const lo = normalizeCoord(lon);
+  return `https://www.google.com/maps?q=${la},${lo}`;
+}
+
+const EmptyState: React.FC<{ title: string; subtitle?: string }> = ({
+  title,
+  subtitle,
+}) => (
+  <div className="flex flex-col items-center justify-center py-16 text-center border rounded-xl bg-white">
+    <MapPin className="w-10 h-10 mb-3 opacity-70" />
+    <h3 className="text-lg font-semibold">{title}</h3>
+    {subtitle ? (
+      <p className="text-sm text-neutral-500 mt-1">{subtitle}</p>
+    ) : null}
+  </div>
+);
+
+const Badge: React.FC<{ color: "green" | "red" | "gray"; children: React.ReactNode }> = ({ color, children }) => {
+  const m =
+    color === "green"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+      : color === "red"
+      ? "bg-rose-50 text-rose-700 border-rose-200"
+      : "bg-neutral-50 text-neutral-700 border-neutral-200";
+  return <span className={`px-2 py-0.5 text-xs rounded border ${m}`}>{children}</span>;
+};
+
+const LocationUpdateRequests: React.FC = () => {
+  const [tab, setTab] = useState<TabKey>("pending");
+
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [historyApiMissing, setHistoryApiMissing] = useState(false);
+  const [pending, setPending] = useState<PendingDto[]>([]);
 
-  const title = useMemo(() => {
-    switch (activeTab) {
-      case "Pending":
-        return "Bekleyen Talepler";
-      case "Approved":
-        return "Onaylanan Talepler";
-      case "Rejected":
-        return "Reddedilen Talepler";
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [approved, setApproved] = useState<HistoryDto[]>([]);
+  const [rejected, setRejected] = useState<HistoryDto[]>([]);
+
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+
+  const refresh = async () => {
+    if (tab === "pending") {
+      await loadPending();
+    } else if (tab === "approved") {
+      await loadHistory("Approved");
+    } else {
+      await loadHistory("Rejected");
     }
-  }, [activeTab]);
+  };
 
-  async function loadHistory(status: "Approved" | "Rejected") {
-    // 1) Yeni önerilen endpoint
-    const paths = [
-      `/workspace/location-update-requests/history?status=${status}`,
-      // 2) Alternatif (bazı sürümlerde böyle olabilir)
-      `/workspace/location-update-requests?status=${status}`,
-      // 3) En son denenebilecek eski yazım
-      `/workspace/location-update-requests/history/${status.toLowerCase()}`,
-    ];
-
-    for (const path of paths) {
-      try {
-        const res = await api.get<LocationUpdateRequest[]>(path);
-        if (Array.isArray(res.data)) {
-          setHistoryApiMissing(false);
-          return res.data;
-        }
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          // 404 ise sıradakini dene
-          continue;
-        }
-        // Diğer hatalarda döngüyü kırıp hatayı yansıt
-        throw err;
-      }
-    }
-    // Hiçbiri yoksa backend henüz deploy edilmemiş kabul et
-    setHistoryApiMissing(true);
-    return [];
-  }
-
-  async function fetchData() {
+  const loadPending = async () => {
     setLoading(true);
-    setError(null);
     try {
-      let data: LocationUpdateRequest[] = [];
-      if (activeTab === "Pending") {
-        const res = await api.get<LocationUpdateRequest[]>(
-          `/workspace/location-update-requests/pending`
-        );
-        data = res.data ?? [];
-      } else {
-        data = await loadHistory(activeTab);
-      }
-      setItems(data);
-    } catch (e: any) {
-      console.error("Talepler yüklenemedi:", e);
-      setError("Talepler yüklenemedi.");
-      setItems([]);
+      const res = await api.get("/workspace/location-update-requests/pending");
+      setPending(res.data || []);
+    } catch (err) {
+      console.error("Bekleyen talepler alınamadı:", err);
     } finally {
       setLoading(false);
     }
-  }
+  };
+
+  const loadHistory = async (status: "Approved" | "Rejected") => {
+    setHistoryLoading(true);
+    try {
+      const res = await api.get(
+        `/workspace/location-update-requests/history`,
+        { params: { status } }
+      );
+      const rows = (res.data || []) as HistoryDto[];
+      if (status === "Approved") setApproved(rows);
+      if (status === "Rejected") setRejected(rows);
+    } catch (err) {
+      console.error(`Geçmiş talepler alınamadı (${status}):`, err);
+      if (status === "Approved") setApproved([]);
+      if (status === "Rejected") setRejected([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   useEffect(() => {
-    fetchData();
+    refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
+  }, [tab]);
 
-  async function approve(id: number) {
-    setError(null);
-    try {
-      // "Sonraki rotalara uygula" KALDIRILDI → sadece müşteri koordinatlarını güncelle.
-      // Backend System.Text.Json camelCase ile "updateFutureStops" bekler.
-      await api.post(`/workspace/location-update-requests/${id}/approve`, {
-        updateFutureStops: false,
-      });
-      await fetchData();
-    } catch (e: any) {
-      console.error("Onay hatası:", e);
-      setError("Talep onaylanamadı.");
+  const approveRequest = async (id: number) => {
+    if (!confirm("Bu konum güncelleme talebini ONAYLAMAK istediğinize emin misiniz?")) {
+      return;
     }
-  }
-
-  async function reject(id: number) {
-    setError(null);
     try {
-      const reason =
-        prompt("Reddetme gerekçesi (opsiyonel):") ?? "Uygun bulunmadı";
-      await api.post(`/workspace/location-update-requests/${id}/reject`, {
-        rejectionReason: reason,
-      });
-      await fetchData();
-    } catch (e: any) {
-      console.error("Red hatası:", e);
-      setError("Talep reddedilemedi.");
+      // Backend route: POST /workspace/location-update-requests/{id}/approve
+      // Body boş (sadece route id kullanılıyor)
+      await api.post(`/workspace/location-update-requests/${id}/approve`, {});
+      await loadPending();
+      if (tab === "approved") await loadHistory("Approved");
+    } catch (err) {
+      console.error("Onaylama başarısız:", err);
+      alert("Onaylama başarısız oldu.");
     }
-  }
+  };
 
-  return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{title}</h1>
-        <button
-          onClick={fetchData}
-          className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
-        >
-          <RotateCw size={16} />
-          Yenile
-        </button>
-      </div>
+  const openRejectModal = (id: number) => {
+    setSelectedRequestId(id);
+    setRejectReason("");
+    setRejectModalOpen(true);
+  };
 
-      <div className="flex gap-2">
-        {(["Pending", "Approved", "Rejected"] as StatusTab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setActiveTab(t)}
-            className={`px-3 py-1.5 rounded-md border text-sm ${
-              activeTab === t ? "bg-black text-white" : "bg-white"
-            }`}
-          >
-            {t === "Pending"
-              ? "Bekleyen"
-              : t === "Approved"
-              ? "Onaylanan"
-              : "Reddedilen"}
-          </button>
-        ))}
-      </div>
+  const rejectRequest = async () => {
+    if (!selectedRequestId) return;
+    if (!rejectReason.trim()) {
+      alert("Lütfen bir red sebebi giriniz.");
+      return;
+    }
+    try {
+      // Backend route: POST /workspace/location-update-requests/{id}/reject
+      await api.post(
+        `/workspace/location-update-requests/${selectedRequestId}/reject`,
+        { reason: rejectReason.trim() }
+      );
+      setRejectModalOpen(false);
+      await loadPending();
+      if (tab === "rejected") await loadHistory("Rejected");
+    } catch (err) {
+      console.error("Reddetme başarısız:", err);
+      alert("Reddetme başarısız oldu.");
+    }
+  };
 
-      {error && (
-        <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {historyApiMissing && activeTab !== "Pending" && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-          Geçmiş sorgu endpoint'i bulunamadı (404). Backend'in{" "}
-          <code>/workspace/location-update-requests/history?status=…</code>{" "}
-          endpoint'i yayında olmayabilir.
-        </div>
-      )}
-
-      <div className="overflow-x-auto rounded-lg border">
-        <table className="min-w-[900px] w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
-            <tr>
-              <th className="px-3 py-2 text-left">Tarih</th>
-              <th className="px-3 py-2 text-left">Seyahat</th>
-              <th className="px-3 py-2 text-left">Müşteri</th>
-              <th className="px-3 py-2 text-left">Mevcut (lat,lng)</th>
-              <th className="px-3 py-2 text-left">İstenen (lat,lng)</th>
-              <th className="px-3 py-2 text-left">Sebep</th>
-              {activeTab !== "Pending" && (
-                <>
-                  <th className="px-3 py-2 text-left">İşleyen</th>
-                  <th className="px-3 py-2 text-left">İşlem Tarihi</th>
-                  <th className="px-3 py-2 text-left">Red Gerekçesi</th>
-                </>
-              )}
-              <th className="px-3 py-2 text-left">Durum</th>
-              {activeTab === "Pending" && (
-                <th className="px-3 py-2 text-left">Aksiyon</th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {!loading && items.length === 0 && (
-              <tr>
-                <td
-                  colSpan={activeTab === "Pending" ? 8 : 11}
-                  className="px-3 py-6 text-center text-gray-500"
-                >
-                  Talep bulunamadı.
-                </td>
-              </tr>
-            )}
-
-            {loading && (
-              <tr>
-                <td
-                  colSpan={activeTab === "Pending" ? 8 : 11}
-                  className="px-3 py-6 text-center text-gray-500"
-                >
-                  Yükleniyor…
-                </td>
-              </tr>
-            )}
-
-            {!loading &&
-              items.map((it) => {
-                const created = new Date(it.createdAt);
-                const processed = it.processedAt
-                  ? new Date(it.processedAt)
-                  : null;
-                return (
-                  <tr key={it.id} className="border-t">
-                    <td className="px-3 py-2">
-                      {created.toLocaleString("tr-TR")}
-                    </td>
-                    <td className="px-3 py-2">{it.journeyName ?? "-"}</td>
-                    <td className="px-3 py-2">{it.customerName ?? "-"}</td>
-                    <td className="px-3 py-2">
-                      {trNumber(it.currentLatitude)}, {trNumber(it.currentLongitude)}
-                    </td>
-                    <td className="px-3 py-2">
-                      {trNumber(it.requestedLatitude)},{" "}
-                      {trNumber(it.requestedLongitude)}
-                    </td>
-                    <td className="px-3 py-2 max-w-[280px]">
-                      <div className="line-clamp-2" title={it.reason}>
-                        {it.reason}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        Talep eden: {it.requestedByName}
-                      </div>
-                    </td>
-
-                    {activeTab !== "Pending" && (
-                      <>
-                        <td className="px-3 py-2">
-                          {it.approvedByName ?? "-"}
-                        </td>
-                        <td className="px-3 py-2">
-                          {processed ? processed.toLocaleString("tr-TR") : "-"}
-                        </td>
-                        <td className="px-3 py-2">
-                          {it.status === "Rejected"
-                            ? it.rejectionReason || "-"
-                            : "-"}
-                        </td>
-                      </>
-                    )}
-
-                    <td className="px-3 py-2">
-                      {activeTab === "Pending"
-                        ? "Bekliyor"
-                        : activeTab === "Approved"
-                        ? "Onaylandı"
-                        : "Reddedildi"}
-                    </td>
-
-                    {activeTab === "Pending" && (
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => approve(it.id)}
-                            className="inline-flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-green-50"
-                            title="Onayla"
-                          >
-                            <Check size={16} />
-                            Onayla
-                          </button>
-                          <button
-                            onClick={() => reject(it.id)}
-                            className="inline-flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-red-50"
-                            title="Reddet"
-                          >
-                            <X size={16} />
-                            Reddet
-                          </button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-          </tbody>
-        </table>
-      </div>
+  const SectionHeader: React.FC<{ title: string; count?: number }> = ({ title, count }) => (
+    <div className="flex items-center justify-between mb-4">
+      <h2 className="text-xl font-semibold">{title} {typeof count === "number" ? <span className="text-neutral-400 text-base">({count})</span> : null}</h2>
+      <button
+        onClick={refresh}
+        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-white hover:bg-neutral-50"
+        title="Yenile"
+      >
+        <RefreshCcw className="w-4 h-4" />
+        Yenile
+      </button>
     </div>
   );
-}
+
+  const TabButton: React.FC<{ k: TabKey; label: string; icon?: React.ReactNode }> = ({ k, label, icon }) => {
+    const active = tab === k;
+    return (
+      <button
+        onClick={() => setTab(k)}
+        className={`px-3 py-2 rounded-lg border text-sm inline-flex items-center gap-2 ${
+          active ? "bg-neutral-900 text-white border-neutral-900" : "bg-white hover:bg-neutral-50"
+        }`}
+      >
+        {icon}
+        {label}
+      </button>
+    );
+  };
+
+  const TableHead: React.FC<{ history?: boolean }> = ({ history }) => (
+    <thead className="bg-neutral-50">
+      <tr className="text-left text-sm text-neutral-600">
+        <th className="py-2 px-3">Müşteri</th>
+        <th className="py-2 px-3">Sefer</th>
+        <th className="py-2 px-3">Mevcut Konum</th>
+        <th className="py-2 px-3">Talep Edilen Konum</th>
+        <th className="py-2 px-3">Talep Eden</th>
+        <th className="py-2 px-3">Talep Zamanı</th>
+        {history ? <th className="py-2 px-3">Durum</th> : null}
+        {history ? <th className="py-2 px-3">İşleyen</th> : null}
+        {history ? <th className="py-2 px-3">İşlem Zamanı</th> : null}
+        {!history ? <th className="py-2 px-3 w-[220px]">İşlemler</th> : null}
+      </tr>
+    </thead>
+  );
+
+  const PendingTable: React.FC = () => (
+    <div className="border rounded-xl overflow-hidden bg-white">
+      <table className="w-full border-collapse">
+        <TableHead />
+        <tbody>
+          {pending.map((r) => (
+            <tr key={r.id} className="border-t text-sm">
+              <td className="py-3 px-3">
+                <div className="font-medium flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  {r.customerName}
+                </div>
+                <div className="text-xs text-neutral-500">#{r.customerId}</div>
+              </td>
+              <td className="py-3 px-3">
+                <div className="font-medium">{r.journeyName}</div>
+                <div className="text-xs text-neutral-500">Sefer #{r.journeyId}</div>
+              </td>
+              <td className="py-3 px-3">
+                <div className="font-mono text-xs">
+                  {normalizeCoord(r.currentLatitude)}, {normalizeCoord(r.currentLongitude)}
+                </div>
+                <div className="text-xs text-neutral-500 truncate max-w-[280px]">
+                  {r.currentAddress || "-"}
+                </div>
+                <a
+                  className="inline-flex items-center gap-1 text-xs underline mt-1"
+                  href={googleMapsUrl(r.currentLatitude, r.currentLongitude)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Haritada aç <ExternalLink className="w-3 h-3" />
+                </a>
+              </td>
+              <td className="py-3 px-3">
+                <div className="font-mono text-xs">
+                  {normalizeCoord(r.requestedLatitude)}, {normalizeCoord(r.requestedLongitude)}
+                </div>
+                <div className="text-xs text-neutral-500 truncate max-w-[280px]">
+                  {r.requestedAddress || "-"}
+                </div>
+                <a
+                  className="inline-flex items-center gap-1 text-xs underline mt-1"
+                  href={googleMapsUrl(r.requestedLatitude, r.requestedLongitude)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Haritada aç <ExternalLink className="w-3 h-3" />
+                </a>
+              </td>
+              <td className="py-3 px-3">
+                <div className="text-sm">{r.requestedByName}</div>
+              </td>
+              <td className="py-3 px-3">
+                <div className="flex items-center gap-1 text-sm">
+                  <Clock className="w-4 h-4" />
+                  {formatDateTR(r.createdAt)}
+                </div>
+              </td>
+              <td className="py-3 px-3">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => approveRequest(r.id)}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+                    title="Onayla"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Onayla
+                  </button>
+                  <button
+                    onClick={() => openRejectModal(r.id)}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-rose-700 border-rose-200 bg-rose-50 hover:bg-rose-100"
+                    title="Reddet"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Reddet
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+          {!pending.length && !loading ? (
+            <tr>
+              <td colSpan={7} className="p-10">
+                <EmptyState
+                  title="Bekleyen talep bulunamadı"
+                  subtitle="Sürücülerden konum güncelleme talebi geldiğinde burada görünecek."
+                />
+              </td>
+            </tr>
+          ) : null}
+          {loading ? (
+            <tr>
+              <td colSpan={7} className="p-6 text-center text-sm text-neutral-500">
+                Yükleniyor...
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const HistoryTable: React.FC<{ rows: HistoryDto[]; status: "Approved" | "Rejected" }> = ({ rows, status }) => (
+    <div className="border rounded-xl overflow-hidden bg-white">
+      <table className="w-full border-collapse">
+        <TableHead history />
+        <tbody>
+          {rows.map((r) => (
+            <tr key={`${status}-${r.id}`} className="border-t text-sm">
+              <td className="py-3 px-3">
+                <div className="font-medium flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  {r.customerName}
+                </div>
+                <div className="text-xs text-neutral-500">#{r.customerId}</div>
+              </td>
+              <td className="py-3 px-3">
+                <div className="font-medium">{r.journeyName}</div>
+                <div className="text-xs text-neutral-500">Sefer #{r.journeyId}</div>
+              </td>
+              <td className="py-3 px-3">
+                <div className="font-mono text-xs">
+                  {normalizeCoord(r.currentLatitude)}, {normalizeCoord(r.currentLongitude)}
+                </div>
+                <div className="text-xs text-neutral-500 truncate max-w-[280px]">
+                  {r.currentAddress || "-"}
+                </div>
+                <a
+                  className="inline-flex items-center gap-1 text-xs underline mt-1"
+                  href={googleMapsUrl(r.currentLatitude, r.currentLongitude)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Haritada aç <ExternalLink className="w-3 h-3" />
+                </a>
+              </td>
+              <td className="py-3 px-3">
+                <div className="font-mono text-xs">
+                  {normalizeCoord(r.requestedLatitude)}, {normalizeCoord(r.requestedLongitude)}
+                </div>
+                <div className="text-xs text-neutral-500 truncate max-w-[280px]">
+                  {r.requestedAddress || "-"}
+                </div>
+                <a
+                  className="inline-flex items-center gap-1 text-xs underline mt-1"
+                  href={googleMapsUrl(r.requestedLatitude, r.requestedLongitude)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Haritada aç <ExternalLink className="w-3 h-3" />
+                </a>
+              </td>
+              <td className="py-3 px-3">
+                <div className="text-sm">{r.requestedByName}</div>
+              </td>
+              <td className="py-3 px-3">
+                <div className="flex items-center gap-1 text-sm">
+                  <Clock className="w-4 h-4" />
+                  {formatDateTR(r.createdAt)}
+                </div>
+              </td>
+              <td className="py-3 px-3">
+                <Badge color={status === "Approved" ? "green" : "red"}>
+                  {status === "Approved" ? "Onaylandı" : "Reddedildi"}
+                </Badge>
+              </td>
+              <td className="py-3 px-3">
+                <div className="text-sm">
+                  {status === "Approved" ? (r.approvedByName || "-") : (r.rejectedByName || "-")}
+                </div>
+                {status === "Rejected" && r.rejectionReason ? (
+                  <div className="text-xs text-neutral-500 mt-1">Sebep: {r.rejectionReason}</div>
+                ) : null}
+              </td>
+              <td className="py-3 px-3">
+                <div className="flex items-center gap-1 text-sm">
+                  <Clock className="w-4 h-4" />
+                  {formatDateTR(r.processedAt)}
+                </div>
+              </td>
+            </tr>
+          ))}
+          {!rows.length && !historyLoading ? (
+            <tr>
+              <td colSpan={10} className="p-10">
+                <EmptyState
+                  title={`${status === "Approved" ? "Onaylanan" : "Reddedilen"} talep bulunamadı`}
+                />
+              </td>
+            </tr>
+          ) : null}
+          {historyLoading ? (
+            <tr>
+              <td colSpan={10} className="p-6 text-center text-sm text-neutral-500">
+                Yükleniyor...
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  return (
+    <div className="p-4 md:p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Konum Güncelleme Talepleri</h1>
+        <div className="flex gap-2">
+          <TabButton k="pending" label="Bekleyen" icon={<Clock className="w-4 h-4" />} />
+          <TabButton k="approved" label="Onaylanan" icon={<CheckCircle className="w-4 h-4" />} />
+          <TabButton k="rejected" label="Reddedilen" icon={<XCircle className="w-4 h-4" />} />
+        </div>
+      </div>
+
+      {tab === "pending" && <><SectionHeader title="Bekleyen Talepler" count={pending.length} /><PendingTable /></>}
+      {tab === "approved" && <><SectionHeader title="Onaylanan Talepler" count={approved.length} /><HistoryTable rows={approved} status="Approved" /></>}
+      {tab === "rejected" && <><SectionHeader title="Reddedilen Talepler" count={rejected.length} /><HistoryTable rows={rejected} status="Rejected" /></>}
+
+      {/* Reject Modal */}
+      {rejectModalOpen ? (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-[95%] max-w-md">
+            <div className="p-4 border-b">
+              <h3 className="text-lg font-semibold">Talebi Reddet</h3>
+            </div>
+            <div className="p-4 space-y-3">
+              <label className="text-sm">Red nedeni</label>
+              <textarea
+                className="w-full border rounded-lg p-2 text-sm"
+                rows={4}
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Neden reddediyorsunuz?"
+              />
+            </div>
+            <div className="p-4 border-t flex items-center justify-end gap-2">
+              <button
+                onClick={() => setRejectModalOpen(false)}
+                className="px-3 py-1.5 rounded-lg border bg-white hover:bg-neutral-50"
+              >
+                Vazgeç
+              </button>
+              <button
+                onClick={rejectRequest}
+                className="px-3 py-1.5 rounded-lg border text-rose-700 border-rose-200 bg-rose-50 hover:bg-rose-100 inline-flex items-center gap-2"
+              >
+                <XCircle className="w-4 h-4" />
+                Reddet
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+export default LocationUpdateRequests;
