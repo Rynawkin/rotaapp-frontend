@@ -42,7 +42,7 @@ import IssuesManagement from './pages/superadmin/IssuesManagement';
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
 import TermsOfService from './pages/legal/TermsOfService';
 import DeleteAccount from './pages/DeleteAccount';
-import LocationUpdateRequests from '@/pages/LocationUpdateRequests';
+import LocationUpdateRequests from './pages/LocationUpdateRequests';
 
 // Layout wrapper for protected routes - useAuth hook'unu kullanacak şekilde güncellendi
 const ProtectedLayout: React.FC<{
