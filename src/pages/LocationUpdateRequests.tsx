@@ -1,5 +1,5 @@
 // frontend/src/pages/LocationUpdateRequests.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { api } from "@/services/api";
 import {
   MapPin,
@@ -25,7 +25,7 @@ type PendingDto = {
   requestedAddress: string | null;
   reason: string;
   requestedByName: string;
-  createdAt: string; // ISO (UTC)
+  createdAt: string; // ISO (UTC veya tz'siz)
 };
 
 type HistoryDto = {
@@ -42,9 +42,9 @@ type HistoryDto = {
   requestedAddress: string | null;
   reason: string;
   requestedByName: string;
-  createdAt: string; // ISO (UTC)
+  createdAt: string; // ISO
   status: "Approved" | "Rejected";
-  processedAt?: string | null;
+  processedAt?: string | null; // ISO
   approvedByName?: string | null;
   rejectedByName?: string | null;
   rejectionReason?: string | null;
@@ -52,6 +52,7 @@ type HistoryDto = {
 
 type TabKey = "pending" | "approved" | "rejected";
 
+/* ---------- TR saat dilimi biçimlendirme ---------- */
 const tzOptions: Intl.DateTimeFormatOptions = {
   year: "numeric",
   month: "2-digit",
@@ -61,9 +62,44 @@ const tzOptions: Intl.DateTimeFormatOptions = {
   second: "2-digit",
 };
 
+/** "2025-09-09T01:06:19.486" gibi tz'siz bir string gelirse UTC kabul ederek Date üretir. */
+function parseAsUtc(dateStr: string): Date | null {
+  const s = (dateStr || "").trim();
+  const m =
+    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?(Z|[+\-]\d{2}:?\d{2})?$/.exec(
+      s
+    );
+  if (!m) return null;
+
+  const [, y, mo, d, h, mi, sec = "0", ms = "0", tz] = m;
+  if (tz && tz !== "") {
+    // Z veya ±HH:mm varsa motor zaten doğru parse eder
+    const d2 = new Date(s);
+    return isNaN(d2.getTime()) ? null : d2;
+  }
+
+  // tz yoksa -> UTC kabul et
+  const dt = Date.UTC(
+    Number(y),
+    Number(mo) - 1,
+    Number(d),
+    Number(h),
+    Number(mi),
+    Number(sec),
+    Number(ms)
+  );
+  return new Date(dt);
+}
+
 function formatDateTR(value?: string | Date | null) {
   if (!value) return "-";
-  const d = typeof value === "string" ? new Date(value) : value;
+  let d: Date | null = null;
+  if (typeof value === "string") {
+    d = parseAsUtc(value) ?? new Date(value);
+  } else {
+    d = value;
+  }
+  if (!d || isNaN(d.getTime())) return "-";
   try {
     return new Intl.DateTimeFormat("tr-TR", {
       ...tzOptions,
@@ -74,20 +110,25 @@ function formatDateTR(value?: string | Date | null) {
   }
 }
 
-/** Virgülü noktaya çevirip 6 haneye yuvarlar (harita URL’leri için). */
-function normalizeCoord(input: number | string): string {
-  if (typeof input === "number") return input.toFixed(6);
-  const s = (input ?? "").toString().trim().replace(",", ".");
-  const n = Number.parseFloat(s);
-  if (Number.isFinite(n)) return n.toFixed(6);
-  return s;
+/* ---------- Koordinat yardımcıları (YUVARLAMA YOK) ---------- */
+
+/** Ekranda koordinatı aynen göster (string geldiyse hiç dokunma). */
+function displayCoord(input: number | string): string {
+  if (typeof input === "number") return String(input);
+  return (input ?? "").toString();
+}
+
+/** Harita URL'si için sadece ',' → '.' çevir (yuvarlama yapma). */
+function coordForUrl(input: number | string): string {
+  if (typeof input === "number") return String(input);
+  return (input ?? "").toString().trim().replace(",", ".");
 }
 
 function googleMapsUrl(lat: number | string, lon: number | string) {
-  const la = normalizeCoord(lat);
-  const lo = normalizeCoord(lon);
-  return `https://www.google.com/maps?q=${la},${lo}`;
+  return `https://www.google.com/maps?q=${coordForUrl(lat)},${coordForUrl(lon)}`;
 }
+
+/* ---------- UI parçaları ---------- */
 
 const EmptyState: React.FC<{ title: string; subtitle?: string }> = ({
   title,
@@ -151,10 +192,9 @@ const LocationUpdateRequests: React.FC = () => {
   const loadHistory = async (status: "Approved" | "Rejected") => {
     setHistoryLoading(true);
     try {
-      const res = await api.get(
-        `/workspace/location-update-requests/history`,
-        { params: { status } }
-      );
+      const res = await api.get(`/workspace/location-update-requests/history`, {
+        params: { status },
+      });
       const rows = (res.data || []) as HistoryDto[];
       if (status === "Approved") setApproved(rows);
       if (status === "Rejected") setRejected(rows);
@@ -177,8 +217,6 @@ const LocationUpdateRequests: React.FC = () => {
       return;
     }
     try {
-      // Backend route: POST /workspace/location-update-requests/{id}/approve
-      // Body boş (sadece route id kullanılıyor)
       await api.post(`/workspace/location-update-requests/${id}/approve`, {});
       await loadPending();
       if (tab === "approved") await loadHistory("Approved");
@@ -201,7 +239,6 @@ const LocationUpdateRequests: React.FC = () => {
       return;
     }
     try {
-      // Backend route: POST /workspace/location-update-requests/{id}/reject
       await api.post(
         `/workspace/location-update-requests/${selectedRequestId}/reject`,
         { reason: rejectReason.trim() }
@@ -217,7 +254,9 @@ const LocationUpdateRequests: React.FC = () => {
 
   const SectionHeader: React.FC<{ title: string; count?: number }> = ({ title, count }) => (
     <div className="flex items-center justify-between mb-4">
-      <h2 className="text-xl font-semibold">{title} {typeof count === "number" ? <span className="text-neutral-400 text-base">({count})</span> : null}</h2>
+      <h2 className="text-xl font-semibold">
+        {title} {typeof count === "number" ? <span className="text-neutral-400 text-base">({count})</span> : null}
+      </h2>
       <button
         onClick={refresh}
         className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-white hover:bg-neutral-50"
@@ -281,7 +320,7 @@ const LocationUpdateRequests: React.FC = () => {
               </td>
               <td className="py-3 px-3">
                 <div className="font-mono text-xs">
-                  {normalizeCoord(r.currentLatitude)}, {normalizeCoord(r.currentLongitude)}
+                  {displayCoord(r.currentLatitude)}, {displayCoord(r.currentLongitude)}
                 </div>
                 <div className="text-xs text-neutral-500 truncate max-w-[280px]">
                   {r.currentAddress || "-"}
@@ -297,7 +336,7 @@ const LocationUpdateRequests: React.FC = () => {
               </td>
               <td className="py-3 px-3">
                 <div className="font-mono text-xs">
-                  {normalizeCoord(r.requestedLatitude)}, {normalizeCoord(r.requestedLongitude)}
+                  {displayCoord(r.requestedLatitude)}, {displayCoord(r.requestedLongitude)}
                 </div>
                 <div className="text-xs text-neutral-500 truncate max-w-[280px]">
                   {r.requestedAddress || "-"}
@@ -384,7 +423,7 @@ const LocationUpdateRequests: React.FC = () => {
               </td>
               <td className="py-3 px-3">
                 <div className="font-mono text-xs">
-                  {normalizeCoord(r.currentLatitude)}, {normalizeCoord(r.currentLongitude)}
+                  {displayCoord(r.currentLatitude)}, {displayCoord(r.currentLongitude)}
                 </div>
                 <div className="text-xs text-neutral-500 truncate max-w-[280px]">
                   {r.currentAddress || "-"}
@@ -400,7 +439,7 @@ const LocationUpdateRequests: React.FC = () => {
               </td>
               <td className="py-3 px-3">
                 <div className="font-mono text-xs">
-                  {normalizeCoord(r.requestedLatitude)}, {normalizeCoord(r.requestedLongitude)}
+                  {displayCoord(r.requestedLatitude)}, {displayCoord(r.requestedLongitude)}
                 </div>
                 <div className="text-xs text-neutral-500 truncate max-w-[280px]">
                   {r.requestedAddress || "-"}
@@ -476,9 +515,24 @@ const LocationUpdateRequests: React.FC = () => {
         </div>
       </div>
 
-      {tab === "pending" && <><SectionHeader title="Bekleyen Talepler" count={pending.length} /><PendingTable /></>}
-      {tab === "approved" && <><SectionHeader title="Onaylanan Talepler" count={approved.length} /><HistoryTable rows={approved} status="Approved" /></>}
-      {tab === "rejected" && <><SectionHeader title="Reddedilen Talepler" count={rejected.length} /><HistoryTable rows={rejected} status="Rejected" /></>}
+      {tab === "pending" && (
+        <>
+          <SectionHeader title="Bekleyen Talepler" count={pending.length} />
+          <PendingTable />
+        </>
+      )}
+      {tab === "approved" && (
+        <>
+          <SectionHeader title="Onaylanan Talepler" count={approved.length} />
+          <HistoryTable rows={approved} status="Approved" />
+        </>
+      )}
+      {tab === "rejected" && (
+        <>
+          <SectionHeader title="Reddedilen Talepler" count={rejected.length} />
+          <HistoryTable rows={rejected} status="Rejected" />
+        </>
+      )}
 
       {/* Reject Modal */}
       {rejectModalOpen ? (
