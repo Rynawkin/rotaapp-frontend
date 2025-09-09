@@ -316,15 +316,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
 
   const handleNotificationClick = async (notificationId: string | number) => {
     console.log('Notification clicked:', notificationId);
-    setNotificationMenuOpen(false);
     
-    // Konum talebi bildirimine tıklandıysa yönlendir
+    // Konum talebi bildirimine tıklandıysa yönlendir ve menüyü kapat
     if (notificationId === 999) {
+      setNotificationMenuOpen(false);
       navigate('/location-requests');
       return;
     }
 
-    // Bildirimi okundu olarak işaretle
+    // Bildirimi okundu olarak işaretle (menü açık kalır)
     if (typeof notificationId === 'string') {
       try {
         await notificationService.markAsRead(notificationId);
@@ -338,6 +338,20 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
       } catch (error) {
         console.error('Error marking notification as read:', error);
       }
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await notificationService.markAllAsRead();
+      // Bildirimleri yeniden yükle
+      const updatedNotifications = await notificationService.getAll();
+      setNotifications(updatedNotifications);
+      
+      // Okunmamış sayısını sıfırla
+      setUnreadNotificationCount(0);
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
     }
   };
 
@@ -367,34 +381,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
     return 'bg-gray-100 text-gray-800';
   };
 
-  // Bildirim detaylarını formatla
-  const getNotificationDetails = (notification: Notification) => {
-    if (!notification.data) return null;
-
-    try {
-      const data = typeof notification.data === 'string' ? JSON.parse(notification.data) : notification.data;
-      
-      switch (notification.type) {
-        case 'JOURNEY_ASSIGNED':
-          return `Rota: ${data.routeName || 'Bilinmiyor'}`;
-          
-        case 'JOURNEY_STATUS_CHANGED':
-          const statusText = data.previousStatus 
-            ? `${data.previousStatus} → ${data.newStatus}`
-            : data.newStatus;
-          return `Rota: ${data.routeName || 'Bilinmiyor'}\nDurum: ${statusText}`;
-          
-        case 'DEADLINE_REMINDER':
-          return `Rota: ${data.routeName || 'Bilinmiyor'}\nTermin: ${data.deadline ? new Date(data.deadline).toLocaleString('tr-TR') : 'Bilinmiyor'}`;
-          
-        default:
-          return Object.keys(data).length > 0 ? JSON.stringify(data, null, 2) : null;
-      }
-    } catch (error) {
-      console.error('Error parsing notification data:', error);
-      return null;
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -564,57 +550,38 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                       </div>
                       <div className="max-h-80 overflow-y-auto">
                         {displayNotifications.length > 0 ? (
-                          displayNotifications.map(notification => {
-                            const details = getNotificationDetails(notification);
-                            return (
-                              <div key={notification.id} className="relative group">
-                                <button
-                                  onClick={() => handleNotificationClick(notification.id)}
-                                  className={`w-full px-4 py-3 hover:bg-gray-50 text-left border-b border-gray-100 last:border-b-0 ${
-                                    !notification.isRead ? 'bg-blue-50' : ''
-                                  }`}
-                                >
-                                  <div className="flex justify-between items-start">
-                                    <p className={`text-sm ${!notification.isRead ? 'font-semibold' : ''} text-gray-900`}>
-                                      {notification.title}
-                                    </p>
-                                    {!notification.isRead && (
-                                      <span className="w-2 h-2 bg-blue-600 rounded-full mt-1"></span>
-                                    )}
-                                  </div>
-                                  <p className="text-xs text-gray-600 mt-1 line-clamp-2">
-                                    {notification.message}
-                                  </p>
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    {notification.id === 999 
-                                      ? 'Şimdi' 
-                                      : new Date(notification.createdAt).toLocaleString('tr-TR', {
-                                          hour: '2-digit',
-                                          minute: '2-digit',
-                                          day: '2-digit',
-                                          month: '2-digit'
-                                        })
-                                    }
-                                  </p>
-                                </button>
-                                
-                                {/* Hover tooltip for details */}
-                                {details && (
-                                  <div className="absolute left-full top-0 ml-2 hidden group-hover:block z-30 w-64">
-                                    <div className="bg-gray-900 text-white text-sm p-3 rounded-lg shadow-lg">
-                                      <div className="font-semibold mb-2">{notification.title}</div>
-                                      <div className="text-gray-200 mb-2">{notification.message}</div>
-                                      <div className="text-gray-300 text-xs border-t border-gray-700 pt-2 whitespace-pre-line">
-                                        {details}
-                                      </div>
-                                      {/* Arrow */}
-                                      <div className="absolute top-4 -left-1 w-2 h-2 bg-gray-900 transform rotate-45"></div>
-                                    </div>
-                                  </div>
+                          displayNotifications.map(notification => (
+                            <button
+                              key={notification.id}
+                              onClick={() => handleNotificationClick(notification.id)}
+                              className={`w-full px-4 py-3 hover:bg-gray-50 text-left border-b border-gray-100 last:border-b-0 ${
+                                !notification.isRead ? 'bg-blue-50' : ''
+                              }`}
+                            >
+                              <div className="flex justify-between items-start">
+                                <p className={`text-sm ${!notification.isRead ? 'font-semibold' : ''} text-gray-900`}>
+                                  {notification.title}
+                                </p>
+                                {!notification.isRead && (
+                                  <span className="w-2 h-2 bg-blue-600 rounded-full mt-1"></span>
                                 )}
                               </div>
-                            );
-                          })
+                              <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                                {notification.message}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {notification.id === 999 
+                                  ? 'Şimdi' 
+                                  : new Date(notification.createdAt).toLocaleString('tr-TR', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      day: '2-digit',
+                                      month: '2-digit'
+                                    })
+                                }
+                              </p>
+                            </button>
+                          ))
                         ) : (
                           <div className="px-4 py-8 text-center text-gray-500">
                             <Bell className="w-8 h-8 mx-auto mb-2 text-gray-300" />
@@ -623,8 +590,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                         )}
                       </div>
                       <div className="px-4 py-2 border-t border-gray-200">
-                        <button className="text-sm text-primary-600 hover:text-primary-700">
-                          Tümünü Gör
+                        <button 
+                          onClick={handleMarkAllAsRead}
+                          className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                        >
+                          Tümünü Oku
                         </button>
                       </div>
                     </div>
