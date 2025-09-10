@@ -161,10 +161,10 @@ export const api = axios.create({
   timeout: 60000,
 });
 
-// Override axios adapter to use our request manager
-api.defaults.adapter = async (config) => {
-  return requestManager.executeRequest(config);
-};
+// Rate limiting disabled - using default axios adapter
+// api.defaults.adapter = async (config) => {
+//   return requestManager.executeRequest(config);
+// };
 
 // Sayfa yüklendiğinde token varsa header'a ekle
 const initialToken = localStorage.getItem('token');
