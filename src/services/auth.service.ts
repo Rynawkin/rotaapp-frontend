@@ -75,7 +75,7 @@ export const authService = {
     }
   },
 
-  async register(email: string, password: string, fullName: string, companyName?: string): Promise<TokenResponse> {
+  async register(email: string, password: string, fullName: string, companyName?: string, companyEmail?: string, companyPhone?: string): Promise<TokenResponse> {
     try {
       console.log('Register request:', { email, fullName, companyName });
       
@@ -83,7 +83,9 @@ export const authService = {
         Email: email,
         Password: password,
         FullName: fullName,
-        CompanyName: companyName
+        CompanyName: companyName,
+        CompanyEmail: companyEmail,
+        CompanyPhone: companyPhone
       });
       
       console.log('Register response:', response.data);

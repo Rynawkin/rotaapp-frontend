@@ -103,10 +103,30 @@ const Signup: React.FC = () => {
     return emailRegex.test(email);
   };
 
-  // Telefon validation fonksiyonu
+  // Türkiye telefon validation fonksiyonu
   const validatePhone = (phone: string): boolean => {
+    // Sadece rakam, boşluk, tire, parantez, + işareti kabul et
     const phoneRegex = /^[\d\s\-\+\(\)]+$/;
-    return phone.length >= 10 && phoneRegex.test(phone);
+    if (!phoneRegex.test(phone)) return false;
+    
+    // Rakamları çıkar
+    const numbersOnly = phone.replace(/[^\d]/g, '');
+    
+    // Türkiye telefon formatları:
+    // 5xxxxxxxxx (10 rakam)
+    // 905xxxxxxxxx (12 rakam, +90 ile)
+    // 05xxxxxxxxx (11 rakam)
+    if (numbersOnly.length === 10 && numbersOnly.startsWith('5')) {
+      return true; // 5xx xxx xx xx
+    }
+    if (numbersOnly.length === 11 && numbersOnly.startsWith('05')) {
+      return true; // 05xx xxx xx xx
+    }
+    if (numbersOnly.length === 12 && numbersOnly.startsWith('905')) {
+      return true; // +90 5xx xxx xx xx
+    }
+    
+    return false;
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -157,12 +177,14 @@ const Signup: React.FC = () => {
     setError('');
 
     try {
-      // Gerçek API çağrısı
+      // Gerçek API çağrısı - tüm firma bilgilerini gönder
       const response = await authService.register(
         formData.adminEmail,
         formData.adminPassword,
         formData.adminFullName,
-        formData.workspaceName
+        formData.workspaceName,
+        formData.workspaceEmail,
+        formData.workspacePhone
       );
       
       console.log('Register successful:', response);
@@ -173,7 +195,19 @@ const Signup: React.FC = () => {
       
     } catch (err: any) {
       console.error('Register error:', err);
-      setError(err.message || 'Kayıt sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+      
+      // Detaylı hata mesajı göster
+      let errorMessage = 'Kayıt sırasında bir hata oluştu. Lütfen tekrar deneyin.';
+      
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.errors && Array.isArray(err.response.data.errors)) {
+        errorMessage = err.response.data.errors.join(', ');
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
       setLoading(false);
     }
   };
@@ -296,11 +330,11 @@ const Signup: React.FC = () => {
                           ? 'border-red-500' 
                           : 'border-gray-300'
                       }`}
-                      placeholder="0532 XXX XX XX"
+                      placeholder="0532 123 45 67"
                     />
                   </div>
                   {formData.workspacePhone && !validatePhone(formData.workspacePhone) && (
-                    <p className="text-xs text-red-600 mt-1">Geçerli bir telefon numarası giriniz</p>
+                    <p className="text-xs text-red-600 mt-1">Geçerli bir Türkiye telefon numarası giriniz (örn: 0532 123 45 67)</p>
                   )}
                 </div>
               </div>
