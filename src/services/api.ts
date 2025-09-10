@@ -1,8 +1,157 @@
-import axios from 'axios';
+import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5055/api';
 
 console.log('API URL:', API_URL);
+
+// Rate limiting configuration
+const RATE_LIMIT_CONFIG = {
+  MAX_CONCURRENT_REQUESTS: 3,
+  REQUEST_INTERVAL_MS: 500, // Minimum 500ms between requests
+  CACHE_DURATION_MS: 5000, // 5 seconds cache for deduplication
+};
+
+// Request queue and rate limiting state
+class RequestManager {
+  private activeRequests = new Set<Promise<any>>();
+  private requestQueue: Array<() => Promise<any>> = [];
+  private lastRequestTimes = new Map<string, number>();
+  private responseCache = new Map<string, { response: any; timestamp: number }>();
+  private isProcessing = false;
+
+  // Generate cache key from request config
+  private getCacheKey(config: AxiosRequestConfig): string {
+    const { method, url, params, data } = config;
+    return `${method}:${url}:${JSON.stringify(params)}:${JSON.stringify(data)}`;
+  }
+
+  // Check if request is cached and not expired
+  private getCachedResponse(cacheKey: string) {
+    const cached = this.responseCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < RATE_LIMIT_CONFIG.CACHE_DURATION_MS) {
+      console.log('🚀 Returning cached response for:', cacheKey);
+      return cached.response;
+    }
+    return null;
+  }
+
+  // Cache response
+  private cacheResponse(cacheKey: string, response: any) {
+    this.responseCache.set(cacheKey, {
+      response,
+      timestamp: Date.now(),
+    });
+
+    // Clean up old cache entries
+    setTimeout(() => {
+      this.responseCache.delete(cacheKey);
+    }, RATE_LIMIT_CONFIG.CACHE_DURATION_MS);
+  }
+
+  // Check if we should throttle this endpoint
+  private shouldThrottle(config: AxiosRequestConfig): number {
+    const endpointKey = `${config.method}:${config.url}`;
+    const lastRequestTime = this.lastRequestTimes.get(endpointKey);
+    
+    if (!lastRequestTime) return 0;
+    
+    const timeSinceLastRequest = Date.now() - lastRequestTime;
+    const remainingThrottleTime = RATE_LIMIT_CONFIG.REQUEST_INTERVAL_MS - timeSinceLastRequest;
+    
+    return Math.max(0, remainingThrottleTime);
+  }
+
+  // Update last request time for throttling
+  private updateLastRequestTime(config: AxiosRequestConfig) {
+    const endpointKey = `${config.method}:${config.url}`;
+    this.lastRequestTimes.set(endpointKey, Date.now());
+  }
+
+  // Process request queue
+  private async processQueue() {
+    if (this.isProcessing) return;
+    this.isProcessing = true;
+
+    while (this.requestQueue.length > 0 && this.activeRequests.size < RATE_LIMIT_CONFIG.MAX_CONCURRENT_REQUESTS) {
+      const requestExecutor = this.requestQueue.shift();
+      if (requestExecutor) {
+        const requestPromise = requestExecutor();
+        this.activeRequests.add(requestPromise);
+        
+        requestPromise.finally(() => {
+          this.activeRequests.delete(requestPromise);
+          this.processQueue(); // Continue processing queue
+        });
+      }
+    }
+
+    this.isProcessing = false;
+  }
+
+  // Execute request with rate limiting
+  async executeRequest(config: AxiosRequestConfig): Promise<AxiosResponse> {
+    const cacheKey = this.getCacheKey(config);
+    
+    // Check for cached response first
+    const cachedResponse = this.getCachedResponse(cacheKey);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+
+    return new Promise((resolve, reject) => {
+      const requestExecutor = async () => {
+        try {
+          // Check throttling
+          const throttleDelay = this.shouldThrottle(config);
+          if (throttleDelay > 0) {
+            console.log(`⏳ Throttling request to ${config.url} for ${throttleDelay}ms`);
+            await new Promise(resolve => setTimeout(resolve, throttleDelay));
+          }
+
+          // Update request time for throttling
+          this.updateLastRequestTime(config);
+
+          console.log(`🚀 Executing request: ${config.method} ${config.url} (Active: ${this.activeRequests.size}/${RATE_LIMIT_CONFIG.MAX_CONCURRENT_REQUESTS})`);
+          
+          // Execute the actual request
+          const response = await axios(config);
+          
+          // Cache the response
+          this.cacheResponse(cacheKey, response);
+          
+          resolve(response);
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      // Add to queue or execute immediately
+      if (this.activeRequests.size >= RATE_LIMIT_CONFIG.MAX_CONCURRENT_REQUESTS) {
+        console.log(`📋 Queueing request: ${config.method} ${config.url} (Queue size: ${this.requestQueue.length + 1})`);
+        this.requestQueue.push(requestExecutor);
+      } else {
+        const requestPromise = requestExecutor();
+        this.activeRequests.add(requestPromise);
+        
+        requestPromise.finally(() => {
+          this.activeRequests.delete(requestPromise);
+          this.processQueue();
+        });
+      }
+    });
+  }
+
+  // Get current stats for debugging
+  getStats() {
+    return {
+      activeRequests: this.activeRequests.size,
+      queuedRequests: this.requestQueue.length,
+      cachedResponses: this.responseCache.size,
+    };
+  }
+}
+
+const requestManager = new RequestManager();
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -11,6 +160,11 @@ export const api = axios.create({
   },
   timeout: 60000,
 });
+
+// Override axios adapter to use our request manager
+api.defaults.adapter = async (config) => {
+  return requestManager.executeRequest(config);
+};
 
 // Sayfa yüklendiğinde token varsa header'a ekle
 const initialToken = localStorage.getItem('token');
@@ -111,7 +265,7 @@ api.interceptors.response.use(
   }
 );
 
-// Debug helper function
+// Debug helper functions
 export const debugApiAuth = () => {
   console.log('=== API Auth Debug ===');
   console.log('Token:', localStorage.getItem('token')?.substring(0, 50) + '...');
@@ -119,4 +273,22 @@ export const debugApiAuth = () => {
   console.log('User:', localStorage.getItem('user'));
   console.log('API Headers:', api.defaults.headers.common);
   console.log('====================');
+};
+
+export const debugRateLimit = () => {
+  const stats = requestManager.getStats();
+  console.log('=== Rate Limit Debug ===');
+  console.log('Active Requests:', stats.activeRequests);
+  console.log('Queued Requests:', stats.queuedRequests);
+  console.log('Cached Responses:', stats.cachedResponses);
+  console.log('Max Concurrent:', RATE_LIMIT_CONFIG.MAX_CONCURRENT_REQUESTS);
+  console.log('Request Interval:', RATE_LIMIT_CONFIG.REQUEST_INTERVAL_MS + 'ms');
+  console.log('Cache Duration:', RATE_LIMIT_CONFIG.CACHE_DURATION_MS + 'ms');
+  console.log('========================');
+};
+
+// Expose rate limiting configuration for runtime adjustment if needed
+export const updateRateLimitConfig = (newConfig: Partial<typeof RATE_LIMIT_CONFIG>) => {
+  Object.assign(RATE_LIMIT_CONFIG, newConfig);
+  console.log('Rate limit config updated:', RATE_LIMIT_CONFIG);
 };
