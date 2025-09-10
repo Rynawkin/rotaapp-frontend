@@ -6,8 +6,8 @@ console.log('API URL:', API_URL);
 
 // Rate limiting configuration
 const RATE_LIMIT_CONFIG = {
-  MAX_CONCURRENT_REQUESTS: 3,
-  REQUEST_INTERVAL_MS: 500, // Minimum 500ms between requests
+  MAX_CONCURRENT_REQUESTS: 10,
+  REQUEST_INTERVAL_MS: 100, // Minimum 100ms between requests
   CACHE_DURATION_MS: 5000, // 5 seconds cache for deduplication
 };
 
