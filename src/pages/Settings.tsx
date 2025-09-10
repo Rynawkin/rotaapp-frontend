@@ -42,6 +42,11 @@ import { depotService } from '@/services/depot.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { subscriptionService } from '@/services/subscription.service';
 import { Package, MessageSquare, Calendar } from 'lucide-react';
+import { TrialBanner } from '@/components/payment/TrialBanner';
+import { UpgradePlan } from '@/components/payment/UpgradePlan';
+import { PaymentHistory } from '@/components/payment/PaymentHistory';
+import { UsageStats } from '@/components/payment/UsageStats';
+import { paymentService } from '@/services/payment.service';
 
 const Settings: React.FC = () => {
   const { user, canAccessDispatcherFeatures, canAccessAdminFeatures } = useAuth();
@@ -49,10 +54,10 @@ const Settings: React.FC = () => {
   // ROL BAZLI SEKME KONTROLÜ
   const getAvailableTabs = () => {
     if (user?.isSuperAdmin) {
-      return ['company', 'users', 'delivery', 'notifications', 'templates', 'subscription', 'regional', 'data'];
+      return ['company', 'users', 'delivery', 'notifications', 'templates', 'subscription', 'payment', 'regional', 'data'];
     }
     if (canAccessAdminFeatures()) {
-      return ['company', 'users', 'delivery', 'notifications', 'templates', 'subscription', 'regional', 'data'];
+      return ['company', 'users', 'delivery', 'notifications', 'templates', 'subscription', 'payment', 'regional', 'data'];
     }
     if (canAccessDispatcherFeatures()) {
       return ['users', 'delivery', 'notifications', 'templates'];
@@ -75,7 +80,13 @@ const Settings: React.FC = () => {
     );
   }
 
-  const [activeTab, setActiveTab] = useState<'company' | 'users' | 'delivery' | 'notifications' | 'templates' | 'subscription' | 'regional'>(availableTabs[0] as any);
+  const [activeTab, setActiveTab] = useState<'company' | 'users' | 'delivery' | 'notifications' | 'templates' | 'subscription' | 'regional' | 'payment'>(availableTabs[0] as any);
+  
+  // Payment related states
+  const [showUpgradePlan, setShowUpgradePlan] = useState(false);
+  const [trialStatus, setTrialStatus] = useState<any>(null);
+  const [currentUsage, setCurrentUsage] = useState<any>(null);
+  const [loadingPayment, setLoadingPayment] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -702,6 +713,7 @@ const Settings: React.FC = () => {
               { id: 'notifications', label: 'Bildirimler', icon: Bell },
               { id: 'templates', label: 'Mesaj Şablonları', icon: FileText },
               { id: 'subscription', label: 'Abonelik', icon: CreditCard },
+              { id: 'payment', label: 'Ödeme & Faturalama', icon: Crown },
               { id: 'regional', label: 'Bölgesel Ayarlar', icon: Globe }
             ].filter(item => availableTabs.includes(item.id)).map((item) => (
               <button
@@ -1687,6 +1699,52 @@ const Settings: React.FC = () => {
           )}
 
             {/* Regional Settings */}
+            {activeTab === 'payment' && availableTabs.includes('payment') && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <h2 className="text-lg font-semibold text-gray-900">Ödeme & Faturalama</h2>
+                  <button
+                    onClick={() => setShowUpgradePlan(true)}
+                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    <Crown className="h-4 w-4 mr-2" />
+                    Planı Yükselt
+                  </button>
+                </div>
+
+                {/* Trial Banner */}
+                <TrialBanner 
+                  onUpgradeClick={() => setShowUpgradePlan(true)}
+                  className="mb-6"
+                />
+
+                {/* Payment Content Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Usage Statistics */}
+                  <div className="lg:col-span-2">
+                    <UsageStats />
+                  </div>
+                  
+                  {/* Payment History */}
+                  <div className="lg:col-span-2">
+                    <PaymentHistory />
+                  </div>
+                </div>
+
+                {/* Upgrade Plan Modal */}
+                {showUpgradePlan && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+                      <UpgradePlan 
+                        onClose={() => setShowUpgradePlan(false)}
+                        currentPlan={trialStatus?.isActive ? 'Trial' : 'Starter'}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === 'regional' && availableTabs.includes('regional') && (
               <div className="space-y-6">
                 <h2 className="text-lg font-semibold text-gray-900 border-b pb-3">Bölgesel Ayarlar</h2>
