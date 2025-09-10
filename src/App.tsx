@@ -1,48 +1,60 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, ProtectedRoute, useAuth } from '@/contexts/AuthContext';
 import MainLayout from '@/layouts/MainLayout';
-import Login from '@/pages/Login';
-import Dashboard from '@/pages/Dashboard';
-import RoutesPage from '@/pages/Routes';
-import CreateRoute from '@/pages/CreateRoute';
-import EditRoute from '@/pages/EditRoute';
-import RouteDetail from '@/pages/RouteDetail';
-import Customers from '@/pages/Customers';
-import CreateCustomer from '@/pages/CreateCustomer';
-import EditCustomer from '@/pages/EditCustomer';
-import CustomerDetail from '@/pages/CustomerDetail';
-import TestMap from '@/pages/TestMap';
-import Drivers from '@/pages/Drivers';
-import CreateDriver from '@/pages/CreateDriver';
-import EditDriver from '@/pages/EditDriver';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import DriverDetail from '@/pages/DriverDetail';
-import Vehicles from '@/pages/Vehicles';
-import CreateVehicle from '@/pages/CreateVehicle';
-import EditVehicle from '@/pages/EditVehicle';
-import VehicleDetail from '@/pages/VehicleDetail';
-import Depots from '@/pages/Depots';
-import CreateDepot from '@/pages/CreateDepot';
-import EditDepot from '@/pages/EditDepot';
-import DepotDetail from '@/pages/DepotDetail';
-import Journeys from '@/pages/Journeys';
-import JourneyDetail from '@/pages/JourneyDetail';
-import LiveTracking from '@/pages/LiveTracking';
-import Reports from '@/pages/Reports';
-import Settings from '@/pages/Settings';
-import Signup from '@/pages/Signup';
-import Onboarding from '@/pages/Onboarding';
-import SuperAdminDashboard from '@/pages/superadmin/SuperAdminDashboard';
-import WorkspaceDetail from '@/pages/superadmin/WorkspaceDetail';
-import WorkspaceEdit from '@/pages/superadmin/WorkspaceEdit';
-import PublicFeedback from './pages/PublicFeedback';
-import IssuesManagement from './pages/superadmin/IssuesManagement';
-import PrivacyPolicy from './pages/legal/PrivacyPolicy';
-import TermsOfService from './pages/legal/TermsOfService';
-import DeleteAccount from './pages/DeleteAccount';
-import LocationUpdateRequests from '@/pages/LocationUpdateRequests';
+
+// Loading component
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="flex flex-col items-center space-y-4">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <p className="text-gray-600">Yükleniyor...</p>
+    </div>
+  </div>
+);
+
+// Lazy load all pages for better performance
+const Login = lazy(() => import('@/pages/Login'));
+const Dashboard = lazy(() => import('@/pages/Dashboard'));
+const RoutesPage = lazy(() => import('@/pages/Routes'));
+const CreateRoute = lazy(() => import('@/pages/CreateRoute'));
+const EditRoute = lazy(() => import('@/pages/EditRoute'));
+const RouteDetail = lazy(() => import('@/pages/RouteDetail'));
+const Customers = lazy(() => import('@/pages/Customers'));
+const CreateCustomer = lazy(() => import('@/pages/CreateCustomer'));
+const EditCustomer = lazy(() => import('@/pages/EditCustomer'));
+const CustomerDetail = lazy(() => import('@/pages/CustomerDetail'));
+const TestMap = lazy(() => import('@/pages/TestMap'));
+const Drivers = lazy(() => import('@/pages/Drivers'));
+const CreateDriver = lazy(() => import('@/pages/CreateDriver'));
+const EditDriver = lazy(() => import('@/pages/EditDriver'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const DriverDetail = lazy(() => import('@/pages/DriverDetail'));
+const Vehicles = lazy(() => import('@/pages/Vehicles'));
+const CreateVehicle = lazy(() => import('@/pages/CreateVehicle'));
+const EditVehicle = lazy(() => import('@/pages/EditVehicle'));
+const VehicleDetail = lazy(() => import('@/pages/VehicleDetail'));
+const Depots = lazy(() => import('@/pages/Depots'));
+const CreateDepot = lazy(() => import('@/pages/CreateDepot'));
+const EditDepot = lazy(() => import('@/pages/EditDepot'));
+const DepotDetail = lazy(() => import('@/pages/DepotDetail'));
+const Journeys = lazy(() => import('@/pages/Journeys'));
+const JourneyDetail = lazy(() => import('@/pages/JourneyDetail'));
+const LiveTracking = lazy(() => import('@/pages/LiveTracking'));
+const Reports = lazy(() => import('@/pages/Reports'));
+const Settings = lazy(() => import('@/pages/Settings'));
+const Signup = lazy(() => import('@/pages/Signup'));
+const Onboarding = lazy(() => import('@/pages/Onboarding'));
+const SuperAdminDashboard = lazy(() => import('@/pages/superadmin/SuperAdminDashboard'));
+const WorkspaceDetail = lazy(() => import('@/pages/superadmin/WorkspaceDetail'));
+const WorkspaceEdit = lazy(() => import('@/pages/superadmin/WorkspaceEdit'));
+const PublicFeedback = lazy(() => import('./pages/PublicFeedback'));
+const IssuesManagement = lazy(() => import('./pages/superadmin/IssuesManagement'));
+const PrivacyPolicy = lazy(() => import('./pages/legal/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('./pages/legal/TermsOfService'));
+const DeleteAccount = lazy(() => import('./pages/DeleteAccount'));
+const LocationUpdateRequests = lazy(() => import('@/pages/LocationUpdateRequests'));
 
 // Layout wrapper for protected routes - useAuth hook'unu kullanacak şekilde güncellendi
 const ProtectedLayout: React.FC<{
@@ -75,7 +87,8 @@ const ProtectedLayout: React.FC<{
 // App Routes Component - AuthProvider içinde olması gerek
 const AppRoutes: React.FC = () => {
   return (
-    <Routes>
+    <Suspense fallback={<LoadingSpinner />}>
+      <Routes>
       {/* Public Routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
@@ -276,6 +289,7 @@ const AppRoutes: React.FC = () => {
       {/* Catch all - redirect to dashboard */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
+    </Suspense>
   );
 };
 

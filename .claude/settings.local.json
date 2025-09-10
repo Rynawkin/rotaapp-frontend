@@ -16,7 +16,8 @@
       "Bash(curl:*)",
       "Bash(npm run build:*)",
       "Bash(npm run dev:*)",
-      "Read(//c/Users/QP/Desktop/**)"
+      "Read(//c/Users/QP/Desktop/**)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []
