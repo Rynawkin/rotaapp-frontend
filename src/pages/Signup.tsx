@@ -20,7 +20,7 @@ interface SignupForm {
   adminPasswordConfirm: string;
   
   // Plan seçimi
-  plan: 'trial' | 'basic' | 'premium';
+  plan: 'trial' | 'starter' | 'growth' | 'professional' | 'business';
   
   // Sözleşmeler
   termsAccepted: boolean;
@@ -53,23 +53,39 @@ const Signup: React.FC = () => {
       name: 'Deneme',
       price: '0₺',
       period: '14 gün',
-      features: ['5 Sürücü', '50 Müşteri', '10 Rota/Gün', 'Temel Destek'],
+      features: ['2 Sürücü', '1 Araç', '100 Durak/Ay', '25 WhatsApp Mesajı', 'Rota Şablonları'],
       popular: false
     },
     {
-      id: 'basic',
+      id: 'starter',
       name: 'Başlangıç',
-      price: '999₺',
+      price: '850₺',
       period: '/ay',
-      features: ['15 Sürücü', '500 Müşteri', '50 Rota/Gün', 'Email Destek'],
+      features: ['3 Sürücü', '3 Araç', '500 Durak/Ay', 'Temel Özellikler'],
+      popular: false
+    },
+    {
+      id: 'growth',
+      name: 'Büyüme',
+      price: '1.250₺',
+      period: '/ay',
+      features: ['Sınırsız Sürücü', 'Sınırsız Araç', '500 Durak/Ay', '100 WhatsApp', 'Zaman Pencereleri'],
       popular: true
     },
     {
-      id: 'premium',
+      id: 'professional',
       name: 'Profesyonel',
-      price: '2999₺',
+      price: '2.400₺',
       period: '/ay',
-      features: ['Sınırsız Sürücü', 'Sınırsız Müşteri', 'Sınırsız Rota', '7/24 Destek', 'API Erişimi'],
+      features: ['Sınırsız Sürücü/Araç', '2.000 Durak/Ay', 'Müşteri Memnuniyeti Raporu'],
+      popular: false
+    },
+    {
+      id: 'business',
+      name: 'İşletme',
+      price: '5.900₺',
+      period: '/ay',
+      features: ['Sınırsız Her Şey', '5.000 Durak/Ay', '500 WhatsApp', 'Özel Raporlar', 'API Erişimi'],
       popular: false
     }
   ];
@@ -189,9 +205,9 @@ const Signup: React.FC = () => {
       
       console.log('Register successful:', response);
       
-      // authService.register içinde token ve user bilgileri zaten kaydediliyor
-      // Direkt dashboard'a yönlendir
-      navigate('/dashboard');
+      // Token ve user bilgileri authService.register içinde zaten localStorage'a kaydedildi
+      // Başarılı kayıt sonrası direkt dashboard'a yönlendir (login sayfasına değil!)
+      window.location.href = '/dashboard';
       
     } catch (err: any) {
       console.error('Register error:', err);
