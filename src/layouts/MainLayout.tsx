@@ -30,6 +30,7 @@ import { customerService } from '@/services/customer.service';
 import { journeyService } from '@/services/journey.service';
 import { notificationService, Notification } from '@/services/notification.service';
 import { subscriptionService, UsageData } from '@/services/subscription.service';
+import { UpgradePlan } from '@/components/payment/UpgradePlan';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -58,6 +59,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [usageData, setUsageData] = useState<UsageData | null>(null);
   const [showTrialBanner, setShowTrialBanner] = useState(false);
+  const [showUpgradePlanModal, setShowUpgradePlanModal] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -750,7 +752,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
               </div>
               <div className="flex items-center space-x-3">
                 <button
-                  onClick={() => navigate('/settings')}
+                  onClick={() => setShowUpgradePlanModal(true)}
                   className="bg-white text-orange-600 px-4 py-1.5 rounded-md text-sm font-medium hover:bg-orange-50 transition-colors"
                 >
                   Plan Yükselt
@@ -772,6 +774,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
           {children}
         </main>
       </div>
+
+      {/* Upgrade Plan Modal */}
+      {showUpgradePlanModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <UpgradePlan 
+              onClose={() => setShowUpgradePlanModal(false)}
+              currentPlan={usageData?.planType as any}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
