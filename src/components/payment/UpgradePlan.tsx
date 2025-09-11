@@ -130,9 +130,10 @@ export const UpgradePlan: React.FC<UpgradePlanProps> = ({
       } else {
         alert(result.errorMessage || 'Ödeme başlatılamadı');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Upgrade error:', error);
-      alert('Bir hata oluştu. Lütfen tekrar deneyin.');
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Bir hata oluştu. Lütfen tekrar deneyin.';
+      alert(errorMessage);
     } finally {
       setUpgrading(false);
     }

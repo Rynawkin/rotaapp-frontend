@@ -210,6 +210,41 @@ api.interceptors.response.use(
   (error) => {
     console.error('API Error:', error.response?.status, error.response?.data || error.message);
     
+    // Backend'den gelen mesajı kullanıcı dostu hale getir
+    let userFriendlyMessage = '';
+    
+    if (error.response?.data?.message) {
+      // Backend'den mesaj geliyorsa kullan
+      userFriendlyMessage = error.response.data.message;
+    } else {
+      // Status code'a göre fallback mesajlar
+      switch (error.response?.status) {
+        case 400:
+          userFriendlyMessage = 'Geçersiz istek. Lütfen bilgileri kontrol edin.';
+          break;
+        case 401:
+          userFriendlyMessage = 'Oturum süreniz dolmuş. Lütfen tekrar giriş yapın.';
+          break;
+        case 403:
+          userFriendlyMessage = 'Bu işlem için yetkiniz yok.';
+          break;
+        case 404:
+          userFriendlyMessage = 'Aradığınız kayıt bulunamadı.';
+          break;
+        case 408:
+          userFriendlyMessage = 'İstek zaman aşımına uğradı. Lütfen tekrar deneyin.';
+          break;
+        case 500:
+          userFriendlyMessage = 'Bir hata oluştu. Lütfen daha sonra tekrar deneyin.';
+          break;
+        default:
+          userFriendlyMessage = error.message || 'Bir hata oluştu. Lütfen tekrar deneyin.';
+      }
+    }
+    
+    // Error nesnesine kullanıcı dostu mesajı ekle
+    error.userFriendlyMessage = userFriendlyMessage;
+    
     // Backend'den gelen "Workspace is not found" hatası kontrolü
     if (error.response?.status === 404 && 
         error.response?.data?.message === 'Workspace is not found.') {
