@@ -133,8 +133,28 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
       
       // Her kullanıcı için usage verilerini al (plan type'ı backend'den gelecek)
       try {
-        const usage = await subscriptionService.getCurrentUsage();
-        console.log('Usage data received:', usage);
+        // Settings sayfasının çalışan yöntemini kullan
+        const billingData = await subscriptionService.getBillingSummary();
+        console.log('Billing data received:', billingData);
+        
+        // billingData'dan UsageData formatına çevir
+        const usage = {
+          workspaceId: 0,
+          workspaceName: '',
+          planType: billingData.plan.name,
+          includedMonthlyStops: billingData.usage.stops.included,
+          currentMonthStops: billingData.usage.stops.used,
+          remainingStops: billingData.usage.stops.included - billingData.usage.stops.used,
+          includedWhatsAppMessages: billingData.usage.whatsApp.included,
+          currentMonthWhatsAppMessages: billingData.usage.whatsApp.used,
+          remainingWhatsAppMessages: billingData.usage.whatsApp.included - billingData.usage.whatsApp.used,
+          currentMonthAdditionalCharges: billingData.summary.additionalCharges,
+          estimatedMonthlyTotal: billingData.summary.estimatedTotal,
+          lastResetDate: billingData.summary.billingPeriod.start,
+          nextResetDate: billingData.summary.billingPeriod.end
+        };
+        
+        console.log('Converted usage data:', usage);
         setUsageData(usage);
         
         // Trial kullanıcıları için banner kontrolü
