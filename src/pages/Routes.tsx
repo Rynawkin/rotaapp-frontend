@@ -50,8 +50,10 @@ const Routes: React.FC = () => {
     try {
       const data = await routeService.getAll();
       setRoutes(data);
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Rotalar yüklenirken bir hata oluştu';
       console.error('Error loading routes:', error);
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -78,7 +80,8 @@ const Routes: React.FC = () => {
         await routeService.delete(id);
         await loadRoutes();
       } catch (error: any) {
-        alert(error.response?.data?.message || 'Rota silinemedi');
+        const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Rota silinemedi';
+        alert(errorMessage);
       }
     }
   };
@@ -89,7 +92,8 @@ const Routes: React.FC = () => {
       await routeService.duplicate(route);
       await loadRoutes();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Rota kopyalanamadı');
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Rota kopyalanamadı';
+      alert(errorMessage);
     }
   };
 
@@ -114,7 +118,8 @@ const Routes: React.FC = () => {
       setShowNameModal(true);
       
     } catch (error: any) {
-      alert(`❌ ${error.message || 'Sefer başlatılamadı'}`);
+      const errorMessage = error.userFriendlyMessage || error.message || 'Sefer başlatılamadı';
+      alert(`❌ ${errorMessage}`);
     }
   };
 
@@ -136,7 +141,8 @@ const Routes: React.FC = () => {
       alert('✅ Sefer başarıyla oluşturuldu!');
       navigate(`/journeys/${journey.id}`);
     } catch (error: any) {
-      alert(`❌ ${error.message || 'Sefer başlatılamadı'}`);
+      const errorMessage = error.userFriendlyMessage || error.message || 'Sefer başlatılamadı';
+      alert(`❌ ${errorMessage}`);
     }
   };
 

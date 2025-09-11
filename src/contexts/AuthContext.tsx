@@ -78,9 +78,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
           // API header'ını ayarla
           api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+          
+          // Token'ın geçerliliğini kontrol et
+          try {
+            await authService.me(); // Backend'e token validation isteği gönder
+            console.log('Token is still valid');
+          } catch (tokenError: any) {
+            console.error('Token validation failed on app init:', tokenError);
+            if (tokenError.response?.status === 401) {
+              console.log('Token expired, clearing auth data...');
+              // Token geçersizse tüm auth verisini temizle
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              localStorage.removeItem('workspaceId');
+              localStorage.removeItem('refreshToken');
+              localStorage.removeItem('isAuthenticated');
+              delete api.defaults.headers.common['Authorization'];
+              setToken(null);
+              setUser(null);
+            }
+          }
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Auth initialization error:', error);
+        const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Kimlik doğrulama başlatılırken hata oluştu';
+        console.error('User-friendly error:', errorMessage);
       } finally {
         setIsLoading(false);
       }
@@ -151,12 +173,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Login error:', error);
       
       // Hata mesajını düzgün göster
-      let errorMessage = 'Giriş başarısız';
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || error.message || 'Giriş başarısız';
       
       throw new Error(errorMessage);
     } finally {
@@ -190,8 +207,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const refreshUser = async () => {
-    // Şimdilik boş bırakıyoruz, gerekirse sonra ekleriz
-    console.log('refreshUser called');
+    try {
+      // Token varsa kullanıcı bilgilerini tekrar yükle ve token'ın geçerliliğini kontrol et
+      if (token) {
+        console.log('Refreshing user data and validating token...');
+        const response = await authService.me(); // Backend'den güncel kullanıcı bilgilerini al
+        
+        if (response) {
+          const userData: User = {
+            id: response.id,
+            email: response.email,
+            fullName: response.fullName || response.email,
+            phoneNumber: response.phoneNumber,
+            workspaceId: response.workspaceId,
+            workspaceName: response.workspace?.name,
+            isAdmin: response.isAdmin || false,
+            isDispatcher: response.isDispatcher || false,
+            isDriver: response.isDriver || false,
+            isSuperAdmin: response.isSuperAdmin || false,
+            isOnboarded: response.isOnboarded || false,
+            depotId: response.depotId
+          };
+          
+          setUser(userData);
+          localStorage.setItem('user', JSON.stringify(userData));
+          
+          if (userData.workspaceId) {
+            localStorage.setItem('workspaceId', userData.workspaceId.toString());
+          }
+          
+          console.log('User data refreshed successfully');
+        }
+      }
+    } catch (error: any) {
+      console.error('Token validation failed:', error);
+      
+      // Token geçersizse logout yap
+      if (error.response?.status === 401) {
+        console.log('Token expired or invalid, logging out...');
+        handleLogout();
+      }
+    }
   };
 
   const updateUser = (userData: Partial<User>) => {

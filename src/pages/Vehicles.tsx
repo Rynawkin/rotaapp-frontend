@@ -35,6 +35,9 @@ const Vehicles: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
+  const [isStatusChanging, setIsStatusChanging] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState<number | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   // Load vehicles
   useEffect(() => {
@@ -46,9 +49,10 @@ const Vehicles: React.FC = () => {
     try {
       const data = await vehicleService.getAll();
       setVehicles(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading vehicles:', error);
-      alert('Araçlar yüklenirken bir hata oluştu');
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Araçlar yüklenirken bir hata oluştu';
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -70,25 +74,34 @@ const Vehicles: React.FC = () => {
   // Delete vehicle
   const handleDelete = async (id: number) => {
     if (window.confirm('Bu aracı silmek istediğinizden emin misiniz?')) {
+      setIsDeleting(id);
       try {
         await vehicleService.delete(id);
         await loadVehicles();
         alert('Araç başarıyla silindi');
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error deleting vehicle:', error);
-        alert('Araç silinirken bir hata oluştu');
+        const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Araç silinirken bir hata oluştu';
+        alert(errorMessage);
+      } finally {
+        setIsDeleting(null);
       }
     }
   };
 
   // Update vehicle status
   const handleStatusChange = async (id: number, status: 'active' | 'maintenance' | 'inactive') => {
+    setIsStatusChanging(id);
     try {
       await vehicleService.updateStatus(id, status);
       await loadVehicles();
-    } catch (error) {
+      alert('Araç durumu başarıyla güncellendi');
+    } catch (error: any) {
       console.error('Error updating vehicle status:', error);
-      alert('Durum güncellenirken bir hata oluştu');
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Durum güncellenirken bir hata oluştu';
+      alert(errorMessage);
+    } finally {
+      setIsStatusChanging(null);
     }
   };
 
@@ -127,15 +140,16 @@ const Vehicles: React.FC = () => {
         }
 
         try {
-          setLoading(true);
+          setIsImporting(true);
           await vehicleService.bulkImport(vehiclesToImport);
           await loadVehicles();
           alert(`${vehiclesToImport.length} araç başarıyla içe aktarıldı!`);
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error importing vehicles:', error);
-          alert('Araçlar içe aktarılırken bir hata oluştu');
+          const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Araçlar içe aktarılırken bir hata oluştu';
+          alert(errorMessage);
         } finally {
-          setLoading(false);
+          setIsImporting(false);
         }
       };
       
@@ -268,10 +282,15 @@ const Vehicles: React.FC = () => {
         <div className="mt-4 sm:mt-0 flex items-center space-x-3">
           <button 
             onClick={handleImport}
-            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center"
+            disabled={isImporting}
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Upload className="w-4 h-4 mr-2" />
-            Import
+            {isImporting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Upload className="w-4 h-4 mr-2" />
+            )}
+            {isImporting ? 'İçe Aktarılıyor...' : 'Import'}
           </button>
           <button 
             onClick={handleExport}
@@ -504,13 +523,17 @@ const Vehicles: React.FC = () => {
                           <select
                             value={vehicle.status}
                             onChange={(e) => handleStatusChange(vehicle.id, e.target.value as any)}
-                            className="text-xs border border-gray-200 rounded px-2 py-1"
+                            disabled={isStatusChanging === vehicle.id}
+                            className="text-xs border border-gray-200 rounded px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <option value="active">Aktif</option>
                             <option value="maintenance">Bakımda</option>
                             <option value="inactive">Pasif</option>
                           </select>
+                          {isStatusChanging === vehicle.id && (
+                            <Loader2 className="w-3 h-3 ml-1 animate-spin text-blue-600" />
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -551,10 +574,15 @@ const Vehicles: React.FC = () => {
                                     handleDelete(vehicle.id);
                                     setDropdownOpen(null);
                                   }}
-                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-red-600 w-full text-left"
+                                  disabled={isDeleting === vehicle.id}
+                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-red-600 w-full text-left disabled:opacity-50"
                                 >
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                  Sil
+                                  {isDeleting === vehicle.id ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                  )}
+                                  {isDeleting === vehicle.id ? 'Siliniyor...' : 'Sil'}
                                 </button>
                               </div>
                             </>
@@ -629,10 +657,15 @@ const Vehicles: React.FC = () => {
                               handleDelete(vehicle.id);
                               setDropdownOpen(null);
                             }}
-                            className="flex items-center px-3 py-1.5 hover:bg-gray-50 text-red-600 w-full text-left text-sm"
+                            disabled={isDeleting === vehicle.id}
+                            className="flex items-center px-3 py-1.5 hover:bg-gray-50 text-red-600 w-full text-left text-sm disabled:opacity-50"
                           >
-                            <Trash2 className="w-3 h-3 mr-2" />
-                            Sil
+                            {isDeleting === vehicle.id ? (
+                              <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3 h-3 mr-2" />
+                            )}
+                            {isDeleting === vehicle.id ? 'Siliniyor...' : 'Sil'}
                           </button>
                         </div>
                       </>

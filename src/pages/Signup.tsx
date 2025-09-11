@@ -240,14 +240,16 @@ const Signup: React.FC = () => {
     } catch (err: any) {
       console.error('Register error:', err);
       
-      // Detaylı hata mesajı göster
-      let errorMessage = 'Kayıt sırasında bir hata oluştu. Lütfen tekrar deneyin.';
+      // API interceptor'dan gelen kullanıcı dostu mesajı kullan
+      let errorMessage = err.userFriendlyMessage || 'Kayıt sırasında bir hata oluştu. Lütfen tekrar deneyin.';
       
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.response?.data?.errors && Array.isArray(err.response.data.errors)) {
-        errorMessage = err.response.data.errors.join(', ');
-      } else if (err.message) {
+      // Fallback: eski error handling mantığı
+      if (!err.userFriendlyMessage) {
+        if (err.response?.data?.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.response?.data?.errors && Array.isArray(err.response.data.errors)) {
+          errorMessage = err.response.data.errors.join(', ');
+        } else if (err.message) {
         errorMessage = err.message;
       }
       

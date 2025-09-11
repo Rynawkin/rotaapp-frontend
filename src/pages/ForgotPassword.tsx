@@ -19,8 +19,9 @@ const ForgotPassword: React.FC = () => {
     try {
       await authService.forgotPassword(email);
       setSuccess(true);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Bir hata oluştu');
+    } catch (error: any) {
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Bir hata oluştu';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

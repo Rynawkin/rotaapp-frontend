@@ -1,15 +1,29 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2 } from 'lucide-react';
+import { ArrowLeft, Building2, AlertCircle } from 'lucide-react';
 import DepotForm from '@/components/depots/DepotForm';
 import { depotService } from '@/services/depot.service';
 import { Depot } from '@/types';
 
 const CreateDepot: React.FC = () => {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (data: Partial<Depot>) => {
-    await depotService.create(data);
+    setLoading(true);
+    setError(null);
+    
+    try {
+      await depotService.create(data);
+      navigate('/depots');
+    } catch (error: any) {
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Depo oluşturulurken bir hata oluştu.';
+      setError(errorMessage);
+      console.error('Error creating depot:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -33,10 +47,22 @@ const CreateDepot: React.FC = () => {
         </p>
       </div>
 
+      {/* Error Alert */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
+          <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <h3 className="text-sm font-medium text-red-800">Hata</h3>
+            <p className="text-sm text-red-700 mt-1">{error}</p>
+          </div>
+        </div>
+      )}
+
       {/* Form */}
       <DepotForm
         onSubmit={handleSubmit}
         onCancel={() => navigate('/depots')}
+        loading={loading}
       />
     </div>
   );

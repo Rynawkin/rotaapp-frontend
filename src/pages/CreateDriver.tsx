@@ -35,7 +35,7 @@ const CreateDriver: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error creating driver:', error);
-      const errorMessage = error.response?.data?.message || 'Sürücü oluşturulurken bir hata oluştu';
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Sürücü oluşturulurken bir hata oluştu';
       alert(errorMessage);
     } finally {
       setLoading(false);

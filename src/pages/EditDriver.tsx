@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 import DriverForm from '@/components/drivers/DriverForm';
 import { driverService } from '@/services/driver.service';
 import { Driver } from '@/types';
@@ -11,6 +11,7 @@ const EditDriver: React.FC = () => {
   const [driver, setDriver] = useState<Driver | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadDriver();
@@ -28,10 +29,10 @@ const EditDriver: React.FC = () => {
         alert('Sürücü bulunamadı');
         navigate('/drivers');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading driver:', error);
-      alert('Sürücü yüklenirken bir hata oluştu');
-      navigate('/drivers');
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Sürücü yüklenirken bir hata oluştu';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -44,9 +45,10 @@ const EditDriver: React.FC = () => {
     try {
       await driverService.update(id, data);
       navigate('/drivers');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating driver:', error);
-      alert('Sürücü güncellenirken bir hata oluştu');
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Sürücü güncellenirken bir hata oluştu';
+      setError(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -81,6 +83,17 @@ const EditDriver: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Error Alert */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
+          <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <h3 className="text-sm font-medium text-red-800">Hata</h3>
+            <p className="text-sm text-red-700 mt-1">{error}</p>
+          </div>
+        </div>
+      )}
 
       {/* Form */}
       <DriverForm

@@ -17,8 +17,9 @@ const CreateCustomer: React.FC = () => {
     try {
       const newCustomer = await customerService.create(formData);
       navigate(`/customers/${newCustomer.id}`);
-    } catch (err) {
-      setError('Müşteri oluşturulurken bir hata oluştu.');
+    } catch (err: any) {
+      const errorMessage = err.userFriendlyMessage || err.response?.data?.message || 'Müşteri oluşturulurken bir hata oluştu.';
+      setError(errorMessage);
       console.error('Error creating customer:', err);
     } finally {
       setLoading(false);

@@ -27,9 +27,10 @@ const Login: React.FC = () => {
       console.log('Login attempt with:', { email, password: '***' });
       await login(email, password);
       console.log('Login successful, redirecting...');
-    } catch (err: any) {
-      console.error('Login error:', err);
-      setError(err.message || 'Giriş başarısız. Lütfen bilgilerinizi kontrol edin.');
+    } catch (error: any) {
+      console.error('Login error:', error);
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Giriş başarısız. Lütfen bilgilerinizi kontrol edin.';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }

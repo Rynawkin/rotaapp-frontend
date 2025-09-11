@@ -129,8 +129,10 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
           }));
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading default service time:', error);
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Varsayılan servis süresi yüklenirken hata oluştu';
+      console.error('User-friendly error:', errorMessage);
       // Hata durumunda varsayılan 15 dakika kullan
       if (!initialData?.estimatedServiceTime) {
         setFormData(prev => ({

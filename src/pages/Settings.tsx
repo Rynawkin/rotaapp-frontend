@@ -234,8 +234,10 @@ const Settings: React.FC = () => {
       ]);
       setSubscriptionData(planDetails);
       setBillingData(billingSummary);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading subscription data:', error);
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Abonelik verileri yüklenirken hata oluştu';
+      console.error('User-friendly error:', errorMessage);
     } finally {
       setLoadingSubscription(false);
     }
@@ -254,9 +256,10 @@ const Settings: React.FC = () => {
     try {
       const data = await memberService.getMembers();
       setMembers(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading members:', error);
-      setError('Kullanıcılar yüklenirken hata oluştu');
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Kullanıcılar yüklenirken hata oluştu';
+      setError(errorMessage);
     } finally {
       setLoadingMembers(false);
     }
@@ -270,8 +273,10 @@ const Settings: React.FC = () => {
       if (data.length > 0 && !newMember.depotId) {
         setNewMember(prev => ({ ...prev, depotId: data[0].id }));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading depots:', error);
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Depolar yüklenirken hata oluştu';
+      console.error('User-friendly error:', errorMessage);
     }
   };
 
@@ -318,7 +323,8 @@ const Settings: React.FC = () => {
       });
     } catch (error: any) {
       console.error('Error creating dispatcher:', error);
-      setError(error.response?.data?.message || 'Dispatcher oluşturulurken hata oluştu');
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Dispatcher oluşturulurken hata oluştu';
+      setError(errorMessage);
     } finally {
       setSavingMember(false);
     }
@@ -345,7 +351,8 @@ const Settings: React.FC = () => {
       setTimeout(() => setShowSuccessMessage(false), 3000);
     } catch (error: any) {
       console.error('Error deleting member:', error);
-      setError(error.response?.data?.message || 'Kullanıcı silinirken hata oluştu');
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Kullanıcı silinirken hata oluştu';
+      setError(errorMessage);
     }
   };
 
@@ -432,9 +439,10 @@ const Settings: React.FC = () => {
           }
       }
       
-    } catch (err) {
-      console.error('Error loading settings:', err);
-      setError('Ayarlar yüklenirken bir hata oluştu');
+    } catch (error: any) {
+      console.error('Error loading settings:', error);
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Ayarlar yüklenirken bir hata oluştu';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -462,9 +470,10 @@ const Settings: React.FC = () => {
           }
         }, 1000);
       }
-    } catch (err: any) {
-      console.error('WhatsApp connect error:', err);
-      setError(err.response?.data?.message || 'WhatsApp bağlantısı başlatılamadı');
+    } catch (error: any) {
+      console.error('WhatsApp connect error:', error);
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'WhatsApp bağlantısı başlatılamadı';
+      setError(errorMessage);
     } finally {
       setConnectingWhatsApp(false);
     }
@@ -491,9 +500,10 @@ const Settings: React.FC = () => {
 
       setShowSuccessMessage(true);
       setTimeout(() => setShowSuccessMessage(false), 3000);
-    } catch (err: any) {
-      console.error('WhatsApp disconnect error:', err);
-      setError(err.response?.data?.message || 'WhatsApp bağlantısı kaldırılamadı');
+    } catch (error: any) {
+      console.error('WhatsApp disconnect error:', error);
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'WhatsApp bağlantısı kaldırılamadı';
+      setError(errorMessage);
     } finally {
       setDisconnectingWhatsApp(false);
     }
@@ -511,8 +521,10 @@ const Settings: React.FC = () => {
         twilioVerified: status.connected,
         twilioConnectedAt: status.connectedAt
       }));
-    } catch (err) {
-      console.error('Error checking Twilio status:', err);
+    } catch (error: any) {
+      console.error('Error checking Twilio status:', error);
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Twilio durumu kontrol edilirken hata oluştu';
+      console.error('User-friendly error:', errorMessage);
     }
   };
 
@@ -559,9 +571,10 @@ const Settings: React.FC = () => {
       setShowSuccessMessage(true);
       setTimeout(() => setShowSuccessMessage(false), 3000);
       
-    } catch (err: any) {
-      console.error('Error saving settings:', err);
-      setError(err.response?.data?.message || 'Ayarlar kaydedilirken bir hata oluştu');
+    } catch (error: any) {
+      console.error('Error saving settings:', error);
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Ayarlar kaydedilirken bir hata oluştu';
+      setError(errorMessage);
     } finally {
       setSaving(false);
       setHasChanges(false);
@@ -611,8 +624,9 @@ const Settings: React.FC = () => {
           if (settings.notifications) setNotificationSettings(prev => ({ ...prev, ...settings.notifications }));
           if (settings.regional) setRegionalSettings(settings.regional);
           setHasChanges(true);
-        } catch (error) {
-          alert('Geçersiz ayar dosyası!');
+        } catch (error: any) {
+          const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Geçersiz ayar dosyası!';
+          alert(errorMessage);
         }
       };
       reader.readAsText(file);

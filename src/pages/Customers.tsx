@@ -44,8 +44,10 @@ const Customers: React.FC = () => {
     try {
       const data = await customerService.getAll();
       setCustomers(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading customers:', error);
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Müşteriler yüklenirken hata oluştu';
+      console.error('User-friendly error:', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -155,8 +157,9 @@ const Customers: React.FC = () => {
           await customerService.bulkImport(newCustomers);
           alert(`✅ ${newCustomers.length} müşteri başarıyla içe aktarıldı!`);
           loadCustomers();
-        } catch (error) {
-          alert('❌ İçe aktarma sırasında bir hata oluştu.');
+        } catch (error: any) {
+          const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'İçe aktarma sırasında bir hata oluştu';
+          alert(`❌ ${errorMessage}`);
           console.error('Import error:', error);
         }
       } else {

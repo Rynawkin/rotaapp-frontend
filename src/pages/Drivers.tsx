@@ -34,6 +34,9 @@ const Drivers: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
+  const [isStatusChanging, setIsStatusChanging] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   // Load drivers
   useEffect(() => {
@@ -45,8 +48,10 @@ const Drivers: React.FC = () => {
     try {
       const data = await driverService.getAll();
       setDrivers(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading drivers:', error);
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Sürücüler yüklenirken bir hata oluştu';
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -68,24 +73,34 @@ const Drivers: React.FC = () => {
   // Delete driver
   const handleDelete = async (id: string) => {
     if (window.confirm('Bu sürücüyü silmek istediğinizden emin misiniz?')) {
+      setIsDeleting(id);
       try {
         await driverService.delete(id);
         loadDrivers();
-      } catch (error) {
+        alert('Sürücü başarıyla silindi');
+      } catch (error: any) {
         console.error('Delete failed:', error);
-        alert('Sürücü silinirken bir hata oluştu!');
+        const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Sürücü silinirken bir hata oluştu!';
+        alert(errorMessage);
+      } finally {
+        setIsDeleting(null);
       }
     }
   };
 
   // Update driver status
   const handleStatusChange = async (id: string, status: 'available' | 'busy' | 'offline') => {
+    setIsStatusChanging(id);
     try {
       await driverService.updateStatus(id, status);
       loadDrivers();
-    } catch (error) {
+      alert('Sürücü durumu başarıyla güncellendi');
+    } catch (error: any) {
       console.error('Status update failed:', error);
-      alert('Durum güncellenirken bir hata oluştu!');
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Durum güncellenirken bir hata oluştu!';
+      alert(errorMessage);
+    } finally {
+      setIsStatusChanging(null);
     }
   };
 
@@ -120,6 +135,7 @@ const Drivers: React.FC = () => {
         const driversToImport = driverService.parseCsvForImport(csv);
         
         if (driversToImport.length > 0) {
+          setIsImporting(true);
           try {
             const result = await driverService.bulkImport(driversToImport);
             
@@ -136,9 +152,12 @@ const Drivers: React.FC = () => {
                 alert(`Bazı kayıtlar eklenemedi:\n${errorMessage}`);
               }
             }
-          } catch (error) {
+          } catch (error: any) {
             console.error('Import failed:', error);
-            alert('İçe aktarma sırasında bir hata oluştu!');
+            const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'İçe aktarma sırasında bir hata oluştu!';
+            alert(errorMessage);
+          } finally {
+            setIsImporting(false);
           }
         } else {
           alert('CSV dosyasında geçerli sürücü verisi bulunamadı!');
@@ -228,10 +247,15 @@ const Drivers: React.FC = () => {
         <div className="mt-4 sm:mt-0 flex items-center space-x-3">
           <button 
             onClick={handleImport}
-            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center"
+            disabled={isImporting}
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Upload className="w-4 h-4 mr-2" />
-            Import
+            {isImporting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Upload className="w-4 h-4 mr-2" />
+            )}
+            {isImporting ? 'İçe Aktarılıyor...' : 'Import'}
           </button>
           <button 
             onClick={handleExport}
@@ -450,13 +474,17 @@ const Drivers: React.FC = () => {
                             <select
                               value={driver.status}
                               onChange={(e) => handleStatusChange(driver.id, e.target.value as any)}
-                              className="text-xs border border-gray-200 rounded px-2 py-1"
+                              disabled={isStatusChanging === driver.id}
+                              className="text-xs border border-gray-200 rounded px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <option value="available">Müsait</option>
                               <option value="busy">Meşgul</option>
                               <option value="offline">Çevrimdışı</option>
                             </select>
+                            {isStatusChanging === driver.id && (
+                              <Loader2 className="w-3 h-3 ml-1 animate-spin text-blue-600" />
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -514,10 +542,15 @@ const Drivers: React.FC = () => {
                                       handleDelete(driver.id);
                                       setDropdownOpen(null);
                                     }}
-                                    className="flex items-center px-4 py-2 hover:bg-gray-50 text-red-600 w-full text-left"
+                                    disabled={isDeleting === driver.id}
+                                    className="flex items-center px-4 py-2 hover:bg-gray-50 text-red-600 w-full text-left disabled:opacity-50"
                                   >
-                                    <Trash2 className="w-4 h-4 mr-2" />
-                                    Sil
+                                    {isDeleting === driver.id ? (
+                                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="w-4 h-4 mr-2" />
+                                    )}
+                                    {isDeleting === driver.id ? 'Siliniyor...' : 'Sil'}
                                   </button>
                                 </div>
                               </>
@@ -591,10 +624,15 @@ const Drivers: React.FC = () => {
                               handleDelete(driver.id);
                               setDropdownOpen(null);
                             }}
-                            className="flex items-center px-3 py-1.5 hover:bg-gray-50 text-red-600 w-full text-left text-sm"
+                            disabled={isDeleting === driver.id}
+                            className="flex items-center px-3 py-1.5 hover:bg-gray-50 text-red-600 w-full text-left text-sm disabled:opacity-50"
                           >
-                            <Trash2 className="w-3 h-3 mr-2" />
-                            Sil
+                            {isDeleting === driver.id ? (
+                              <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3 h-3 mr-2" />
+                            )}
+                            {isDeleting === driver.id ? 'Siliniyor...' : 'Sil'}
                           </button>
                         </div>
                       </>

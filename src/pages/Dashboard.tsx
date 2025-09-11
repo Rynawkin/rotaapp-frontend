@@ -116,8 +116,11 @@ const Dashboard: React.FC = () => {
       generateRecentActivities(journeysData, routesData);
       calculateWeeklyData(journeysData);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Dashboard verileri yüklenirken hata:', error);
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Dashboard verileri yüklenirken hata oluştu';
+      // Note: Dashboard doesn't have setError state, so just console log the user-friendly message
+      console.error('User-friendly error:', errorMessage);
     } finally {
       setLoading(false);
     }

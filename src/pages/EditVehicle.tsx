@@ -111,7 +111,8 @@ const EditVehicle: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error loading vehicle:', error);
-      setError('Araç yüklenirken bir hata oluştu');
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Araç yüklenirken bir hata oluştu';
+      setError(errorMessage);
       setTimeout(() => navigate('/vehicles'), 2000);
     } finally {
       setLoading(false);
@@ -142,15 +143,22 @@ const EditVehicle: React.FC = () => {
     } catch (error: any) {
       console.error('Error updating vehicle:', error);
       
-      if (error.response?.data?.message) {
-        setError(error.response.data.message);
-      } else if (error.response?.status === 409) {
-        setError('Bu plaka numarası başka bir araçta kullanılıyor');
-      } else if (error.response?.status === 404) {
-        setError('Araç bulunamadı');
-      } else {
-        setError('Araç güncellenirken bir hata oluştu');
+      // userFriendlyMessage öncelikli error handling
+      let errorMessage = error.userFriendlyMessage;
+      
+      if (!errorMessage) {
+        if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response?.status === 409) {
+          errorMessage = 'Bu plaka numarası başka bir araçta kullanılıyor';
+        } else if (error.response?.status === 404) {
+          errorMessage = 'Araç bulunamadı';
+        } else {
+          errorMessage = 'Araç güncellenirken bir hata oluştu';
+        }
       }
+      
+      setError(errorMessage);
     } finally {
       setSaving(false);
     }

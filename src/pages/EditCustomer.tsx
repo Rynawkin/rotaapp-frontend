@@ -30,9 +30,10 @@ const EditCustomer: React.FC = () => {
       } else {
         setError('Müşteri bulunamadı');
       }
-    } catch (err) {
-      setError('Müşteri yüklenirken bir hata oluştu');
-      console.error('Error loading customer:', err);
+    } catch (error: any) {
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Müşteri yüklenirken bir hata oluştu';
+      setError(errorMessage);
+      console.error('Error loading customer:', error);
     } finally {
       setLoading(false);
     }
@@ -47,9 +48,10 @@ const EditCustomer: React.FC = () => {
     try {
       await customerService.update(id, formData);
       navigate(`/customers/${id}`);
-    } catch (err) {
-      setError('Müşteri güncellenirken bir hata oluştu.');
-      console.error('Error updating customer:', err);
+    } catch (error: any) {
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Müşteri güncellenirken bir hata oluştu.';
+      setError(errorMessage);
+      console.error('Error updating customer:', error);
     } finally {
       setSaving(false);
     }

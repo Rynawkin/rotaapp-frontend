@@ -29,9 +29,10 @@ const CreateRoute: React.FC = () => {
       setTimeout(() => {
         navigate(`/routes/${route.id || formData.id}`);
       }, 100);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Rota işleminde bir hata oluştu.');
-      console.error('Error processing route:', err);
+    } catch (error: any) {
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Rota işleminde bir hata oluştu.';
+      setError(errorMessage);
+      console.error('Error processing route:', error);
     } finally {
       setLoading(false);
     }
@@ -47,9 +48,10 @@ const CreateRoute: React.FC = () => {
         status: 'draft'
       });
       navigate('/routes');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Taslak kaydedilirken bir hata oluştu.');
-      console.error('Error saving draft:', err);
+    } catch (error: any) {
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Taslak kaydedilirken bir hata oluştu.';
+      setError(errorMessage);
+      console.error('Error saving draft:', error);
     } finally {
       setLoading(false);
     }

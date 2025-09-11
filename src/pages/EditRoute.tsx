@@ -35,9 +35,10 @@ const EditRoute: React.FC = () => {
       } else {
         setError('Rota bulunamadı');
       }
-    } catch (err: any) {
-      console.error('Error loading route:', err);
-      setError(err.response?.data?.message || 'Rota yüklenirken bir hata oluştu');
+    } catch (error: any) {
+      console.error('Error loading route:', error);
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Rota yüklenirken bir hata oluştu';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -52,9 +53,10 @@ const EditRoute: React.FC = () => {
     try {
       await routeService.update(id, formData);
       navigate(`/routes/${id}`);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Rota güncellenirken bir hata oluştu.');
-      console.error('Error updating route:', err);
+    } catch (error: any) {
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Rota güncellenirken bir hata oluştu.';
+      setError(errorMessage);
+      console.error('Error updating route:', error);
     } finally {
       setSaving(false);
     }
@@ -72,9 +74,10 @@ const EditRoute: React.FC = () => {
         status: 'draft'
       });
       navigate('/routes');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Taslak kaydedilirken bir hata oluştu.');
-      console.error('Error saving draft:', err);
+    } catch (error: any) {
+      const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Taslak kaydedilirken bir hata oluştu.';
+      setError(errorMessage);
+      console.error('Error saving draft:', error);
     } finally {
       setSaving(false);
     }
