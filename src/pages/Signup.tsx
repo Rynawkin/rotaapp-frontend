@@ -250,7 +250,8 @@ const Signup: React.FC = () => {
         } else if (err.response?.data?.errors && Array.isArray(err.response.data.errors)) {
           errorMessage = err.response.data.errors.join(', ');
         } else if (err.message) {
-        errorMessage = err.message;
+          errorMessage = err.message;
+        }
       }
       
       setError(errorMessage);

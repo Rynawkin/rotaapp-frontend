@@ -1,9 +1,7 @@
 // src/pages/LocationUpdateRequests.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 
-// 🔧 API import uyumlu: default varsa default'u, yoksa named export (api) veya tüm namespace'i kullanır.
-import * as apiModule from '../services/api';
-const http: any = (apiModule as any).default ?? (apiModule as any).api ?? apiModule;
+import { api as http } from '../services/api';
 
 import {
   CheckCircle2,
