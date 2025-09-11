@@ -129,28 +129,37 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
   // Trial usage verilerini yükle
   useEffect(() => {
     const loadUsageData = async () => {
-      // Sadece Trial kullanıcıları için
-      if (userInfo.planType === 'Trial') {
-        try {
-          const usage = await subscriptionService.getCurrentUsage();
-          setUsageData(usage);
-          
-          // Banner gösterilmeli mi kontrol et
+      console.log('Loading usage data for user:', userInfo);
+      
+      // Her kullanıcı için usage verilerini al (plan type'ı backend'den gelecek)
+      try {
+        const usage = await subscriptionService.getCurrentUsage();
+        console.log('Usage data received:', usage);
+        setUsageData(usage);
+        
+        // Trial kullanıcıları için banner kontrolü
+        if (usage.planType === 'Trial') {
           const shouldShowBanner = (
             usage.currentMonthStops >= usage.includedMonthlyStops ||
             usage.currentMonthWhatsAppMessages >= usage.includedWhatsAppMessages
           );
+          console.log('Trial banner should show:', shouldShowBanner, {
+            stops: `${usage.currentMonthStops}/${usage.includedMonthlyStops}`,
+            whatsApp: `${usage.currentMonthWhatsAppMessages}/${usage.includedWhatsAppMessages}`
+          });
           setShowTrialBanner(shouldShowBanner);
-        } catch (error) {
-          console.error('Error loading usage data:', error);
+        } else {
+          console.log('Not a trial user, hiding banner');
+          setShowTrialBanner(false);
         }
-      } else {
+      } catch (error) {
+        console.error('Error loading usage data:', error);
         setShowTrialBanner(false);
       }
     };
 
     loadUsageData();
-  }, [userInfo.planType]);
+  }, [userInfo.email]); // userInfo.email dependency to trigger when user changes
 
   // Sidebar sayıları için API verilerini yükle
   useEffect(() => {
@@ -707,6 +716,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
         </header>
 
         {/* Trial Limit Banner */}
+        {console.log('Rendering banner:', { showTrialBanner, usageData })}
         {showTrialBanner && usageData && (
           <div className="bg-gradient-to-r from-orange-400 to-orange-500 px-4 py-3 shadow-md">
             <div className="flex items-center justify-between">
