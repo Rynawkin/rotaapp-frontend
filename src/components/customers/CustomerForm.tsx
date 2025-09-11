@@ -266,10 +266,12 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
       newErrors.phone = 'Geçerli bir telefon numarası girin';
     }
 
-    // Email validation - trim ve boşluk kontrolü eklendi
+    // Email validation - zorunlu alan yapıldı
     const emailValue = formData.email?.trim();
     console.log('Email validation:', { email: formData.email, emailValue, hasEmail: !!emailValue });
-    if (emailValue && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+    if (!emailValue) {
+      newErrors.email = 'Email adresi zorunludur';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
       console.log('Email validation failed for:', emailValue);
       newErrors.email = 'Geçerli bir email adresi girin';
     }
@@ -531,7 +533,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
             {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
+                Email <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
