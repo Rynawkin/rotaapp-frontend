@@ -1,9 +1,9 @@
 // src/pages/Signup.tsx
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
   Building2, Mail, Lock, Phone, User, Loader2, 
-  AlertCircle, CheckCircle, ArrowRight, Truck, Info 
+  AlertCircle, CheckCircle, ArrowRight, Truck, Info, X
 } from 'lucide-react';
 import { authService } from '@/services/auth.service';
 
@@ -33,6 +33,8 @@ const Signup: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   
   const [formData, setFormData] = useState<SignupForm>({
     workspaceName: '',
@@ -187,6 +189,32 @@ const Signup: React.FC = () => {
         return false;
     }
   };
+
+  // Modal handler functions
+  const handleTermsAccept = () => {
+    setFormData(prev => ({ ...prev, termsAccepted: true }));
+    setShowTermsModal(false);
+  };
+
+  const handlePrivacyAccept = () => {
+    setFormData(prev => ({ ...prev, privacyAccepted: true }));
+    setShowPrivacyModal(false);
+  };
+
+  // ESC key handler for modals
+  React.useEffect(() => {
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowTermsModal(false);
+        setShowPrivacyModal(false);
+      }
+    };
+
+    if (showTermsModal || showPrivacyModal) {
+      document.addEventListener('keydown', handleEsc);
+      return () => document.removeEventListener('keydown', handleEsc);
+    }
+  }, [showTermsModal, showPrivacyModal]);
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -547,7 +575,13 @@ const Signup: React.FC = () => {
                     className="w-4 h-4 text-blue-600 border-gray-300 rounded mt-0.5"
                   />
                   <span className="ml-2 text-sm text-gray-600">
-                    <Link to="/terms" className="text-blue-600 hover:underline">Kullanım koşullarını</Link> okudum ve kabul ediyorum.
+                    <button 
+                      type="button"
+                      onClick={() => setShowTermsModal(true)}
+                      className="text-blue-600 hover:underline"
+                    >
+                      Kullanım koşullarını
+                    </button> okudum ve kabul ediyorum.
                   </span>
                 </label>
 
@@ -560,7 +594,13 @@ const Signup: React.FC = () => {
                     className="w-4 h-4 text-blue-600 border-gray-300 rounded mt-0.5"
                   />
                   <span className="ml-2 text-sm text-gray-600">
-                    <Link to="/privacy" className="text-blue-600 hover:underline">Gizlilik politikasını</Link> okudum ve kabul ediyorum.
+                    <button 
+                      type="button"
+                      onClick={() => setShowPrivacyModal(true)}
+                      className="text-blue-600 hover:underline"
+                    >
+                      Gizlilik politikasını
+                    </button> okudum ve kabul ediyorum.
                   </span>
                 </label>
               </div>
@@ -619,6 +659,154 @@ const Signup: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Terms Modal */}
+      {showTermsModal && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => setShowTermsModal(false)}
+        >
+          <div 
+            className="bg-white rounded-lg max-w-2xl max-h-[80vh] w-full mx-4 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-lg font-semibold">Kullanım Koşulları</h3>
+              <button
+                onClick={() => setShowTermsModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[50vh]">
+              <div className="space-y-4 text-gray-700">
+                <h4 className="font-semibold">1. Hizmet Tanımı</h4>
+                <p>
+                  RotaApp, araç rota planlaması ve yönetimi hizmeti sunan bir yazılım platformudur. 
+                  Bu platform üzerinden araç rotalarınızı optimize edebilir, sürücülerinizi takip edebilir 
+                  ve müşterilerinize daha iyi hizmet verebilirsiniz.
+                </p>
+                
+                <h4 className="font-semibold">2. Kullanım Şartları</h4>
+                <p>
+                  Bu hizmeti kullanarak, yasal düzenlemelere uygun hareket etmeyi ve platformu 
+                  sadece meşru amaçlar için kullanmayı kabul etmektesiniz. Hizmetin kötüye kullanılması 
+                  durumunda hesabınız askıya alınabilir veya kapatılabilir.
+                </p>
+                
+                <h4 className="font-semibold">3. Veri Sorumluluğu</h4>
+                <p>
+                  Sisteme girdiğiniz veriler sizin sorumluluğunuzdadır. Müşteri bilgileri, araç bilgileri 
+                  ve diğer operasyonel verilerin doğruluğu ve güncelliği size aittir.
+                </p>
+                
+                <h4 className="font-semibold">4. Fiyatlandırma ve Ödemeler</h4>
+                <p>
+                  Abonelik ücretleri seçtiğiniz pakete göre belirlenir. Ödemeler aylık olarak tahsil edilir. 
+                  Fiyat değişiklikleri önceden bildirilir.
+                </p>
+                
+                <h4 className="font-semibold">5. Hizmet Kesintileri</h4>
+                <p>
+                  Bakım ve güncellemeler nedeniyle kısa süreli hizmet kesintileri yaşanabilir. 
+                  Bu durumlar önceden duyurulmaya çalışılır.
+                </p>
+                
+                <h4 className="font-semibold">6. Sorumluluk Sınırlaması</h4>
+                <p>
+                  RotaApp, hizmet kullanımından kaynaklanan dolaylı zararlardan sorumlu değildir. 
+                  Kullanıcılar hizmeti kendi risk ve sorumluluklarında kullanır.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end p-6 border-t bg-gray-50">
+              <button
+                onClick={handleTermsAccept}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Okudum ve Kabul Ediyorum
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Privacy Modal */}
+      {showPrivacyModal && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => setShowPrivacyModal(false)}
+        >
+          <div 
+            className="bg-white rounded-lg max-w-2xl max-h-[80vh] w-full mx-4 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-lg font-semibold">Gizlilik Politikası</h3>
+              <button
+                onClick={() => setShowPrivacyModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[50vh]">
+              <div className="space-y-4 text-gray-700">
+                <h4 className="font-semibold">1. Toplanan Bilgiler</h4>
+                <p>
+                  RotaApp olarak, hizmetimizi sunabilmek için gerekli olan kişisel verileri topluyoruz. 
+                  Bu veriler arasında firma bilgileri, iletişim bilgileri, araç bilgileri ve rota verileri bulunur.
+                </p>
+                
+                <h4 className="font-semibold">2. Verilerin Kullanımı</h4>
+                <p>
+                  Toplanan veriler sadece hizmet sunumu, müşteri desteği ve yasal yükümlülüklerin 
+                  yerine getirilmesi amacıyla kullanılır. Verileriniz üçüncü şahıslarla paylaşılmaz.
+                </p>
+                
+                <h4 className="font-semibold">3. Veri Güvenliği</h4>
+                <p>
+                  Verilerinizin güvenliği için endüstri standardı güvenlik önlemleri alınmıştır. 
+                  SSL şifreleme, güvenli veri merkezleri ve düzenli güvenlik denetimleri yapılmaktadır.
+                </p>
+                
+                <h4 className="font-semibold">4. Çerez Politikası</h4>
+                <p>
+                  Platformumuz, kullanıcı deneyimini iyileştirmek için çerezler kullanır. 
+                  Bu çerezler oturum yönetimi ve tercih saklama amaçlıdır.
+                </p>
+                
+                <h4 className="font-semibold">5. Veri Saklama Süresi</h4>
+                <p>
+                  Verileriniz, hizmet sunumu için gerekli olduğu sürece saklanır. 
+                  Hesap kapatma durumunda veriler yasal saklama süreleri dikkate alınarak silinir.
+                </p>
+                
+                <h4 className="font-semibold">6. Kullanıcı Hakları</h4>
+                <p>
+                  KVKK kapsamında verilerinize erişim, düzeltme, silme ve işleme itiraz hakınız bulunur. 
+                  Bu haklarınızı kullanmak için bizimle iletişime geçebilirsiniz.
+                </p>
+                
+                <h4 className="font-semibold">7. İletişim</h4>
+                <p>
+                  Gizlilik politikası ile ilgili sorularınız için info@rotaapp.com adresinden 
+                  bizimle iletişime geçebilirsiniz.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end p-6 border-t bg-gray-50">
+              <button
+                onClick={handlePrivacyAccept}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Okudum ve Kabul Ediyorum
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
