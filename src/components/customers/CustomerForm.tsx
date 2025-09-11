@@ -266,7 +266,11 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
       newErrors.phone = 'Geçerli bir telefon numarası girin';
     }
 
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    // Email validation - trim ve boşluk kontrolü eklendi
+    const emailValue = formData.email?.trim();
+    console.log('Email validation:', { email: formData.email, emailValue, hasEmail: !!emailValue });
+    if (emailValue && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+      console.log('Email validation failed for:', emailValue);
       newErrors.email = 'Geçerli bir email adresi girin';
     }
 
@@ -282,16 +286,21 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
       }
     }
 
+    console.log('Validation results:', newErrors);
     setErrors(newErrors);
     
     // İlk hataya scroll yap
     if (Object.keys(newErrors).length > 0) {
+      console.log('Scrolling to first error:', Object.keys(newErrors)[0]);
       setTimeout(() => {
         const firstErrorField = Object.keys(newErrors)[0];
         const element = document.querySelector(`[name="${firstErrorField}"]`) as HTMLElement;
         if (element) {
+          console.log('Found element to scroll to:', element);
           element.scrollIntoView({ behavior: 'smooth', block: 'center' });
           element.focus();
+        } else {
+          console.log('Element not found for field:', firstErrorField);
         }
       }, 100);
     }
