@@ -1,6 +1,6 @@
 // src/pages/Signup.tsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
   Building2, Mail, Lock, Phone, User, Loader2, 
   AlertCircle, CheckCircle, ArrowRight, Truck, Info, X
