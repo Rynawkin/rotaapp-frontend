@@ -21,13 +21,15 @@ import {
   Settings,
   Shield,
   Bug,
-  MapPinOff
+  MapPinOff,
+  AlertTriangle
 } from 'lucide-react';
 import { api } from '@/services/api';
 import { routeService } from '@/services/route.service';
 import { customerService } from '@/services/customer.service';
 import { journeyService } from '@/services/journey.service';
 import { notificationService, Notification } from '@/services/notification.service';
+import { subscriptionService, UsageData } from '@/services/subscription.service';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -54,6 +56,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
   const [activeJourneyCount, setActiveJourneyCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [usageData, setUsageData] = useState<UsageData | null>(null);
+  const [showTrialBanner, setShowTrialBanner] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -73,7 +77,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
       isAdmin: false,
       isDispatcher: false,
       isDriver: false,
-      isSuperAdmin: false
+      isSuperAdmin: false,
+      planType: 'Trial'
     };
   };
 
@@ -120,6 +125,32 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
       }
     };
   }, [userInfo.isAdmin, userInfo.isDispatcher, userInfo.isSuperAdmin]);
+
+  // Trial usage verilerini yükle
+  useEffect(() => {
+    const loadUsageData = async () => {
+      // Sadece Trial kullanıcıları için
+      if (userInfo.planType === 'Trial') {
+        try {
+          const usage = await subscriptionService.getCurrentUsage();
+          setUsageData(usage);
+          
+          // Banner gösterilmeli mi kontrol et
+          const shouldShowBanner = (
+            usage.currentMonthStops >= usage.includedMonthlyStops ||
+            usage.currentMonthWhatsAppMessages >= usage.includedWhatsAppMessages
+          );
+          setShowTrialBanner(shouldShowBanner);
+        } catch (error) {
+          console.error('Error loading usage data:', error);
+        }
+      } else {
+        setShowTrialBanner(false);
+      }
+    };
+
+    loadUsageData();
+  }, [userInfo.planType]);
 
   // Sidebar sayıları için API verilerini yükle
   useEffect(() => {
@@ -674,6 +705,37 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
             </div>
           </div>
         </header>
+
+        {/* Trial Limit Banner */}
+        {showTrialBanner && usageData && (
+          <div className="bg-gradient-to-r from-orange-400 to-orange-500 px-4 py-3 shadow-md">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="w-5 h-5 text-white flex-shrink-0" />
+                <div className="text-white">
+                  <p className="font-medium text-sm">
+                    Trial limitiniz doldu: {usageData.currentMonthStops}/{usageData.includedMonthlyStops || 100} durak, {usageData.currentMonthWhatsAppMessages}/{usageData.includedWhatsAppMessages || 25} WhatsApp mesajı kullanıldı
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => navigate('/settings')}
+                  className="bg-white text-orange-600 px-4 py-1.5 rounded-md text-sm font-medium hover:bg-orange-50 transition-colors"
+                >
+                  Plan Yükselt
+                </button>
+                <button
+                  onClick={() => setShowTrialBanner(false)}
+                  className="text-white hover:text-orange-100 transition-colors"
+                  title="Kapat"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Page Content */}
         <main className="p-4 lg:p-6">

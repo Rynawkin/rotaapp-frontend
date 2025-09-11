@@ -10,6 +10,8 @@ export interface UsageData {
   lastResetDate: string;
   nextResetDate: string;
   estimatedMonthlyTotal: number;
+  includedMonthlyStops: number;
+  includedWhatsAppMessages: number;
 }
 
 export interface PlanLimits {
@@ -57,22 +59,22 @@ export interface BillingSummary {
 
 class SubscriptionService {
   async getCurrentUsage(): Promise<UsageData> {
-    const response = await api.get('/workspace/subscription/usage');
+    const response = await api.get('/subscription/usage');
     return response.data;
   }
 
   async getPlanDetails(): Promise<{ currentPlan: string; limits: PlanLimits; currentUsage: UsageData }> {
-    const response = await api.get('/workspace/subscription/plan');
+    const response = await api.get('/subscription/plan');
     return response.data;
   }
 
   async getBillingSummary(): Promise<BillingSummary> {
-    const response = await api.get('/workspace/subscription/billing-summary');
+    const response = await api.get('/subscription/billing-summary');
     return response.data;
   }
 
   async getWhatsAppUsage(): Promise<any> {
-    const response = await api.get('/workspace/subscription/whatsapp-usage');
+    const response = await api.get('/subscription/whatsapp-usage');
     return response.data;
   }
 }
