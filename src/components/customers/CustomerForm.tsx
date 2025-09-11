@@ -283,6 +283,19 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
     }
 
     setErrors(newErrors);
+    
+    // İlk hataya scroll yap
+    if (Object.keys(newErrors).length > 0) {
+      setTimeout(() => {
+        const firstErrorField = Object.keys(newErrors)[0];
+        const element = document.querySelector(`[name="${firstErrorField}"]`) as HTMLElement;
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.focus();
+        }
+      }, 100);
+    }
+    
     return Object.keys(newErrors).length === 0;
   };
 
@@ -458,17 +471,18 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
               </label>
               <input
                 type="text"
+                name="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.name ? 'border-red-300' : 'border-gray-300'
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.name ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300'
                   }`}
                 placeholder="Örn: Bakkal Mehmet"
               />
               {errors.name && (
-                <p className="text-xs text-red-500 mt-1 flex items-center">
-                  <AlertCircle className="w-3 h-3 mr-1" />
-                  {errors.name}
-                </p>
+                <div className="flex items-center mt-2 p-2 text-sm text-red-700 bg-red-100 border border-red-300 rounded-lg">
+                  <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <span className="font-medium">{errors.name}</span>
+                </div>
               )}
             </div>
 
@@ -491,16 +505,17 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                       whatsApp: formData.whatsApp || formatPhoneForWhatsApp(phone)
                     });
                   }}
-                  className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.phone ? 'border-red-300' : 'border-gray-300'
+                  name="phone"
+                  className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.phone ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300'
                     }`}
                   placeholder="0532 111 2233"
                 />
               </div>
               {errors.phone && (
-                <p className="text-xs text-red-500 mt-1 flex items-center">
-                  <AlertCircle className="w-3 h-3 mr-1" />
-                  {errors.phone}
-                </p>
+                <div className="flex items-center mt-2 p-2 text-sm text-red-700 bg-red-100 border border-red-300 rounded-lg">
+                  <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <span className="font-medium">{errors.phone}</span>
+                </div>
               )}
             </div>
 
@@ -513,18 +528,19 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="email"
+                  name="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email ? 'border-red-300' : 'border-gray-300'
+                  className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300'
                     }`}
                   placeholder="Örn: mehmet@example.com"
                 />
               </div>
               {errors.email && (
-                <p className="text-xs text-red-500 mt-1 flex items-center">
-                  <AlertCircle className="w-3 h-3 mr-1" />
-                  {errors.email}
-                </p>
+                <div className="flex items-center mt-2 p-2 text-sm text-red-700 bg-red-100 border border-red-300 rounded-lg">
+                  <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <span className="font-medium">{errors.email}</span>
+                </div>
               )}
             </div>
 
