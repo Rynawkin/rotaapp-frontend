@@ -3,15 +3,19 @@
 import { api } from './api';
 
 export interface UsageData {
+  workspaceId: number;
+  workspaceName: string;
   planType: string;
+  includedMonthlyStops: number;
   currentMonthStops: number;
+  remainingStops: number;
+  includedWhatsAppMessages: number;
   currentMonthWhatsAppMessages: number;
+  remainingWhatsAppMessages: number;
   currentMonthAdditionalCharges: number;
+  estimatedMonthlyTotal: number;
   lastResetDate: string;
   nextResetDate: string;
-  estimatedMonthlyTotal: number;
-  includedMonthlyStops: number;
-  includedWhatsAppMessages: number;
 }
 
 export interface PlanLimits {

@@ -149,7 +149,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
           });
           setShowTrialBanner(shouldShowBanner);
         } else {
-          console.log('Not a trial user, hiding banner');
+          console.log('Not a trial user, hiding banner. Plan type:', usage.planType);
           setShowTrialBanner(false);
         }
       } catch (error) {
@@ -724,7 +724,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                 <AlertTriangle className="w-5 h-5 text-white flex-shrink-0" />
                 <div className="text-white">
                   <p className="font-medium text-sm">
-                    Trial limitiniz doldu: {usageData.currentMonthStops}/{usageData.includedMonthlyStops || 100} durak, {usageData.currentMonthWhatsAppMessages}/{usageData.includedWhatsAppMessages || 25} WhatsApp mesajı kullanıldı
+                    Trial limitiniz doldu: {usageData.currentMonthStops}/{usageData.includedMonthlyStops} durak, {usageData.currentMonthWhatsAppMessages}/{usageData.includedWhatsAppMessages} WhatsApp mesajı kullanıldı
                   </p>
                 </div>
               </div>
