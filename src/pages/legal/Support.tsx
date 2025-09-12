@@ -1,6 +1,30 @@
 import { Mail, Phone, MessageCircle, HelpCircle, Clock } from 'lucide-react';
+import { useState } from 'react';
 
 export default function Support() {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    subject: '',
+    message: ''
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const mailtoLink = `mailto:info@yolpilot.com?subject=${encodeURIComponent(formData.subject)}&body=${encodeURIComponent(
+      `Ad Soyad: ${formData.name}\nE-posta: ${formData.email}\n\nMesaj:\n${formData.message}`
+    )}`;
+    
+    window.location.href = mailtoLink;
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -137,9 +161,7 @@ export default function Support() {
           </div>
           
           <form 
-            action="mailto:info@yolpilot.com" 
-            method="post" 
-            encType="text/plain"
+            onSubmit={handleSubmit}
             className="space-y-4"
           >
             <div className="grid md:grid-cols-2 gap-4">
@@ -150,6 +172,8 @@ export default function Support() {
                 <input
                   type="text"
                   name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Adınızı ve soyadınızı girin"
@@ -162,6 +186,8 @@ export default function Support() {
                 <input
                   type="email"
                   name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="E-posta adresinizi girin"
@@ -175,6 +201,8 @@ export default function Support() {
               </label>
               <select 
                 name="subject"
+                value={formData.subject}
+                onChange={handleInputChange}
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
@@ -193,6 +221,8 @@ export default function Support() {
               </label>
               <textarea
                 name="message"
+                value={formData.message}
+                onChange={handleInputChange}
                 rows={5}
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -207,13 +237,6 @@ export default function Support() {
               Mesajı Gönder
             </button>
             
-            <p className="text-sm text-gray-500 mt-2">
-              * Bu form kullanıcının varsayılan e-posta uygulamasını açacaktır. Alternatif olarak doğrudan{' '}
-              <a href="mailto:info@yolpilot.com" className="text-blue-600 hover:underline">
-                info@yolpilot.com
-              </a>{' '}
-              adresine e-posta gönderebilirsiniz.
-            </p>
           </form>
         </div>
 
