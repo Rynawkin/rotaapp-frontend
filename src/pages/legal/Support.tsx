@@ -113,7 +113,7 @@ export default function Support() {
               </h3>
               <p className="text-gray-600">
                 Cihazınızın kamera izinlerinin YolPilot uygulaması için açık olduğundan emin olun. 
-                Ayarlar > Gizlilik > Kamera bölümünden izinleri kontrol edebilirsiniz.
+                Ayarlar &gt; Gizlilik &gt; Kamera bölümünden izinleri kontrol edebilirsiniz.
               </p>
             </div>
 
