@@ -1,4 +1,4 @@
-import { Mail, Phone, MessageCircle, HelpCircle, Clock, MapPin } from 'lucide-react';
+import { Mail, Phone, MessageCircle, HelpCircle, Clock } from 'lucide-react';
 
 export default function Support() {
   return (
@@ -25,10 +25,10 @@ export default function Support() {
               Teknik destek ve genel sorularınız için e-posta gönderin.
             </p>
             <a 
-              href="mailto:destek@yolpilot.com"
+              href="mailto:info@yolpilot.com"
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              destek@yolpilot.com
+              info@yolpilot.com
             </a>
           </div>
 
@@ -41,10 +41,10 @@ export default function Support() {
               Acil durumlar ve hızlı çözüm için bizi arayın.
             </p>
             <a 
-              href="tel:+905555555555"
+              href="tel:+905301783570"
               className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >
-              +90 555 555 55 55
+              +90 530 178 35 70
             </a>
           </div>
         </div>
@@ -80,7 +80,7 @@ export default function Support() {
                 Uygulamaya nasıl kayıt olabilirim?
               </h3>
               <p className="text-gray-600">
-                Yeni kullanıcı kayıtları web panelimizdən yapılmaktadır. 
+                Yeni kullanıcı kayıtları web panelimizden yapılmaktadır. 
                 <a href="https://app.yolpilot.com" className="text-blue-600 hover:underline ml-1">
                   https://app.yolpilot.com
                 </a> adresinden kayıt olabilir veya yöneticiniz ile iletişime geçebilirsiniz.
@@ -136,7 +136,12 @@ export default function Support() {
             <h2 className="text-2xl font-semibold text-gray-900">Bize Mesaj Gönderin</h2>
           </div>
           
-          <form className="space-y-4">
+          <form 
+            action="mailto:info@yolpilot.com" 
+            method="post" 
+            encType="text/plain"
+            className="space-y-4"
+          >
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -144,6 +149,8 @@ export default function Support() {
                 </label>
                 <input
                   type="text"
+                  name="name"
+                  required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Adınızı ve soyadınızı girin"
                 />
@@ -154,6 +161,8 @@ export default function Support() {
                 </label>
                 <input
                   type="email"
+                  name="email"
+                  required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="E-posta adresinizi girin"
                 />
@@ -164,13 +173,17 @@ export default function Support() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Konu
               </label>
-              <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <select 
+                name="subject"
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
                 <option value="">Konu seçin</option>
-                <option value="teknik">Teknik Destek</option>
-                <option value="hesap">Hesap Sorunları</option>
-                <option value="ozellik">Özellik İsteği</option>
-                <option value="hata">Hata Bildirimi</option>
-                <option value="diger">Diğer</option>
+                <option value="Teknik Destek">Teknik Destek</option>
+                <option value="Hesap Sorunları">Hesap Sorunları</option>
+                <option value="Özellik İsteği">Özellik İsteği</option>
+                <option value="Hata Bildirimi">Hata Bildirimi</option>
+                <option value="Diğer">Diğer</option>
               </select>
             </div>
             
@@ -179,7 +192,9 @@ export default function Support() {
                 Mesajınız
               </label>
               <textarea
+                name="message"
                 rows={5}
+                required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Sorununuzu veya mesajınızı detaylarıyla yazın"
               ></textarea>
@@ -191,26 +206,17 @@ export default function Support() {
             >
               Mesajı Gönder
             </button>
+            
+            <p className="text-sm text-gray-500 mt-2">
+              * Bu form kullanıcının varsayılan e-posta uygulamasını açacaktır. Alternatif olarak doğrudan{' '}
+              <a href="mailto:info@yolpilot.com" className="text-blue-600 hover:underline">
+                info@yolpilot.com
+              </a>{' '}
+              adresine e-posta gönderebilirsiniz.
+            </p>
           </form>
         </div>
 
-        {/* Office Location */}
-        <div className="bg-white rounded-lg shadow-lg p-6 mt-8">
-          <div className="flex items-center mb-4">
-            <MapPin className="h-8 w-8 text-red-600 mr-3" />
-            <h2 className="text-2xl font-semibold text-gray-900">Ofis Adresimiz</h2>
-          </div>
-          <p className="text-gray-600 mb-2">
-            YolPilot Teknoloji A.Ş.
-          </p>
-          <p className="text-gray-600 mb-4">
-            Maslak Mahallesi, Büyükdere Caddesi No:123<br />
-            Sarıyer / İstanbul, 34485
-          </p>
-          <p className="text-sm text-gray-500">
-            * Ziyaret öncesi randevu almayı unutmayın.
-          </p>
-        </div>
       </div>
     </div>
   );
