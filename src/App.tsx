@@ -53,6 +53,7 @@ const PublicFeedback = lazy(() => import('./pages/PublicFeedback'));
 const IssuesManagement = lazy(() => import('./pages/superadmin/IssuesManagement'));
 const PrivacyPolicy = lazy(() => import('./pages/legal/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/legal/TermsOfService'));
+const Support = lazy(() => import('./pages/legal/Support'));
 const DeleteAccount = lazy(() => import('./pages/DeleteAccount'));
 const LocationUpdateRequests = lazy(() => import('@/pages/LocationUpdateRequests'));
 
@@ -99,6 +100,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
+      <Route path="/support" element={<Support />} />
       <Route path="/delete-account" element={<DeleteAccount />} />
 
       {/* Protected Routes */}
