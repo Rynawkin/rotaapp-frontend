@@ -247,12 +247,12 @@ const NotificationRoleSettings: React.FC = () => {
 
       {/* Legend */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-blue-900 mb-2">Açıklama:</h3>
+        <h3 className="text-sm font-medium text-blue-900 mb-2">Nasıl Çalışır:</h3>
         <ul className="text-sm text-blue-800 space-y-1">
-          <li>• <strong>Depo Sorumlusu:</strong> Tüm operasyonel bildirimleri alır</li>
-          <li>• <strong>Satınalma Sorumlusu:</strong> Tüm operasyonel bildirimleri alır</li>
-          <li>• <strong>Muhasebe Sorumlusu:</strong> Genellikle sadece tamamlama ve iptal bildirimleri alır</li>
-          <li>• <strong>Diğer:</strong> Temel bildirimleri alır</li>
+          <li>• Yukarıdaki tabloda hangi rollerin hangi bildirimleri alacağını seçebilirsiniz</li>
+          <li>• İşaretlenen kutular için bildirimler gönderilir, işaretlenmeyenler için gönderilmez</li>
+          <li>• Bu ayarlar yeni eklenen müşteri kişileri için varsayılan olarak kullanılır</li>
+          <li>• Mevcut müşteri kişilerinin ayarları değişmez, sadece yeni eklenenleri etkiler</li>
         </ul>
       </div>
     </div>
