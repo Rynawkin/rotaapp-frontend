@@ -22,6 +22,7 @@ import { useJsApiLoader, Autocomplete } from '@react-google-maps/api';
 import { settingsService } from '@/services/settings.service';
 import MapPicker from '@/components/maps/MapPicker';
 import CustomerContactsForm from './CustomerContactsForm';
+import { customerContactService } from '@/services/customer-contact.service';
 
 // TÜM COMPONENT'LERDE AYNI LIBRARIES KULLANILMALI
 const libraries: ("places" | "drawing" | "geometry")[] = ['places', 'geometry'];
@@ -120,6 +121,13 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
     }
   }, [isEdit]);
 
+  // Load contacts when editing customer
+  useEffect(() => {
+    if (isEdit && initialData?.id) {
+      loadCustomerContacts();
+    }
+  }, [isEdit, initialData?.id]);
+
   const loadDefaultServiceTime = async () => {
     try {
       const deliverySettings = await settingsService.getDeliverySettings();
@@ -144,6 +152,18 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
           estimatedServiceTime: 15
         }));
       }
+    }
+  };
+
+  const loadCustomerContacts = async () => {
+    if (!initialData?.id) return;
+    
+    try {
+      const contacts = await customerContactService.getByCustomerId(initialData.id.toString());
+      setContacts(contacts || []);
+    } catch (error: any) {
+      console.error('Error loading customer contacts:', error);
+      setContacts([]);
     }
   };
 
@@ -767,6 +787,8 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
           <CustomerContactsForm
             contacts={contacts}
             onChange={setContacts}
+            customerId={isEdit ? initialData?.id : undefined}
+            onContactSaved={loadCustomerContacts}
           />
         </div>
 

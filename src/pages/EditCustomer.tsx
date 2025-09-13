@@ -3,16 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
 import CustomerForm from '@/components/customers/CustomerForm';
-import CustomerContactsForm from '@/components/customers/CustomerContactsForm';
 import { Customer, CustomerContact } from '@/types';
 import { customerService } from '@/services/customer.service';
-import { customerContactService } from '@/services/customer-contact.service';
 
 const EditCustomer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [customerContacts, setCustomerContacts] = useState<CustomerContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,8 +26,6 @@ const EditCustomer: React.FC = () => {
       const data = await customerService.getById(id);
       if (data) {
         setCustomer(data);
-        // İletişim kişilerini de yükle
-        await loadCustomerContacts();
       } else {
         setError('Müşteri bulunamadı');
       }
@@ -43,18 +38,6 @@ const EditCustomer: React.FC = () => {
     }
   };
 
-  const loadCustomerContacts = async () => {
-    if (!id) return;
-    
-    try {
-      const contacts = await customerContactService.getByCustomerId(id);
-      setCustomerContacts(contacts || []);
-    } catch (error: any) {
-      console.error('Error loading customer contacts:', error);
-      setCustomerContacts([]);
-    }
-  };
-
   const handleSubmit = async (formData: Partial<Customer>, contacts?: CustomerContact[]) => {
     if (!id) return;
     
@@ -63,21 +46,6 @@ const EditCustomer: React.FC = () => {
     
     try {
       await customerService.update(id, formData);
-      
-      // İletişim kişilerini kaydet (EditCustomer'da contacts genelde zaten kaydedilmiş olur)
-      // Ama yine de eklenmişse kaydet
-      if (contacts && contacts.length > 0) {
-        for (const contact of contacts) {
-          if (!contact.id && contact.firstName && contact.lastName && contact.email && contact.phone) {
-            await customerContactService.create({
-              ...contact,
-              customerId: id,
-              isActive: true
-            });
-          }
-        }
-      }
-      
       navigate(`/customers/${id}`);
     } catch (error: any) {
       const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Müşteri güncellenirken bir hata oluştu.';
@@ -88,9 +56,6 @@ const EditCustomer: React.FC = () => {
     }
   };
 
-  const handleContactsChange = (contacts: CustomerContact[]) => {
-    setCustomerContacts(contacts);
-  };
 
   if (loading) {
     return (
@@ -153,16 +118,6 @@ const EditCustomer: React.FC = () => {
         isEdit
       />
 
-      {/* Contact Management */}
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">İletişim Kişileri</h2>
-        <CustomerContactsForm
-          contacts={customerContacts}
-          onChange={handleContactsChange}
-          customerId={customer?.id}
-          onContactSaved={loadCustomerContacts}
-        />
-      </div>
     </div>
   );
 };
