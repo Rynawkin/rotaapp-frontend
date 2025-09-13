@@ -788,6 +788,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
             contacts={contacts}
             onChange={setContacts}
             customerId={isEdit ? initialData?.id : undefined}
+            viewMode={isEdit}
             onContactSaved={loadCustomerContacts}
           />
         </div>
