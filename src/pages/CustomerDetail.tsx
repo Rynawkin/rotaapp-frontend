@@ -197,24 +197,34 @@ const CustomerDetail: React.FC = () => {
 
               for (const status of completedStatuses) {
                 // Şoför bilgisini düzelt - journey detayından al
-                console.log('Journey detail driver info:', {
-                  driverName: journeyDetail.driverName,
-                  driver: journeyDetail.driver,
-                  originalJourneyDriverName: journey.driverName
+                console.log('🚗 Journey detail driver info for journey', journey.id, ':', {
+                  'journeyDetail.driverName': journeyDetail.driverName,
+                  'journeyDetail.driver': journeyDetail.driver,
+                  'journey.driverName': journey.driverName,
+                  'Full journeyDetail keys': Object.keys(journeyDetail)
                 });
                 
                 let driverName = 'Bilinmeyen';
                 if (journeyDetail.driverName) {
+                  console.log('✅ Using journeyDetail.driverName:', journeyDetail.driverName);
                   driverName = journeyDetail.driverName;
                 } else if (journeyDetail.driver?.name) {
+                  console.log('✅ Using journeyDetail.driver.name:', journeyDetail.driver.name);
                   driverName = journeyDetail.driver.name;
                 } else if (journeyDetail.driver?.firstName && journeyDetail.driver?.lastName) {
+                  console.log('✅ Using journeyDetail.driver firstName + lastName:', journeyDetail.driver.firstName, journeyDetail.driver.lastName);
                   driverName = `${journeyDetail.driver.firstName} ${journeyDetail.driver.lastName}`;
                 } else if (journeyDetail.driver?.firstName) {
+                  console.log('✅ Using journeyDetail.driver.firstName:', journeyDetail.driver.firstName);
                   driverName = journeyDetail.driver.firstName;
                 } else if (journey.driverName) {
+                  console.log('✅ Using journey.driverName:', journey.driverName);
                   driverName = journey.driverName;
+                } else {
+                  console.log('❌ No driver name found, using default "Bilinmeyen"');
                 }
+                
+                console.log('🎯 Final driver name:', driverName);
 
                 // Fotoğraf varsa ekle
                 if (status.photoUrl) {
@@ -252,19 +262,34 @@ const CustomerDetail: React.FC = () => {
               }
             }
 
-            // Şoför bilgisini journey detayından al
+            // Şoför bilgisini journey detayından al (Stop Details için)
+            console.log('🚛 Driver info for stop details journey', journey.id, ':', {
+              'journeyDetail.driverName': journeyDetail.driverName,
+              'journeyDetail.driver': journeyDetail.driver,
+              'journey.driverName': journey.driverName
+            });
+            
             let driverName = 'Bilinmeyen';
             if (journeyDetail.driverName) {
+              console.log('✅ Stop details using journeyDetail.driverName:', journeyDetail.driverName);
               driverName = journeyDetail.driverName;
             } else if (journeyDetail.driver?.name) {
+              console.log('✅ Stop details using journeyDetail.driver.name:', journeyDetail.driver.name);
               driverName = journeyDetail.driver.name;
             } else if (journeyDetail.driver?.firstName && journeyDetail.driver?.lastName) {
+              console.log('✅ Stop details using firstName + lastName:', journeyDetail.driver.firstName, journeyDetail.driver.lastName);
               driverName = `${journeyDetail.driver.firstName} ${journeyDetail.driver.lastName}`;
             } else if (journeyDetail.driver?.firstName) {
+              console.log('✅ Stop details using firstName:', journeyDetail.driver.firstName);
               driverName = journeyDetail.driver.firstName;
             } else if (journey.driverName) {
+              console.log('✅ Stop details using journey.driverName:', journey.driverName);
               driverName = journey.driverName;
+            } else {
+              console.log('❌ Stop details no driver name found, using "Bilinmeyen"');
             }
+            
+            console.log('🎯 Stop details final driver name:', driverName);
 
             // Stop details'dan da kontrol et
             try {
