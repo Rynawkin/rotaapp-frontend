@@ -82,13 +82,26 @@ const CustomerDetail: React.FC = () => {
           
           // Bu müşteriyi içeren journey'leri filtrele
           const relatedJourneys = journeysData.filter((journey: any) => {
+            // İlk journey'nin stop yapısını detaylı yazdıralım
+            if (journey.id === journeysData[0]?.id) {
+              console.log(`First journey detailed:`, JSON.stringify(journey, null, 2));
+              if (journey.stops?.[0]) {
+                console.log(`First stop detailed:`, JSON.stringify(journey.stops[0], null, 2));
+              }
+            }
+            
             console.log(`Journey ${journey.id}:`, { 
               stops: journey.stops, 
               customerId, 
               hasStops: journey.stops?.length > 0 
             });
             return journey.stops && journey.stops.some((stop: any) => {
-              const matches = stop.customerId === customerId || stop.customerId === parseInt(id!);
+              // Farklı customerId alanlarını kontrol edelim
+              const matches = stop.customerId === customerId || 
+                             stop.customerId === parseInt(id!) ||
+                             stop.routeStop?.customerId === customerId ||
+                             stop.routeStop?.customerId === parseInt(id!);
+              
               if (matches) {
                 console.log(`Found match in journey ${journey.id}:`, stop);
               }
