@@ -77,12 +77,21 @@ const CustomerDetail: React.FC = () => {
         try {
           // Journeys yükle - getAllSummary kullan (daha hızlı)
           const journeysData = await journeyService.getAllSummary();
+          console.log('All journeys data:', journeysData);
+          
           // Bu müşteriyi içeren journey'leri filtrele
-          const relatedJourneys = journeysData.filter((journey: any) => 
-            journey.stops && journey.stops.some((stop: any) => 
-              stop.customerId === customerId || stop.customerId === id
-            )
-          );
+          const relatedJourneys = journeysData.filter((journey: any) => {
+            console.log(`Journey ${journey.id}:`, { stops: journey.stops, customerId });
+            return journey.stops && journey.stops.some((stop: any) => {
+              const matches = stop.customerId === customerId || stop.customerId === parseInt(id!);
+              if (matches) {
+                console.log(`Found match in journey ${journey.id}:`, stop);
+              }
+              return matches;
+            });
+          });
+          
+          console.log('Related journeys for customer:', relatedJourneys);
           setCustomerJourneys(relatedJourneys);
         } catch (error) {
           console.error('Error loading journeys:', error);
