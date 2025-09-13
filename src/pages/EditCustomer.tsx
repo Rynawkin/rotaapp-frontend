@@ -3,15 +3,16 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
 import CustomerForm from '@/components/customers/CustomerForm';
+import CustomerContactsForm from '@/components/customers/CustomerContactsForm';
 import { Customer, CustomerContact } from '@/types';
 import { customerService } from '@/services/customer.service';
 import { customerContactService } from '@/services/customer-contact.service';
 
 const EditCustomer: React.FC = () => {
-  // Geri kalan kod aynı kalacak...
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [customerContacts, setCustomerContacts] = useState<CustomerContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +29,8 @@ const EditCustomer: React.FC = () => {
       const data = await customerService.getById(id);
       if (data) {
         setCustomer(data);
+        // İletişim kişilerini de yükle
+        await loadCustomerContacts();
       } else {
         setError('Müşteri bulunamadı');
       }
@@ -37,6 +40,18 @@ const EditCustomer: React.FC = () => {
       console.error('Error loading customer:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCustomerContacts = async () => {
+    if (!id) return;
+    
+    try {
+      const contacts = await customerContactService.getByCustomerId(id);
+      setCustomerContacts(contacts || []);
+    } catch (error: any) {
+      console.error('Error loading customer contacts:', error);
+      setCustomerContacts([]);
     }
   };
 
@@ -71,6 +86,10 @@ const EditCustomer: React.FC = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleContactsChange = (contacts: CustomerContact[]) => {
+    setCustomerContacts(contacts);
   };
 
   if (loading) {
@@ -133,6 +152,17 @@ const EditCustomer: React.FC = () => {
         loading={saving}
         isEdit
       />
+
+      {/* Contact Management */}
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">İletişim Kişileri</h2>
+        <CustomerContactsForm
+          contacts={customerContacts}
+          onChange={handleContactsChange}
+          customerId={customer?.id}
+          onContactSaved={loadCustomerContacts}
+        />
+      </div>
     </div>
   );
 };
