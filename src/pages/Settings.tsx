@@ -175,7 +175,6 @@ const Settings: React.FC = () => {
   // Notification Settings - Multi-tenant WhatsApp
   const [notificationSettings, setNotificationSettings] = useState({
     emailNotifications: true,
-    smsNotifications: false,
     notificationEmail: '',
     notificationPhone: '',
     
@@ -427,7 +426,6 @@ const Settings: React.FC = () => {
       if (notifications) {
           setNotificationSettings({
               emailNotifications: notifications.emailNotifications,
-              smsNotifications: notifications.smsNotifications,
               notificationEmail: notifications.notificationEmail || '',
               notificationPhone: notifications.notificationPhone || '',
               whatsAppSettings: notifications.whatsAppSettings || notificationSettings.whatsAppSettings,
@@ -1220,36 +1218,6 @@ const Settings: React.FC = () => {
                     )}
                   </div>
                   
-                  <div className="space-y-4">
-                    <label className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={notificationSettings.smsNotifications}
-                        onChange={(e) => {
-                          setNotificationSettings({ ...notificationSettings, smsNotifications: e.target.checked });
-                          setHasChanges(true);
-                        }}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                      />
-                      <div>
-                        <span className="font-medium text-gray-900">SMS Bildirimleri</span>
-                        <p className="text-sm text-gray-600">Kritik durumlar için SMS alın</p>
-                      </div>
-                    </label>
-                    
-                    {notificationSettings.smsNotifications && (
-                      <input
-                        type="tel"
-                        value={notificationSettings.notificationPhone}
-                        onChange={(e) => {
-                          setNotificationSettings({ ...notificationSettings, notificationPhone: e.target.value });
-                          setHasChanges(true);
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="05xx xxx xx xx"
-                      />
-                    )}
-                  </div>
                 </div>
 
                 {/* WhatsApp Business Connect - HYBRID MODE */}
