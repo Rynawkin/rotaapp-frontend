@@ -196,18 +196,33 @@ const CustomerDetail: React.FC = () => {
 
               for (const status of completedStatuses) {
                 // Şoför bilgisini düzelt - journey detayından al
-                const driverName = journeyDetail.driverName || 
-                                  journeyDetail.driver?.name || 
-                                  journeyDetail.driver?.firstName + ' ' + journeyDetail.driver?.lastName ||
-                                  journey.driverName || 
-                                  'Bilinmeyen';
+                console.log('Journey detail driver info:', {
+                  driverName: journeyDetail.driverName,
+                  driver: journeyDetail.driver,
+                  originalJourneyDriverName: journey.driverName
+                });
+                
+                let driverName = 'Bilinmeyen';
+                if (journeyDetail.driverName) {
+                  driverName = journeyDetail.driverName;
+                } else if (journeyDetail.driver?.name) {
+                  driverName = journeyDetail.driver.name;
+                } else if (journeyDetail.driver?.firstName && journeyDetail.driver?.lastName) {
+                  driverName = `${journeyDetail.driver.firstName} ${journeyDetail.driver.lastName}`;
+                } else if (journeyDetail.driver?.firstName) {
+                  driverName = journeyDetail.driver.firstName;
+                } else if (journey.driverName) {
+                  driverName = journey.driverName;
+                }
 
                 // Fotoğraf varsa ekle
                 if (status.photoUrl) {
+                  // URL'i normalize et
+                  const normalizedPhotoUrl = journeyService.normalizeImageUrl(status.photoUrl);
                   allProofs.push({
                     id: `${journey.id}-${stop.id}-photo-${status.id}`,
                     type: 'photo',
-                    url: status.photoUrl,
+                    url: normalizedPhotoUrl,
                     date: status.createdAt || journey.date,
                     driverName: driverName,
                     receiverName: status.receiverName || 'Belirtilmemiş',
@@ -219,10 +234,12 @@ const CustomerDetail: React.FC = () => {
 
                 // İmza varsa ekle
                 if (status.signatureUrl) {
+                  // URL'i normalize et
+                  const normalizedSignatureUrl = journeyService.normalizeImageUrl(status.signatureUrl);
                   allProofs.push({
                     id: `${journey.id}-${stop.id}-signature-${status.id}`,
                     type: 'signature',
-                    url: status.signatureUrl,
+                    url: normalizedSignatureUrl,
                     date: status.createdAt || journey.date,
                     driverName: driverName,
                     receiverName: status.receiverName || 'Belirtilmemiş',
@@ -235,12 +252,18 @@ const CustomerDetail: React.FC = () => {
             }
 
             // Şoför bilgisini journey detayından al
-            const driverName = journeyDetail.driverName || 
-                              journeyDetail.driver?.name || 
-                              (journeyDetail.driver?.firstName && journeyDetail.driver?.lastName ? 
-                                `${journeyDetail.driver.firstName} ${journeyDetail.driver.lastName}` : '') ||
-                              journey.driverName || 
-                              'Bilinmeyen';
+            let driverName = 'Bilinmeyen';
+            if (journeyDetail.driverName) {
+              driverName = journeyDetail.driverName;
+            } else if (journeyDetail.driver?.name) {
+              driverName = journeyDetail.driver.name;
+            } else if (journeyDetail.driver?.firstName && journeyDetail.driver?.lastName) {
+              driverName = `${journeyDetail.driver.firstName} ${journeyDetail.driver.lastName}`;
+            } else if (journeyDetail.driver?.firstName) {
+              driverName = journeyDetail.driver.firstName;
+            } else if (journey.driverName) {
+              driverName = journey.driverName;
+            }
 
             // Stop details'dan da kontrol et
             try {
@@ -249,10 +272,11 @@ const CustomerDetail: React.FC = () => {
               
               if (stopDetails) {
                 if (stopDetails.photoUrl) {
+                  const normalizedPhotoUrl = journeyService.normalizeImageUrl(stopDetails.photoUrl);
                   allProofs.push({
                     id: `${journey.id}-${stop.id}-photo-details`,
                     type: 'photo',
-                    url: stopDetails.photoUrl,
+                    url: normalizedPhotoUrl,
                     date: stopDetails.createdAt || journey.date,
                     driverName: driverName,
                     receiverName: stopDetails.receiverName || 'Belirtilmemiş',
@@ -263,10 +287,11 @@ const CustomerDetail: React.FC = () => {
                 }
 
                 if (stopDetails.signatureUrl) {
+                  const normalizedSignatureUrl = journeyService.normalizeImageUrl(stopDetails.signatureUrl);
                   allProofs.push({
                     id: `${journey.id}-${stop.id}-signature-details`,
                     type: 'signature',
-                    url: stopDetails.signatureUrl,
+                    url: normalizedSignatureUrl,
                     date: stopDetails.createdAt || journey.date,
                     driverName: driverName,
                     receiverName: stopDetails.receiverName || 'Belirtilmemiş',
@@ -286,10 +311,11 @@ const CustomerDetail: React.FC = () => {
               console.log('Stop photos for', stop.id, ':', stopPhotos);
               
               for (const photo of stopPhotos) {
+                const normalizedPhotoUrl = journeyService.normalizeImageUrl(photo.photoUrl);
                 allProofs.push({
                   id: `${journey.id}-${stop.id}-photo-${photo.id}`,
                   type: 'photo',
-                  url: photo.photoUrl,
+                  url: normalizedPhotoUrl,
                   date: photo.createdAt || journey.date,
                   driverName: driverName,
                   receiverName: 'Belirtilmemiş',
@@ -1023,10 +1049,34 @@ const CustomerDetail: React.FC = () => {
             ) : filteredProofs.length === 0 ? (
               <div className="p-6 text-center text-gray-500">
                 <Camera className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                <p>Henüz teslimat kanıtı bulunmuyor</p>
-                <p className="text-sm text-gray-400 mt-1">
-                  Bu müşteriye ait teslim edilmiş seferlerden fotoğraf veya imza bulunmuyor.
-                </p>
+                {deliveryProofs.length === 0 ? (
+                  <>
+                    <p>Henüz teslimat kanıtı bulunmuyor</p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Bu müşteriye ait teslim edilmiş seferlerden fotoğraf veya imza bulunmuyor.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p>Filtre kriterlerinize uygun teslimat kanıtı bulunamadı</p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Filtreleri temizleyerek tüm teslimat kanıtlarını görebilirsiniz.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setFilters({
+                          dateFrom: '',
+                          dateTo: '',
+                          driver: '',
+                          receiver: ''
+                        });
+                      }}
+                      className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Filtreleri Temizle
+                    </button>
+                  </>
+                )}
               </div>
             ) : (
               <div className="p-6">
@@ -1096,19 +1146,36 @@ const CustomerDetail: React.FC = () => {
                   {filteredProofs.map((proof, index) => (
                     <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                       {/* Photo/Signature Display */}
-                      <div className="aspect-square bg-gray-200 rounded-lg mb-3 flex items-center justify-center">
+                      <div className="aspect-square bg-gray-200 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
                         {proof.type === 'photo' ? (
                           <img
                             src={proof.url}
                             alt="Teslimat Fotoğrafı"
                             className="w-full h-full object-cover rounded-lg"
+                            onError={(e) => {
+                              console.error('Photo failed to load:', proof.url);
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextElementSibling!.style.display = 'flex';
+                            }}
                           />
                         ) : (
-                          <div className="text-center">
-                            <FileText className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                            <p className="text-xs text-gray-500">İmza</p>
-                          </div>
+                          <img
+                            src={proof.url}
+                            alt="Teslimat İmzası"
+                            className="w-full h-full object-contain rounded-lg bg-white p-2"
+                            onError={(e) => {
+                              console.error('Signature failed to load:', proof.url);
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextElementSibling!.style.display = 'flex';
+                            }}
+                          />
                         )}
+                        <div className="text-center hidden flex-col">
+                          <FileText className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-xs text-gray-500">
+                            {proof.type === 'photo' ? 'Fotoğraf Yüklenemedi' : 'İmza Yüklenemedi'}
+                          </p>
+                        </div>
                       </div>
                       
                       {/* Metadata */}
