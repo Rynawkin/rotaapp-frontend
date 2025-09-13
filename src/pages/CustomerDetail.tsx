@@ -21,7 +21,8 @@ import {
   FileText,
   User,
   Plus,
-  Camera
+  Camera,
+  X
 } from 'lucide-react';
 import { Customer, CustomerContact } from '@/types';
 import { customerService } from '@/services/customer.service';
@@ -1046,41 +1047,9 @@ const CustomerDetail: React.FC = () => {
                 <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
                 <span className="ml-2 text-gray-600">Teslimat kanıtları yükleniyor...</span>
               </div>
-            ) : filteredProofs.length === 0 ? (
-              <div className="p-6 text-center text-gray-500">
-                <Camera className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                {deliveryProofs.length === 0 ? (
-                  <>
-                    <p>Henüz teslimat kanıtı bulunmuyor</p>
-                    <p className="text-sm text-gray-400 mt-1">
-                      Bu müşteriye ait teslim edilmiş seferlerden fotoğraf veya imza bulunmuyor.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p>Filtre kriterlerinize uygun teslimat kanıtı bulunamadı</p>
-                    <p className="text-sm text-gray-400 mt-1">
-                      Filtreleri temizleyerek tüm teslimat kanıtlarını görebilirsiniz.
-                    </p>
-                    <button
-                      onClick={() => {
-                        setFilters({
-                          dateFrom: '',
-                          dateTo: '',
-                          driver: '',
-                          receiver: ''
-                        });
-                      }}
-                      className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      Filtreleri Temizle
-                    </button>
-                  </>
-                )}
-              </div>
             ) : (
               <div className="p-6">
-                {/* Filters */}
+                {/* Filters - Always show */}
                 <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1141,76 +1110,110 @@ const CustomerDetail: React.FC = () => {
                   </p>
                 </div>
 
-                {/* Delivery Proofs Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredProofs.map((proof, index) => (
-                    <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      {/* Photo/Signature Display */}
-                      <div className="aspect-square bg-gray-200 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
-                        {proof.type === 'photo' ? (
-                          <img
-                            src={proof.url}
-                            alt="Teslimat Fotoğrafı"
-                            className="w-full h-full object-cover rounded-lg"
-                            onError={(e) => {
-                              console.error('Photo failed to load:', proof.url);
-                              e.currentTarget.style.display = 'none';
-                              e.currentTarget.nextElementSibling!.style.display = 'flex';
-                            }}
-                          />
-                        ) : (
-                          <img
-                            src={proof.url}
-                            alt="Teslimat İmzası"
-                            className="w-full h-full object-contain rounded-lg bg-white p-2"
-                            onError={(e) => {
-                              console.error('Signature failed to load:', proof.url);
-                              e.currentTarget.style.display = 'none';
-                              e.currentTarget.nextElementSibling!.style.display = 'flex';
-                            }}
-                          />
-                        )}
-                        <div className="text-center hidden flex-col">
-                          <FileText className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                          <p className="text-xs text-gray-500">
-                            {proof.type === 'photo' ? 'Fotoğraf Yüklenemedi' : 'İmza Yüklenemedi'}
-                          </p>
+                {/* Delivery Proofs Grid or Empty State */}
+                {filteredProofs.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Camera className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      {deliveryProofs.length === 0 
+                        ? "Henüz teslimat kanıtı yok" 
+                        : "Aradığınız kriterlere uygun teslimat kanıtı bulunamadı"
+                      }
+                    </h3>
+                    <p className="text-gray-600 mb-6">
+                      {deliveryProofs.length === 0
+                        ? "Bu müşteri için henüz hiç teslimat fotoğrafı veya imzası çekilmemiş."
+                        : "Filtreleri değiştirerek tekrar deneyebilirsiniz."
+                      }
+                    </p>
+                    {deliveryProofs.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setFilters({
+                            dateFrom: '',
+                            dateTo: '',
+                            driver: '',
+                            receiver: ''
+                          });
+                        }}
+                        className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Filtreleri Temizle
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredProofs.map((proof, index) => (
+                      <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                        {/* Photo/Signature Display */}
+                        <div className="aspect-square bg-gray-200 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
+                          {proof.type === 'photo' ? (
+                            <img
+                              src={proof.url}
+                              alt="Teslimat Fotoğrafı"
+                              className="w-full h-full object-cover rounded-lg"
+                              onError={(e) => {
+                                console.error('Photo failed to load:', proof.url);
+                                e.currentTarget.style.display = 'none';
+                                e.currentTarget.nextElementSibling!.style.display = 'flex';
+                              }}
+                            />
+                          ) : (
+                            <img
+                              src={proof.url}
+                              alt="Teslimat İmzası"
+                              className="w-full h-full object-contain rounded-lg bg-white p-2"
+                              onError={(e) => {
+                                console.error('Signature failed to load:', proof.url);
+                                e.currentTarget.style.display = 'none';
+                                e.currentTarget.nextElementSibling!.style.display = 'flex';
+                              }}
+                            />
+                          )}
+                          <div className="text-center hidden flex-col">
+                            <FileText className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                            <p className="text-xs text-gray-500">
+                              {proof.type === 'photo' ? 'Fotoğraf Yüklenemedi' : 'İmza Yüklenemedi'}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Metadata */}
+                        <div className="space-y-2 text-sm">
+                          <div>
+                            <span className="text-gray-600">Tarih:</span>
+                            <span className="ml-2 font-medium text-gray-900">
+                              {formatDate(proof.date)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Şoför:</span>
+                            <span className="ml-2 font-medium text-gray-900">
+                              {proof.driverName}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Teslim Alan:</span>
+                            <span className="ml-2 font-medium text-gray-900">
+                              {proof.receiverName}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Sefer:</span>
+                            <Link
+                              to={`/journeys/${proof.journeyId}`}
+                              className="ml-2 text-blue-600 hover:text-blue-800 underline"
+                            >
+                              {proof.journeyName || `Sefer #${proof.journeyId}`}
+                            </Link>
+                          </div>
                         </div>
                       </div>
-                      
-                      {/* Metadata */}
-                      <div className="space-y-2 text-sm">
-                        <div>
-                          <span className="text-gray-600">Tarih:</span>
-                          <span className="ml-2 font-medium text-gray-900">
-                            {formatDate(proof.date)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Şoför:</span>
-                          <span className="ml-2 font-medium text-gray-900">
-                            {proof.driverName}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Teslim Alan:</span>
-                          <span className="ml-2 font-medium text-gray-900">
-                            {proof.receiverName}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Sefer:</span>
-                          <Link
-                            to={`/journeys/${proof.journeyId}`}
-                            className="ml-2 text-blue-600 hover:text-blue-800 underline"
-                          >
-                            {proof.journeyName || `Sefer #${proof.journeyId}`}
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* View All Button */}
                 <div className="mt-6 text-center">
