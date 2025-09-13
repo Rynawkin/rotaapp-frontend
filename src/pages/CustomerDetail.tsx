@@ -22,11 +22,13 @@ import {
   User,
   Plus
 } from 'lucide-react';
-import { Customer } from '@/types';
+import { Customer, CustomerContact } from '@/types';
 import { customerService } from '@/services/customer.service';
+import { customerContactService } from '@/services/customer-contact.service';
 import { journeyService } from '@/services/journey.service';
 import { routeService } from '@/services/route.service';
 import MapComponent from '@/components/maps/MapComponent';
+import CustomerContactsForm from '@/components/customers/CustomerContactsForm';
 
 const CustomerDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -34,13 +36,22 @@ const CustomerDetail: React.FC = () => {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [customerJourneys, setCustomerJourneys] = useState<any[]>([]);
   const [customerRoutes, setCustomerRoutes] = useState<any[]>([]);
+  const [customerContacts, setCustomerContacts] = useState<CustomerContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [contactsLoading, setContactsLoading] = useState(false);
 
   useEffect(() => {
     loadCustomer();
   }, [id]);
+
+  useEffect(() => {
+    if (customer && activeTab === 'contacts') {
+      loadCustomerContacts();
+    }
+  }, [customer, activeTab]);
 
   const loadCustomer = async () => {
     if (!id) return;
@@ -91,6 +102,25 @@ const CustomerDetail: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadCustomerContacts = async () => {
+    if (!customer) return;
+    
+    setContactsLoading(true);
+    try {
+      const contacts = await customerContactService.getByCustomerId(customer.id);
+      setCustomerContacts(contacts);
+    } catch (error) {
+      console.error('Error loading customer contacts:', error);
+      setCustomerContacts([]);
+    } finally {
+      setContactsLoading(false);
+    }
+  };
+
+  const handleContactsChange = (newContacts: CustomerContact[]) => {
+    setCustomerContacts(newContacts);
   };
 
   const handleDelete = async () => {
@@ -236,7 +266,50 @@ const CustomerDetail: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Tabs */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8 px-6">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'overview'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <User className="w-4 h-4 inline mr-2" />
+              Genel Bakış
+            </button>
+            <button
+              onClick={() => setActiveTab('contacts')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'contacts'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Mail className="w-4 h-4 inline mr-2" />
+              İletişim Kişileri ({customerContacts.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('routes')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'routes'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Navigation className="w-4 h-4 inline mr-2" />
+              Rotalar & Seferler
+            </button>
+          </nav>
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'overview' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Main Info */}
         <div className="lg:col-span-2 space-y-6">
           {/* Stats Cards */}
@@ -547,14 +620,130 @@ const CustomerDetail: React.FC = () => {
             </div>
           </div>
 
-          {/* Copy Success Toast */}
-          {copySuccess && (
-            <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in">
-              Kopyalandı!
+          {/* Quick Actions */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Hızlı İşlemler</h3>
+            <div className="space-y-2">
+              <Link
+                to="/routes/new"
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Bu Müşteriyi Rotaya Ekle
+              </Link>
+              <button
+                onClick={() => {
+                  handleCopyToClipboard(`${customer.name}\n${customer.address}\n${customer.phone}`);
+                }}
+                className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center"
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Bilgileri Kopyala
+              </button>
             </div>
-          )}
+          </div>
         </div>
-      </div>
+        </div>
+      )}
+
+      {/* Contacts Tab */}
+      {activeTab === 'contacts' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <Mail className="w-5 h-5 mr-2" />
+                  İletişim Kişileri
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Bu müşteri için kayıtlı iletişim kişilerini yönetin. Her kişi için rol bazlı bildirim ayarları yapabilirsiniz.
+                </p>
+              </div>
+            </div>
+
+            {contactsLoading ? (
+              <div className="flex items-center justify-center h-32">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                <span className="ml-2 text-gray-600">İletişim kişileri yükleniyor...</span>
+              </div>
+            ) : (
+              <CustomerContactsForm
+                contacts={customerContacts}
+                onChange={handleContactsChange}
+                customerId={customer?.id}
+                viewMode={true}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Routes Tab */}
+      {activeTab === 'routes' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="p-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                <Navigation className="w-5 h-5 mr-2" />
+                Rotalar ve Seferler
+              </h2>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {allRouteData.length === 0 ? (
+                <div className="p-6 text-center text-gray-500">
+                  <Navigation className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                  <p>Henüz rota veya sefer bulunmuyor</p>
+                </div>
+              ) : (
+                allRouteData.map((route, index) => (
+                  <Link
+                    key={`route-${route.id}-${index}`}
+                    to={customerJourneys.includes(route) ? `/journeys/${route.id}` : `/routes/${route.id}`}
+                    className="block p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {route.name || route.routeName || `Rota #${route.id}`}
+                        </p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {route.date ? formatDate(route.date) : 'Tarih belirtilmemiş'} • {route.stops?.length || 0} durak
+                        </p>
+                        {customerJourneys.includes(route) && (
+                          <span className="text-xs text-purple-600 mt-1">Sefer</span>
+                        )}
+                        {customerRoutes.includes(route) && (
+                          <span className="text-xs text-blue-600 mt-1">Rota</span>
+                        )}
+                      </div>
+                      <div className="flex items-center">
+                        {route.status === 'completed' && (
+                          <span className="text-green-600 text-sm">Tamamlandı</span>
+                        )}
+                        {route.status === 'in_progress' && (
+                          <span className="text-blue-600 text-sm">Devam Ediyor</span>
+                        )}
+                        {(route.status === 'planned' || !route.status) && (
+                          <span className="text-gray-600 text-sm">Planlandı</span>
+                        )}
+                        <ArrowLeft className="w-4 h-4 ml-2 text-gray-400 rotate-180" />
+                      </div>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Copy Success Toast */}
+      {copySuccess && (
+        <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in">
+          Kopyalandı!
+        </div>
+      )}
     </div>
   );
 };

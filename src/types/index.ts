@@ -107,6 +107,30 @@ export interface Customer {
   updatedAt: Date;
 }
 
+// Customer Contact Types
+export interface CustomerContact {
+  id?: number;
+  customerId?: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  role: string;
+  isActive: boolean;
+  isPrimary: boolean;
+  receiveJourneyStart: boolean;
+  receiveJourneyCheckIn: boolean;
+  receiveDeliveryCompleted: boolean;
+  receiveDeliveryFailed: boolean;
+  receiveJourneyAssigned: boolean;
+  receiveJourneyCancelled: boolean;
+  workspaceId?: number;
+  createdBy?: number;
+  updatedBy?: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 // Driver Types
 export interface Driver {
   id: number;

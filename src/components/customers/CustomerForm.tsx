@@ -17,10 +17,11 @@ import {
   Map,
   X
 } from 'lucide-react';
-import { Customer } from '@/types';
+import { Customer, CustomerContact } from '@/types';
 import { useJsApiLoader, Autocomplete } from '@react-google-maps/api';
 import { settingsService } from '@/services/settings.service';
 import MapPicker from '@/components/maps/MapPicker';
+import CustomerContactsForm from './CustomerContactsForm';
 
 // TÜM COMPONENT'LERDE AYNI LIBRARIES KULLANILMALI
 const libraries: ("places" | "drawing" | "geometry")[] = ['places', 'geometry'];
@@ -47,7 +48,7 @@ const formatPhoneForWhatsApp = (phone: string): string => {
 
 interface CustomerFormProps {
   initialData?: Customer;
-  onSubmit: (data: Partial<Customer>) => void;
+  onSubmit: (data: Partial<Customer>, contacts?: CustomerContact[]) => void;
   loading?: boolean;
   isEdit?: boolean;
 }
@@ -102,6 +103,9 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
   const [showCoordinateInput, setShowCoordinateInput] = useState(false);
   const [useGoogleSearch, setUseGoogleSearch] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Contacts state
+  const [contacts, setContacts] = useState<CustomerContact[]>([]);
 
   // Validation state
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -328,6 +332,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
     setSearchQuery('');
     setErrors({});
     setShowCoordinateInput(false);
+    setContacts([]);
   };
 
   // Handle submit
@@ -350,7 +355,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
       timeWindow: hasTimeWindow ? { start: timeWindowStart, end: timeWindowEnd } : undefined
     };
 
-    onSubmit(submitData);
+    onSubmit(submitData, contacts);
 
     // Modal'da kullanıldığında form'u resetle
     if (!isEdit) {
@@ -747,6 +752,22 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
               </div>
             )}
           </div>
+        </div>
+
+        {/* Customer Contacts */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Mail className="w-5 h-5 mr-2" />
+            İletişim Kişileri
+          </h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Bu müşteri için birden fazla kişi ekleyebilir ve rollerine göre hangi bildirimleri alacaklarını belirleyebilirsiniz.
+          </p>
+
+          <CustomerContactsForm
+            contacts={contacts}
+            onChange={setContacts}
+          />
         </div>
 
         {/* WhatsApp Settings */}
