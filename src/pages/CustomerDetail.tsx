@@ -208,6 +208,9 @@ const CustomerDetail: React.FC = () => {
                 if (journeyDetail.driverName) {
                   console.log('✅ Using journeyDetail.driverName:', journeyDetail.driverName);
                   driverName = journeyDetail.driverName;
+                } else if (journeyDetail.driver?.fullName) {
+                  console.log('✅ Using journeyDetail.driver.fullName:', journeyDetail.driver.fullName);
+                  driverName = journeyDetail.driver.fullName;
                 } else if (journeyDetail.driver?.name) {
                   console.log('✅ Using journeyDetail.driver.name:', journeyDetail.driver.name);
                   driverName = journeyDetail.driver.name;
@@ -273,6 +276,9 @@ const CustomerDetail: React.FC = () => {
             if (journeyDetail.driverName) {
               console.log('✅ Stop details using journeyDetail.driverName:', journeyDetail.driverName);
               driverName = journeyDetail.driverName;
+            } else if (journeyDetail.driver?.fullName) {
+              console.log('✅ Stop details using journeyDetail.driver.fullName:', journeyDetail.driver.fullName);
+              driverName = journeyDetail.driver.fullName;
             } else if (journeyDetail.driver?.name) {
               console.log('✅ Stop details using journeyDetail.driver.name:', journeyDetail.driver.name);
               driverName = journeyDetail.driver.name;
