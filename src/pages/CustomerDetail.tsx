@@ -75,13 +75,18 @@ const CustomerDetail: React.FC = () => {
         
         // Journeys ve Routes'u ayrı ayrı yükle
         try {
-          // Journeys yükle - getAllSummary kullan (daha hızlı)
-          const journeysData = await journeyService.getAllSummary();
+          // Journeys yükle - getAll kullan çünkü stops bilgisine ihtiyaç var
+          console.log('Loading all journeys to find customer journeys...');
+          const journeysData = await journeyService.getAll();
           console.log('All journeys data:', journeysData);
           
           // Bu müşteriyi içeren journey'leri filtrele
           const relatedJourneys = journeysData.filter((journey: any) => {
-            console.log(`Journey ${journey.id}:`, { stops: journey.stops, customerId });
+            console.log(`Journey ${journey.id}:`, { 
+              stops: journey.stops, 
+              customerId, 
+              hasStops: journey.stops?.length > 0 
+            });
             return journey.stops && journey.stops.some((stop: any) => {
               const matches = stop.customerId === customerId || stop.customerId === parseInt(id!);
               if (matches) {
