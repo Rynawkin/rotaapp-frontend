@@ -3,8 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
 import CustomerForm from '@/components/customers/CustomerForm';
-import { Customer } from '@/types';
-import { customerService } from '@/services/customer.service'; // ✅ DÜZELTME: mockData yerine customer.service
+import { Customer, CustomerContact } from '@/types';
+import { customerService } from '@/services/customer.service';
+import { customerContactService } from '@/services/customer-contact.service';
 
 const EditCustomer: React.FC = () => {
   // Geri kalan kod aynı kalacak...
@@ -39,7 +40,7 @@ const EditCustomer: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (formData: Partial<Customer>) => {
+  const handleSubmit = async (formData: Partial<Customer>, contacts?: CustomerContact[]) => {
     if (!id) return;
     
     setSaving(true);
@@ -47,6 +48,21 @@ const EditCustomer: React.FC = () => {
     
     try {
       await customerService.update(id, formData);
+      
+      // İletişim kişilerini kaydet (EditCustomer'da contacts genelde zaten kaydedilmiş olur)
+      // Ama yine de eklenmişse kaydet
+      if (contacts && contacts.length > 0) {
+        for (const contact of contacts) {
+          if (!contact.id && contact.firstName && contact.lastName && contact.email && contact.phone) {
+            await customerContactService.create({
+              ...contact,
+              customerId: id,
+              isActive: true
+            });
+          }
+        }
+      }
+      
       navigate(`/customers/${id}`);
     } catch (error: any) {
       const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Müşteri güncellenirken bir hata oluştu.';

@@ -2,20 +2,35 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
 import CustomerForm from '@/components/customers/CustomerForm';
-import { Customer } from '@/types';
+import { Customer, CustomerContact } from '@/types';
 import { customerService } from '@/services/customer.service';
+import { customerContactService } from '@/services/customer-contact.service';
 
 const CreateCustomer: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (formData: Partial<Customer>) => {
+  const handleSubmit = async (formData: Partial<Customer>, contacts?: CustomerContact[]) => {
     setLoading(true);
     setError(null);
     
     try {
       const newCustomer = await customerService.create(formData);
+      
+      // İletişim kişilerini kaydet
+      if (contacts && contacts.length > 0) {
+        for (const contact of contacts) {
+          if (contact.firstName && contact.lastName && contact.email && contact.phone) {
+            await customerContactService.create({
+              ...contact,
+              customerId: newCustomer.id,
+              isActive: true
+            });
+          }
+        }
+      }
+      
       navigate(`/customers/${newCustomer.id}`);
     } catch (err: any) {
       const errorMessage = err.userFriendlyMessage || err.response?.data?.message || 'Müşteri oluşturulurken bir hata oluştu.';
