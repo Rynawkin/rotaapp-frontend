@@ -46,6 +46,14 @@ const CustomerDetail: React.FC = () => {
   const [contactsLoading, setContactsLoading] = useState(false);
   const [deliveryProofs, setDeliveryProofs] = useState<any[]>([]);
   const [proofsLoading, setProofsLoading] = useState(false);
+  const [filteredProofs, setFilteredProofs] = useState<any[]>([]);
+  const [filters, setFilters] = useState({
+    dateFrom: '',
+    dateTo: '',
+    driver: '',
+    receiver: ''
+  });
+  const [availableDrivers, setAvailableDrivers] = useState<string[]>([]);
 
   useEffect(() => {
     loadCustomer();
@@ -187,6 +195,13 @@ const CustomerDetail: React.FC = () => {
               console.log('Completed statuses for stop', stop.id, ':', completedStatuses);
 
               for (const status of completedStatuses) {
+                // Şoför bilgisini düzelt - journey detayından al
+                const driverName = journeyDetail.driverName || 
+                                  journeyDetail.driver?.name || 
+                                  journeyDetail.driver?.firstName + ' ' + journeyDetail.driver?.lastName ||
+                                  journey.driverName || 
+                                  'Bilinmeyen';
+
                 // Fotoğraf varsa ekle
                 if (status.photoUrl) {
                   allProofs.push({
@@ -194,7 +209,7 @@ const CustomerDetail: React.FC = () => {
                     type: 'photo',
                     url: status.photoUrl,
                     date: status.createdAt || journey.date,
-                    driverName: journey.driverName || journey.driver?.name || 'Bilinmeyen',
+                    driverName: driverName,
                     receiverName: status.receiverName || 'Belirtilmemiş',
                     journeyId: journey.id,
                     journeyName: journey.name || journey.routeName,
@@ -209,7 +224,7 @@ const CustomerDetail: React.FC = () => {
                     type: 'signature',
                     url: status.signatureUrl,
                     date: status.createdAt || journey.date,
-                    driverName: journey.driverName || journey.driver?.name || 'Bilinmeyen',
+                    driverName: driverName,
                     receiverName: status.receiverName || 'Belirtilmemiş',
                     journeyId: journey.id,
                     journeyName: journey.name || journey.routeName,
@@ -218,6 +233,14 @@ const CustomerDetail: React.FC = () => {
                 }
               }
             }
+
+            // Şoför bilgisini journey detayından al
+            const driverName = journeyDetail.driverName || 
+                              journeyDetail.driver?.name || 
+                              (journeyDetail.driver?.firstName && journeyDetail.driver?.lastName ? 
+                                `${journeyDetail.driver.firstName} ${journeyDetail.driver.lastName}` : '') ||
+                              journey.driverName || 
+                              'Bilinmeyen';
 
             // Stop details'dan da kontrol et
             try {
@@ -231,7 +254,7 @@ const CustomerDetail: React.FC = () => {
                     type: 'photo',
                     url: stopDetails.photoUrl,
                     date: stopDetails.createdAt || journey.date,
-                    driverName: journey.driverName || journey.driver?.name || 'Bilinmeyen',
+                    driverName: driverName,
                     receiverName: stopDetails.receiverName || 'Belirtilmemiş',
                     journeyId: journey.id,
                     journeyName: journey.name || journey.routeName,
@@ -245,7 +268,7 @@ const CustomerDetail: React.FC = () => {
                     type: 'signature',
                     url: stopDetails.signatureUrl,
                     date: stopDetails.createdAt || journey.date,
-                    driverName: journey.driverName || journey.driver?.name || 'Bilinmeyen',
+                    driverName: driverName,
                     receiverName: stopDetails.receiverName || 'Belirtilmemiş',
                     journeyId: journey.id,
                     journeyName: journey.name || journey.routeName,
@@ -268,7 +291,7 @@ const CustomerDetail: React.FC = () => {
                   type: 'photo',
                   url: photo.photoUrl,
                   date: photo.createdAt || journey.date,
-                  driverName: journey.driverName || journey.driver?.name || 'Bilinmeyen',
+                  driverName: driverName,
                   receiverName: 'Belirtilmemiş',
                   journeyId: journey.id,
                   journeyName: journey.name || journey.routeName,
@@ -296,9 +319,15 @@ const CustomerDetail: React.FC = () => {
 
       console.log('Final unique proofs:', uniqueProofs);
       setDeliveryProofs(uniqueProofs);
+      setFilteredProofs(uniqueProofs);
+      
+      // Available drivers listesini oluştur
+      const drivers = [...new Set(uniqueProofs.map(proof => proof.driverName))].filter(name => name !== 'Bilinmeyen');
+      setAvailableDrivers(drivers);
     } catch (error) {
       console.error('Error loading delivery proofs:', error);
       setDeliveryProofs([]);
+      setFilteredProofs([]);
     } finally {
       setProofsLoading(false);
     }
@@ -306,6 +335,51 @@ const CustomerDetail: React.FC = () => {
 
   const handleContactsChange = (newContacts: CustomerContact[]) => {
     setCustomerContacts(newContacts);
+  };
+
+  // Filtreleme fonksiyonu
+  const applyFilters = () => {
+    let filtered = deliveryProofs;
+
+    // Tarih aralığı filtresi
+    if (filters.dateFrom) {
+      const fromDate = new Date(filters.dateFrom);
+      filtered = filtered.filter(proof => new Date(proof.date) >= fromDate);
+    }
+
+    if (filters.dateTo) {
+      const toDate = new Date(filters.dateTo);
+      toDate.setHours(23, 59, 59, 999); // Günün sonuna kadar
+      filtered = filtered.filter(proof => new Date(proof.date) <= toDate);
+    }
+
+    // Şoför filtresi
+    if (filters.driver) {
+      filtered = filtered.filter(proof => 
+        proof.driverName.toLowerCase().includes(filters.driver.toLowerCase())
+      );
+    }
+
+    // Teslim alan kişi filtresi
+    if (filters.receiver) {
+      filtered = filtered.filter(proof => 
+        proof.receiverName.toLowerCase().includes(filters.receiver.toLowerCase())
+      );
+    }
+
+    setFilteredProofs(filtered);
+  };
+
+  // Filtreleri uygula
+  useEffect(() => {
+    applyFilters();
+  }, [filters, deliveryProofs]);
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
   };
 
   const handleDelete = async () => {
@@ -946,7 +1020,7 @@ const CustomerDetail: React.FC = () => {
                 <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
                 <span className="ml-2 text-gray-600">Teslimat kanıtları yükleniyor...</span>
               </div>
-            ) : deliveryProofs.length === 0 ? (
+            ) : filteredProofs.length === 0 ? (
               <div className="p-6 text-center text-gray-500">
                 <Camera className="w-12 h-12 mx-auto text-gray-300 mb-3" />
                 <p>Henüz teslimat kanıtı bulunmuyor</p>
@@ -957,13 +1031,26 @@ const CustomerDetail: React.FC = () => {
             ) : (
               <div className="p-6">
                 {/* Filters */}
-                <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tarih Aralığı
+                      Başlangıç Tarihi
                     </label>
                     <input
                       type="date"
+                      value={filters.dateFrom}
+                      onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Bitiş Tarihi
+                    </label>
+                    <input
+                      type="date"
+                      value={filters.dateTo}
+                      onChange={(e) => handleFilterChange('dateTo', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -971,8 +1058,15 @@ const CustomerDetail: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Şoför
                     </label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <select 
+                      value={filters.driver}
+                      onChange={(e) => handleFilterChange('driver', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
                       <option value="">Tüm Şoförler</option>
+                      {availableDrivers.map(driver => (
+                        <option key={driver} value={driver}>{driver}</option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -982,14 +1076,24 @@ const CustomerDetail: React.FC = () => {
                     <input
                       type="text"
                       placeholder="Teslim alan kişi adı"
+                      value={filters.receiver}
+                      onChange={(e) => handleFilterChange('receiver', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                 </div>
 
+                {/* Results Counter */}
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600">
+                    {filteredProofs.length} teslimat kanıtı bulundu
+                    {deliveryProofs.length !== filteredProofs.length && ` (${deliveryProofs.length} toplam)`}
+                  </p>
+                </div>
+
                 {/* Delivery Proofs Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {deliveryProofs.map((proof, index) => (
+                  {filteredProofs.map((proof, index) => (
                     <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                       {/* Photo/Signature Display */}
                       <div className="aspect-square bg-gray-200 rounded-lg mb-3 flex items-center justify-center">
