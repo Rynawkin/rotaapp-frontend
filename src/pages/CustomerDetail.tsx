@@ -53,6 +53,13 @@ const CustomerDetail: React.FC = () => {
     }
   }, [customer, activeTab]);
 
+  // Contact count'u göstermek için customer yüklendiğinde contact'ları yükle
+  useEffect(() => {
+    if (customer) {
+      loadCustomerContacts();
+    }
+  }, [customer]);
+
   const loadCustomer = async () => {
     if (!id) return;
     
