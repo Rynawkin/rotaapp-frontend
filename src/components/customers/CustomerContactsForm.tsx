@@ -135,16 +135,12 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
   };
 
   const removeContact = async (index: number) => {
-    const contact = contacts[index];
-    console.log('removeContact called:', { index, contact, viewMode, customerId });
-    
     if (viewMode && customerId) {
+      const contact = contacts[index];
       if (contact.id) {
-        console.log('Attempting to delete contact with ID:', contact.id);
         setDeleting(index);
         try {
           await customerContactService.delete(contact.id);
-          console.log('Contact deleted successfully from API');
           const updatedContacts = contacts.filter((_, i) => i !== index);
           onChange(updatedContacts);
         } catch (error) {
@@ -154,12 +150,10 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
           setDeleting(null);
         }
       } else {
-        console.log('Contact has no ID, removing from local state only');
         const updatedContacts = contacts.filter((_, i) => i !== index);
         onChange(updatedContacts);
       }
     } else {
-      console.log('Not in viewMode or no customerId, removing from local state only');
       const updatedContacts = contacts.filter((_, i) => i !== index);
       onChange(updatedContacts);
     }
@@ -167,8 +161,8 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
 
   const saveContact = async (index: number) => {
     const contact = contacts[index];
-    if (!contact.firstName || !contact.lastName || !contact.email || !contact.phone) {
-      alert('Lütfen tüm zorunlu alanları doldurun');
+    if (!contact.firstName || !contact.lastName || !contact.email) {
+      alert('Lütfen tüm zorunlu alanları doldurun (Ad, Soyad, Email)');
       return;
     }
 
