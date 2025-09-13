@@ -155,72 +155,147 @@ const CustomerDetail: React.FC = () => {
     
     setProofsLoading(true);
     try {
-      // Get all completed journeys for this customer
-      const completedJourneys = customerJourneys.filter(journey => 
-        journey.status === 'completed' && journey.stops
-      );
-
+      console.log('Loading delivery proofs for customer:', customer.id);
+      console.log('Available journeys:', customerJourneys);
+      
       const allProofs: any[] = [];
 
-      // Extract delivery proofs from completed journeys
-      for (const journey of completedJourneys) {
-        const customerStops = journey.stops.filter((stop: any) => {
-          const stopCustomerId = stop.routeStop?.customerId;
-          return stopCustomerId === customer.id || stopCustomerId === parseInt(id!);
-        });
+      // Journey'lerin tam detaylarını yükle ve teslimat kanıtlarını çıkar
+      for (const journey of customerJourneys) {
+        try {
+          // Journey detaylarını yükle (tam detay için getById kullan)
+          const journeyDetail = await journeyService.getById(journey.id);
+          console.log('Journey detail for proofs:', journey.id, journeyDetail);
+          
+          if (!journeyDetail.stops) continue;
 
-        for (const stop of customerStops) {
-          // Check if stop has delivery proof (photo or signature)
-          if (stop.deliveryProof) {
-            const proof = {
-              id: `${journey.id}-${stop.id}`,
-              type: stop.deliveryProof.type || 'photo', // 'photo' or 'signature'
-              url: stop.deliveryProof.url || stop.deliveryProof.photoUrl,
-              date: stop.deliveryProof.deliveredAt || journey.date,
-              driverName: journey.driverName || journey.driver?.name || 'Bilinmeyen',
-              receiverName: stop.deliveryProof.receiverName || 'Belirtilmemiş',
-              journeyId: journey.id,
-              journeyName: journey.name || journey.routeName
-            };
+          // Bu müşteriye ait durakları filtrele
+          const customerStops = journeyDetail.stops.filter((stop: any) => {
+            const stopCustomerId = stop.routeStop?.customerId;
+            return stopCustomerId === customer.id || stopCustomerId === parseInt(id!);
+          });
 
-            if (proof.url) { // Only add if there's an actual proof
-              allProofs.push(proof);
+          console.log('Customer stops for journey', journey.id, ':', customerStops);
+
+          for (const stop of customerStops) {
+            // Journey statuses'dan bu stop için completed status'u bul
+            if (journeyDetail.statuses) {
+              const completedStatuses = journeyDetail.statuses.filter((status: any) => 
+                status.stopId === stop.id && status.status === 'Completed'
+              );
+
+              console.log('Completed statuses for stop', stop.id, ':', completedStatuses);
+
+              for (const status of completedStatuses) {
+                // Fotoğraf varsa ekle
+                if (status.photoUrl) {
+                  allProofs.push({
+                    id: `${journey.id}-${stop.id}-photo-${status.id}`,
+                    type: 'photo',
+                    url: status.photoUrl,
+                    date: status.createdAt || journey.date,
+                    driverName: journey.driverName || journey.driver?.name || 'Bilinmeyen',
+                    receiverName: status.receiverName || 'Belirtilmemiş',
+                    journeyId: journey.id,
+                    journeyName: journey.name || journey.routeName,
+                    notes: status.notes
+                  });
+                }
+
+                // İmza varsa ekle
+                if (status.signatureUrl) {
+                  allProofs.push({
+                    id: `${journey.id}-${stop.id}-signature-${status.id}`,
+                    type: 'signature',
+                    url: status.signatureUrl,
+                    date: status.createdAt || journey.date,
+                    driverName: journey.driverName || journey.driver?.name || 'Bilinmeyen',
+                    receiverName: status.receiverName || 'Belirtilmemiş',
+                    journeyId: journey.id,
+                    journeyName: journey.name || journey.routeName,
+                    notes: status.notes
+                  });
+                }
+              }
+            }
+
+            // Stop details'dan da kontrol et
+            try {
+              const stopDetails = await journeyService.getStopDetails(journey.id, stop.id);
+              console.log('Stop details for', stop.id, ':', stopDetails);
+              
+              if (stopDetails) {
+                if (stopDetails.photoUrl) {
+                  allProofs.push({
+                    id: `${journey.id}-${stop.id}-photo-details`,
+                    type: 'photo',
+                    url: stopDetails.photoUrl,
+                    date: stopDetails.createdAt || journey.date,
+                    driverName: journey.driverName || journey.driver?.name || 'Bilinmeyen',
+                    receiverName: stopDetails.receiverName || 'Belirtilmemiş',
+                    journeyId: journey.id,
+                    journeyName: journey.name || journey.routeName,
+                    notes: stopDetails.notes
+                  });
+                }
+
+                if (stopDetails.signatureUrl) {
+                  allProofs.push({
+                    id: `${journey.id}-${stop.id}-signature-details`,
+                    type: 'signature',
+                    url: stopDetails.signatureUrl,
+                    date: stopDetails.createdAt || journey.date,
+                    driverName: journey.driverName || journey.driver?.name || 'Bilinmeyen',
+                    receiverName: stopDetails.receiverName || 'Belirtilmemiş',
+                    journeyId: journey.id,
+                    journeyName: journey.name || journey.routeName,
+                    notes: stopDetails.notes
+                  });
+                }
+              }
+            } catch (stopError) {
+              console.log('Stop details not found for stop', stop.id, ':', stopError);
+            }
+
+            // Stop photos da kontrol et
+            try {
+              const stopPhotos = await journeyService.getStopPhotosForStatus(journey.id, stop.id);
+              console.log('Stop photos for', stop.id, ':', stopPhotos);
+              
+              for (const photo of stopPhotos) {
+                allProofs.push({
+                  id: `${journey.id}-${stop.id}-photo-${photo.id}`,
+                  type: 'photo',
+                  url: photo.photoUrl,
+                  date: photo.createdAt || journey.date,
+                  driverName: journey.driverName || journey.driver?.name || 'Bilinmeyen',
+                  receiverName: 'Belirtilmemiş',
+                  journeyId: journey.id,
+                  journeyName: journey.name || journey.routeName,
+                  notes: photo.caption
+                });
+              }
+            } catch (photosError) {
+              console.log('Stop photos not found for stop', stop.id, ':', photosError);
             }
           }
-
-          // Also check for separate photo and signature fields
-          if (stop.photo) {
-            allProofs.push({
-              id: `${journey.id}-${stop.id}-photo`,
-              type: 'photo',
-              url: stop.photo,
-              date: stop.deliveredAt || journey.date,
-              driverName: journey.driverName || journey.driver?.name || 'Bilinmeyen',
-              receiverName: stop.receiverName || 'Belirtilmemiş',
-              journeyId: journey.id,
-              journeyName: journey.name || journey.routeName
-            });
-          }
-
-          if (stop.signature) {
-            allProofs.push({
-              id: `${journey.id}-${stop.id}-signature`,
-              type: 'signature',
-              url: stop.signature,
-              date: stop.deliveredAt || journey.date,
-              driverName: journey.driverName || journey.driver?.name || 'Bilinmeyen',
-              receiverName: stop.receiverName || 'Belirtilmemiş',
-              journeyId: journey.id,
-              journeyName: journey.name || journey.routeName
-            });
-          }
+        } catch (journeyError) {
+          console.error('Error loading journey details for', journey.id, ':', journeyError);
         }
       }
 
-      // Sort proofs by date (newest first)
-      allProofs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      console.log('All delivery proofs found:', allProofs);
 
-      setDeliveryProofs(allProofs);
+      // Duplicate'ları temizle (aynı URL'ye sahip olanları)
+      const uniqueProofs = allProofs.filter((proof, index, self) =>
+        index === self.findIndex(p => p.url === proof.url && p.type === proof.type)
+      );
+
+      // Tarihe göre sırala (en yeniden eskiye)
+      uniqueProofs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      console.log('Final unique proofs:', uniqueProofs);
+      setDeliveryProofs(uniqueProofs);
     } catch (error) {
       console.error('Error loading delivery proofs:', error);
       setDeliveryProofs([]);
