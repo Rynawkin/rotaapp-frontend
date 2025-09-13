@@ -184,31 +184,6 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
     onChange(updatedContacts);
   };
 
-  // Varsayılan kişiler oluştur
-  const addDefaultContacts = () => {
-    const defaultContacts: CustomerContact[] = [
-      {
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        role: 'DepoSorumlusu',
-        isPrimary: true,
-        ...getDefaultNotificationSettings('DepoSorumlusu')
-      },
-      {
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        role: 'SatinalmasorumluSu',
-        isPrimary: false,
-        ...getDefaultNotificationSettings('SatinalmasorumluSu')
-      }
-    ];
-    
-    onChange(defaultContacts);
-  };
 
   const getRoleLabel = (value: string) => {
     return CONTACT_ROLES.find(r => r.value === value)?.label || value;
@@ -231,35 +206,22 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
           İletişim Kişileri ({contacts.length})
         </h2>
         
-        <div className="flex gap-2">
-          {contacts.length === 0 && (
-            <button
-              type="button"
-              onClick={addDefaultContacts}
-              className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Varsayılan Ekle
-            </button>
-          )}
-          
-          <button
-            type="button"
-            onClick={() => addContact()}
-            className="px-3 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Kişi Ekle
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => addContact()}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
+        >
+          <Plus className="w-4 h-4" />
+          Kişi Ekle
+        </button>
       </div>
 
       {contacts.length === 0 && (
         <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <Users className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-          <p className="text-gray-600 mb-2">Henüz iletişim kişisi eklenmedi</p>
+          <p className="text-gray-600 mb-2">Henüz iletişim kişisi eklenmemiş</p>
           <p className="text-sm text-gray-500 mb-4">
-            Depo Sorumlusu ve Satınalma Sorumlusu varsayılan olarak tüm bildirimleri alır
+            Yukarıdaki "Kişi Ekle" butonuna tıklayarak başlayın
           </p>
         </div>
       )}
