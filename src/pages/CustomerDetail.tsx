@@ -673,6 +673,7 @@ const CustomerDetail: React.FC = () => {
                 onChange={handleContactsChange}
                 customerId={customer?.id}
                 viewMode={true}
+                onContactSaved={loadCustomerContacts}
               />
             )}
           </div>

@@ -22,6 +22,7 @@ interface CustomerContactsFormProps {
   errors?: Record<string, string>;
   viewMode?: boolean;
   customerId?: number;
+  onContactSaved?: () => void;
 }
 
 const CONTACT_ROLES = [
@@ -89,7 +90,8 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
   onChange,
   errors = {},
   viewMode = false,
-  customerId
+  customerId,
+  onContactSaved
 }) => {
   const [expandedContact, setExpandedContact] = useState<number | null>(null);
   const [saving, setSaving] = useState<number | null>(null);
@@ -189,6 +191,11 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
         updatedContacts[index] = newContact;
         onChange(updatedContacts);
         alert('Kişi başarıyla kaydedildi');
+      }
+      
+      // Parent'a kaydetme işleminin tamamlandığını bildir
+      if (onContactSaved) {
+        onContactSaved();
       }
     } catch (error) {
       console.error('Error saving contact:', error);
