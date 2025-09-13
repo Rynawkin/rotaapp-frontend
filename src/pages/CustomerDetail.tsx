@@ -20,7 +20,8 @@ import {
   Loader2,
   FileText,
   User,
-  Plus
+  Plus,
+  Camera
 } from 'lucide-react';
 import { Customer, CustomerContact } from '@/types';
 import { customerService } from '@/services/customer.service';
@@ -43,6 +44,8 @@ const CustomerDetail: React.FC = () => {
   const [copySuccess, setCopySuccess] = useState(false);
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'overview');
   const [contactsLoading, setContactsLoading] = useState(false);
+  const [deliveryProofs, setDeliveryProofs] = useState<any[]>([]);
+  const [proofsLoading, setProofsLoading] = useState(false);
 
   useEffect(() => {
     loadCustomer();
@@ -58,6 +61,12 @@ const CustomerDetail: React.FC = () => {
   useEffect(() => {
     if (customer && activeTab === 'contacts') {
       loadCustomerContacts();
+    }
+  }, [customer, activeTab]);
+
+  useEffect(() => {
+    if (customer && activeTab === 'proofs') {
+      loadDeliveryProofs();
     }
   }, [customer, activeTab]);
 
@@ -138,6 +147,85 @@ const CustomerDetail: React.FC = () => {
       setCustomerContacts([]);
     } finally {
       setContactsLoading(false);
+    }
+  };
+
+  const loadDeliveryProofs = async () => {
+    if (!customer) return;
+    
+    setProofsLoading(true);
+    try {
+      // Get all completed journeys for this customer
+      const completedJourneys = customerJourneys.filter(journey => 
+        journey.status === 'completed' && journey.stops
+      );
+
+      const allProofs: any[] = [];
+
+      // Extract delivery proofs from completed journeys
+      for (const journey of completedJourneys) {
+        const customerStops = journey.stops.filter((stop: any) => {
+          const stopCustomerId = stop.routeStop?.customerId;
+          return stopCustomerId === customer.id || stopCustomerId === parseInt(id!);
+        });
+
+        for (const stop of customerStops) {
+          // Check if stop has delivery proof (photo or signature)
+          if (stop.deliveryProof) {
+            const proof = {
+              id: `${journey.id}-${stop.id}`,
+              type: stop.deliveryProof.type || 'photo', // 'photo' or 'signature'
+              url: stop.deliveryProof.url || stop.deliveryProof.photoUrl,
+              date: stop.deliveryProof.deliveredAt || journey.date,
+              driverName: journey.driverName || journey.driver?.name || 'Bilinmeyen',
+              receiverName: stop.deliveryProof.receiverName || 'Belirtilmemiş',
+              journeyId: journey.id,
+              journeyName: journey.name || journey.routeName
+            };
+
+            if (proof.url) { // Only add if there's an actual proof
+              allProofs.push(proof);
+            }
+          }
+
+          // Also check for separate photo and signature fields
+          if (stop.photo) {
+            allProofs.push({
+              id: `${journey.id}-${stop.id}-photo`,
+              type: 'photo',
+              url: stop.photo,
+              date: stop.deliveredAt || journey.date,
+              driverName: journey.driverName || journey.driver?.name || 'Bilinmeyen',
+              receiverName: stop.receiverName || 'Belirtilmemiş',
+              journeyId: journey.id,
+              journeyName: journey.name || journey.routeName
+            });
+          }
+
+          if (stop.signature) {
+            allProofs.push({
+              id: `${journey.id}-${stop.id}-signature`,
+              type: 'signature',
+              url: stop.signature,
+              date: stop.deliveredAt || journey.date,
+              driverName: journey.driverName || journey.driver?.name || 'Bilinmeyen',
+              receiverName: stop.receiverName || 'Belirtilmemiş',
+              journeyId: journey.id,
+              journeyName: journey.name || journey.routeName
+            });
+          }
+        }
+      }
+
+      // Sort proofs by date (newest first)
+      allProofs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      setDeliveryProofs(allProofs);
+    } catch (error) {
+      console.error('Error loading delivery proofs:', error);
+      setDeliveryProofs([]);
+    } finally {
+      setProofsLoading(false);
     }
   };
 
@@ -324,6 +412,17 @@ const CustomerDetail: React.FC = () => {
             >
               <Navigation className="w-4 h-4 inline mr-2" />
               Seferler
+            </button>
+            <button
+              onClick={() => setActiveTab('proofs')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'proofs'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Camera className="w-4 h-4 inline mr-2" />
+              Teslimat Kanıtları
             </button>
           </nav>
         </div>
@@ -749,6 +848,136 @@ const CustomerDetail: React.FC = () => {
                 ))
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delivery Proofs Tab */}
+      {activeTab === 'proofs' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="p-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                <Camera className="w-5 h-5 mr-2" />
+                Teslimat Kanıtları
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Bu müşterinin geçmiş seferlerinden çekilen fotoğraflar ve imzalar
+              </p>
+            </div>
+
+            {proofsLoading ? (
+              <div className="flex items-center justify-center h-32">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                <span className="ml-2 text-gray-600">Teslimat kanıtları yükleniyor...</span>
+              </div>
+            ) : deliveryProofs.length === 0 ? (
+              <div className="p-6 text-center text-gray-500">
+                <Camera className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                <p>Henüz teslimat kanıtı bulunmuyor</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Bu müşteriye ait teslim edilmiş seferlerden fotoğraf veya imza bulunmuyor.
+                </p>
+              </div>
+            ) : (
+              <div className="p-6">
+                {/* Filters */}
+                <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tarih Aralığı
+                    </label>
+                    <input
+                      type="date"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Şoför
+                    </label>
+                    <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                      <option value="">Tüm Şoförler</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Teslim Alan
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Teslim alan kişi adı"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                {/* Delivery Proofs Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {deliveryProofs.map((proof, index) => (
+                    <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      {/* Photo/Signature Display */}
+                      <div className="aspect-square bg-gray-200 rounded-lg mb-3 flex items-center justify-center">
+                        {proof.type === 'photo' ? (
+                          <img
+                            src={proof.url}
+                            alt="Teslimat Fotoğrafı"
+                            className="w-full h-full object-cover rounded-lg"
+                          />
+                        ) : (
+                          <div className="text-center">
+                            <FileText className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                            <p className="text-xs text-gray-500">İmza</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Metadata */}
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="text-gray-600">Tarih:</span>
+                          <span className="ml-2 font-medium text-gray-900">
+                            {formatDate(proof.date)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Şoför:</span>
+                          <span className="ml-2 font-medium text-gray-900">
+                            {proof.driverName}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Teslim Alan:</span>
+                          <span className="ml-2 font-medium text-gray-900">
+                            {proof.receiverName}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Sefer:</span>
+                          <Link
+                            to={`/journeys/${proof.journeyId}`}
+                            className="ml-2 text-blue-600 hover:text-blue-800 underline"
+                          >
+                            {proof.journeyName || `Sefer #${proof.journeyId}`}
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* View All Button */}
+                <div className="mt-6 text-center">
+                  <Link
+                    to="/delivery-proofs"
+                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Camera className="w-4 h-4 mr-2" />
+                    Tüm Teslimat Kanıtlarını Görüntüle
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
