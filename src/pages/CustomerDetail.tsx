@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   ArrowLeft, 
   Edit, 
@@ -33,6 +33,7 @@ import CustomerContactsForm from '@/components/customers/CustomerContactsForm';
 const CustomerDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [customerJourneys, setCustomerJourneys] = useState<any[]>([]);
   const [customerRoutes, setCustomerRoutes] = useState<any[]>([]);
@@ -40,12 +41,19 @@ const CustomerDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'overview');
   const [contactsLoading, setContactsLoading] = useState(false);
 
   useEffect(() => {
     loadCustomer();
   }, [id]);
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (customer && activeTab === 'contacts') {
@@ -521,7 +529,7 @@ const CustomerDetail: React.FC = () => {
                   <Link
                     key={`route-${route.id}-${index}`}
                     to={customerJourneys.includes(route) ? `/journeys/${route.id}` : `/routes/${route.id}`}
-                    state={{ from: `/customers/${id}` }}
+                    state={{ from: `/customers/${id}?tab=overview` }}
                     className="block p-4 hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex items-center justify-between">
@@ -711,7 +719,7 @@ const CustomerDetail: React.FC = () => {
                   <Link
                     key={`journey-${route.id}-${index}`}
                     to={`/journeys/${route.id}`}
-                    state={{ from: `/customers/${id}` }}
+                    state={{ from: `/customers/${id}?tab=routes` }}
                     className="block p-4 hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex items-center justify-between">
