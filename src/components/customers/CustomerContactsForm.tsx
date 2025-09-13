@@ -96,19 +96,40 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
   const [deleting, setDeleting] = useState<number | null>(null);
 
   const addContact = async (role: string = 'DepoSorumlusu') => {
-    const defaultSettings = await getDefaultNotificationSettings(role);
-    
-    const newContact: CustomerContact = {
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      role,
-      isPrimary: false,
-      ...defaultSettings
-    };
+    try {
+      const defaultSettings = await getDefaultNotificationSettings(role);
+      
+      const newContact: CustomerContact = {
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        role,
+        isPrimary: false,
+        ...defaultSettings
+      };
 
-    onChange([...contacts, newContact]);
+      onChange([...contacts, newContact]);
+    } catch (error) {
+      console.warn('Failed to load default notification settings, using fallback:', error);
+      // Fallback: temel ayarları kullan
+      const newContact: CustomerContact = {
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        role,
+        isPrimary: false,
+        emailEnabled: true,
+        whatsappEnabled: true,
+        journeyStart: true,
+        driverApproaching: true,
+        deliveryCompleted: true,
+        deliveryFailed: true
+      };
+
+      onChange([...contacts, newContact]);
+    }
   };
 
   const removeContact = async (index: number) => {
@@ -176,12 +197,27 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
     
     // Rol değiştiğinde bildirim ayarlarını güncelle
     if (field === 'role') {
-      const defaultSettings = await getDefaultNotificationSettings(value);
-      updatedContacts[index] = {
-        ...updatedContacts[index],
-        [field]: value,
-        ...defaultSettings
-      };
+      try {
+        const defaultSettings = await getDefaultNotificationSettings(value);
+        updatedContacts[index] = {
+          ...updatedContacts[index],
+          [field]: value,
+          ...defaultSettings
+        };
+      } catch (error) {
+        console.warn('Failed to load default notification settings, using fallback:', error);
+        // Fallback: temel ayarları kullan
+        updatedContacts[index] = {
+          ...updatedContacts[index],
+          [field]: value,
+          emailEnabled: true,
+          whatsappEnabled: true,
+          journeyStart: true,
+          driverApproaching: true,
+          deliveryCompleted: true,
+          deliveryFailed: true
+        };
+      }
     } else {
       updatedContacts[index] = {
         ...updatedContacts[index],
