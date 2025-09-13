@@ -13,6 +13,7 @@ import {
   Edit3
 } from 'lucide-react';
 import { customerContactService } from '@/services/customer-contact.service';
+import { notificationRoleMappingService } from '@/services/notification-role-mapping.service';
 import { CustomerContact } from '@/types';
 
 interface CustomerContactsFormProps {
@@ -30,36 +31,56 @@ const CONTACT_ROLES = [
   { value: 'Diger', label: 'Diğer' }
 ];
 
-const getDefaultNotificationSettings = (role: string) => {
-  switch (role) {
-    case 'DepoSorumlusu':
-    case 'SatinalmasorumluSu':
-      return {
-        receiveJourneyStart: true,
-        receiveJourneyCheckIn: true,
-        receiveDeliveryCompleted: true,
-        receiveDeliveryFailed: true,
-        receiveJourneyAssigned: true,
-        receiveJourneyCancelled: true
-      };
-    case 'MuhasebeSorumlusu':
-      return {
-        receiveJourneyStart: false,
-        receiveJourneyCheckIn: false,
-        receiveDeliveryCompleted: true,
-        receiveDeliveryFailed: true,
-        receiveJourneyAssigned: false,
-        receiveJourneyCancelled: true
-      };
-    default: // Diger
-      return {
-        receiveJourneyStart: true,
-        receiveJourneyCheckIn: false,
-        receiveDeliveryCompleted: true,
-        receiveDeliveryFailed: true,
-        receiveJourneyAssigned: false,
-        receiveJourneyCancelled: false
-      };
+const getDefaultNotificationSettings = async (role: string) => {
+  try {
+    // Global ayarları getir
+    const mappings = await notificationRoleMappingService.getAll();
+    
+    // Bu rol için etkin olan bildirimleri bul
+    const roleSettings = {
+      receiveJourneyStart: mappings.some(m => m.contactRole === role && m.notificationType === 'JourneyStart' && m.isEnabled),
+      receiveJourneyCheckIn: mappings.some(m => m.contactRole === role && m.notificationType === 'JourneyCheckIn' && m.isEnabled),
+      receiveDeliveryCompleted: mappings.some(m => m.contactRole === role && m.notificationType === 'DeliveryCompleted' && m.isEnabled),
+      receiveDeliveryFailed: mappings.some(m => m.contactRole === role && m.notificationType === 'DeliveryFailed' && m.isEnabled),
+      receiveJourneyAssigned: mappings.some(m => m.contactRole === role && m.notificationType === 'JourneyAssigned' && m.isEnabled),
+      receiveJourneyCancelled: mappings.some(m => m.contactRole === role && m.notificationType === 'JourneyCancelled' && m.isEnabled)
+    };
+    
+    return roleSettings;
+  } catch (error) {
+    console.error('Error loading global settings, using fallback:', error);
+    
+    // Fallback: Eski hardcoded ayarlar
+    switch (role) {
+      case 'DepoSorumlusu':
+      case 'SatinalmasorumluSu':
+        return {
+          receiveJourneyStart: true,
+          receiveJourneyCheckIn: true,
+          receiveDeliveryCompleted: true,
+          receiveDeliveryFailed: true,
+          receiveJourneyAssigned: true,
+          receiveJourneyCancelled: true
+        };
+      case 'MuhasebeSorumlusu':
+        return {
+          receiveJourneyStart: false,
+          receiveJourneyCheckIn: false,
+          receiveDeliveryCompleted: true,
+          receiveDeliveryFailed: true,
+          receiveJourneyAssigned: false,
+          receiveJourneyCancelled: true
+        };
+      default: // Diger
+        return {
+          receiveJourneyStart: true,
+          receiveJourneyCheckIn: false,
+          receiveDeliveryCompleted: true,
+          receiveDeliveryFailed: true,
+          receiveJourneyAssigned: false,
+          receiveJourneyCancelled: false
+        };
+    }
   }
 };
 
@@ -74,15 +95,17 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
   const [saving, setSaving] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
 
-  const addContact = (role: string = 'DepoSorumlusu') => {
+  const addContact = async (role: string = 'DepoSorumlusu') => {
+    const defaultSettings = await getDefaultNotificationSettings(role);
+    
     const newContact: CustomerContact = {
       firstName: '',
       lastName: '',
       email: '',
       phone: '',
       role,
-      isPrimary: contacts.length === 0, // İlk kişi otomatik primary
-      ...getDefaultNotificationSettings(role)
+      isPrimary: false,
+      ...defaultSettings
     };
 
     onChange([...contacts, newContact]);
@@ -96,10 +119,6 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
         try {
           await customerContactService.delete(contact.id);
           const updatedContacts = contacts.filter((_, i) => i !== index);
-          // Eğer silinen kişi primary ise ve başka kişi varsa, ilk kişiyi primary yap
-          if (contact.isPrimary && updatedContacts.length > 0) {
-            updatedContacts[0].isPrimary = true;
-          }
           onChange(updatedContacts);
         } catch (error) {
           console.error('Error deleting contact:', error);
@@ -109,16 +128,10 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
         }
       } else {
         const updatedContacts = contacts.filter((_, i) => i !== index);
-        if (contacts[index].isPrimary && updatedContacts.length > 0) {
-          updatedContacts[0].isPrimary = true;
-        }
         onChange(updatedContacts);
       }
     } else {
       const updatedContacts = contacts.filter((_, i) => i !== index);
-      if (contacts[index].isPrimary && updatedContacts.length > 0) {
-        updatedContacts[0].isPrimary = true;
-      }
       onChange(updatedContacts);
     }
   };
@@ -158,22 +171,17 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
     }
   };
 
-  const updateContact = (index: number, field: keyof CustomerContact, value: any) => {
+  const updateContact = async (index: number, field: keyof CustomerContact, value: any) => {
     const updatedContacts = [...contacts];
     
     // Rol değiştiğinde bildirim ayarlarını güncelle
     if (field === 'role') {
-      const defaultSettings = getDefaultNotificationSettings(value);
+      const defaultSettings = await getDefaultNotificationSettings(value);
       updatedContacts[index] = {
         ...updatedContacts[index],
         [field]: value,
         ...defaultSettings
       };
-    } else if (field === 'isPrimary' && value) {
-      // Yeni primary seçildiğinde diğerlerini false yap
-      updatedContacts.forEach((contact, i) => {
-        contact.isPrimary = i === index;
-      });
     } else {
       updatedContacts[index] = {
         ...updatedContacts[index],
@@ -230,9 +238,7 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
         {contacts.map((contact, index) => (
           <div
             key={index}
-            className={`border rounded-lg p-4 ${
-              contact.isPrimary ? 'border-blue-300 bg-blue-50' : 'border-gray-200'
-            }`}
+            className="border border-gray-200 rounded-lg p-4"
           >
             {/* Contact Header */}
             <div className="flex items-center justify-between mb-3">
@@ -240,12 +246,6 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
                 <span className={`px-2 py-1 text-xs font-medium rounded ${getRoleColor(contact.role)}`}>
                   {getRoleLabel(contact.role)}
                 </span>
-                {contact.isPrimary && (
-                  <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded flex items-center gap-1">
-                    <UserCheck className="w-3 h-3" />
-                    Ana Kişi
-                  </span>
-                )}
                 {contact.firstName && contact.lastName && (
                   <span className="text-sm font-medium text-gray-700">
                     {contact.firstName} {contact.lastName}
@@ -378,17 +378,6 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
                 </select>
               </div>
 
-              <div className="flex items-center pt-6">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={contact.isPrimary}
-                    onChange={(e) => updateContact(index, 'isPrimary', e.target.checked)}
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Ana kişi olarak işaretle</span>
-                </label>
-              </div>
             </div>
 
             {/* Expanded Notification Settings */}

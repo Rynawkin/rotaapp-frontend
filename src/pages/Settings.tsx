@@ -36,6 +36,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { TemplateEditor } from '@/components/templates/TemplateEditor';
+import NotificationRoleSettings from '@/components/settings/NotificationRoleSettings';
 import { settingsService } from '@/services/settings.service';
 import { memberService, type Member, type CreateMemberRequest } from '@/services/member.service';
 import { depotService } from '@/services/depot.service';
@@ -1545,6 +1546,11 @@ const Settings: React.FC = () => {
                       </label>
                     ))}
                   </div>
+                </div>
+
+                {/* Notification Role Settings */}
+                <div className="border-t pt-6">
+                  <NotificationRoleSettings />
                 </div>
               </div>
             )}
