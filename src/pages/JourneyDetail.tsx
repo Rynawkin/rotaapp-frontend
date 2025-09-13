@@ -1,7 +1,7 @@
 // src/pages/JourneyDetail.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
   Navigation,
@@ -201,6 +201,7 @@ const StopDetailsSection: React.FC<{
 const JourneyDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const journeyId = id ? parseInt(id) : null;
 
   const [journey, setJourney] = useState<Journey | null>(null);
@@ -252,6 +253,16 @@ const JourneyDetail: React.FC = () => {
   // Canvas ve file input ref'leri
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Geri dönüş işlevi
+  const handleGoBack = () => {
+    const fromPath = (location.state as { from?: string })?.from;
+    if (fromPath) {
+      navigate(fromPath);
+    } else {
+      navigate('/journeys');
+    }
+  };
 
   // ✅ Helper function - URL'leri tam path'e çevir
   const getFullImageUrl = (url: string | null | undefined): string => {
@@ -367,12 +378,12 @@ const JourneyDetail: React.FC = () => {
       if (data) {
         setJourney(data);
       } else {
-        navigate('/journeys');
+        handleGoBack();
       }
     } catch (error: any) {
       console.error('Error loading journey:', error);
       if (error?.code !== 'ECONNABORTED') {
-        navigate('/journeys');
+        handleGoBack();
       }
     } finally {
       setLoading(false);
@@ -702,7 +713,7 @@ const JourneyDetail: React.FC = () => {
       try {
         await journeyService.finish(journey.id);
         toast.success('Sefer tamamlandı');
-        navigate('/journeys');
+        handleGoBack();
       } catch (error: any) {
         console.error('Error completing journey:', error);
         const errorMessage = error.response?.data?.message || 'Sefer tamamlanamadı';
@@ -821,7 +832,7 @@ const JourneyDetail: React.FC = () => {
       <div className="space-y-6">
         <div className="flex items-center space-x-4">
           <button
-            onClick={() => navigate('/journeys')}
+            onClick={handleGoBack}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -851,7 +862,7 @@ const JourneyDetail: React.FC = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <button
-            onClick={() => navigate('/journeys')}
+            onClick={handleGoBack}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />

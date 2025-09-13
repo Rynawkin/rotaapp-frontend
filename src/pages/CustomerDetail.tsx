@@ -82,32 +82,10 @@ const CustomerDetail: React.FC = () => {
           
           // Bu müşteriyi içeren journey'leri filtrele
           const relatedJourneys = journeysData.filter((journey: any) => {
-            // İlk journey'nin stop yapısını detaylı yazdıralım
-            if (journey.id === journeysData[0]?.id) {
-              console.log(`First journey detailed:`, JSON.stringify(journey, null, 2));
-              if (journey.stops?.[0]) {
-                console.log(`First stop detailed:`, JSON.stringify(journey.stops[0], null, 2));
-              }
-            }
-            
-            console.log(`Journey ${journey.id}:`, { 
-              stops: journey.stops, 
-              customerId, 
-              hasStops: journey.stops?.length > 0 
-            });
             return journey.stops && journey.stops.some((stop: any) => {
               // RouteStop içindeki customerId'yi kontrol et
               const stopCustomerId = stop.routeStop?.customerId;
-              const matches = stopCustomerId === customerId || stopCustomerId === parseInt(id!);
-              
-              if (matches) {
-                console.log(`Found match in journey ${journey.id}:`, {
-                  stopCustomerId,
-                  searchingFor: customerId,
-                  stop: stop
-                });
-              }
-              return matches;
+              return stopCustomerId === customerId || stopCustomerId === parseInt(id!);
             });
           });
           
@@ -543,6 +521,7 @@ const CustomerDetail: React.FC = () => {
                   <Link
                     key={`route-${route.id}-${index}`}
                     to={customerJourneys.includes(route) ? `/journeys/${route.id}` : `/routes/${route.id}`}
+                    state={{ from: `/customers/${id}` }}
                     className="block p-4 hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex items-center justify-between">
@@ -732,6 +711,7 @@ const CustomerDetail: React.FC = () => {
                   <Link
                     key={`journey-${route.id}-${index}`}
                     to={`/journeys/${route.id}`}
+                    state={{ from: `/customers/${id}` }}
                     className="block p-4 hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex items-center justify-between">
