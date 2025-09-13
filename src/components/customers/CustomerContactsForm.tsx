@@ -297,21 +297,19 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
                 >
                   {expandedContact === index ? 'Kapat' : 'Detay'}
                 </button>
-                {viewMode && (
-                  <button
-                    type="button"
-                    onClick={() => saveContact(index)}
-                    disabled={saving === index}
-                    className="p-1 text-green-600 hover:text-green-700 mr-2"
-                    title="Kaydet"
-                  >
-                    {saving === index ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Save className="w-4 h-4" />
-                    )}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => saveContact(index)}
+                  disabled={saving === index}
+                  className="p-1 text-green-600 hover:text-green-700 mr-2"
+                  title="Kaydet"
+                >
+                  {saving === index ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                </button>
                 <button
                   type="button"
                   onClick={() => removeContact(index)}
