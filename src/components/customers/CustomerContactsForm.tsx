@@ -158,11 +158,15 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
   };
 
   const saveContact = async (index: number) => {
-    if (!viewMode || !customerId) return;
-
     const contact = contacts[index];
     if (!contact.firstName || !contact.lastName || !contact.email || !contact.phone) {
       alert('Lütfen tüm zorunlu alanları doldurun');
+      return;
+    }
+
+    // Eğer customerId yoksa sadece local state'i güncelleyelim
+    if (!customerId) {
+      alert('Kişi bilgileri kaydedildi (müşteri kaydedildikten sonra veritabanına kaydedilecek)');
       return;
     }
 
@@ -177,12 +181,14 @@ const CustomerContactsForm: React.FC<CustomerContactsFormProps> = ({
       if (contact.id) {
         // Update existing contact
         await customerContactService.update(contact.id, contactData);
+        alert('Kişi başarıyla güncellendi');
       } else {
         // Create new contact
         const newContact = await customerContactService.create(contactData);
         const updatedContacts = [...contacts];
         updatedContacts[index] = newContact;
         onChange(updatedContacts);
+        alert('Kişi başarıyla kaydedildi');
       }
     } catch (error) {
       console.error('Error saving contact:', error);
