@@ -96,14 +96,16 @@ const CustomerDetail: React.FC = () => {
               hasStops: journey.stops?.length > 0 
             });
             return journey.stops && journey.stops.some((stop: any) => {
-              // Farklı customerId alanlarını kontrol edelim
-              const matches = stop.customerId === customerId || 
-                             stop.customerId === parseInt(id!) ||
-                             stop.routeStop?.customerId === customerId ||
-                             stop.routeStop?.customerId === parseInt(id!);
+              // RouteStop içindeki customerId'yi kontrol et
+              const stopCustomerId = stop.routeStop?.customerId;
+              const matches = stopCustomerId === customerId || stopCustomerId === parseInt(id!);
               
               if (matches) {
-                console.log(`Found match in journey ${journey.id}:`, stop);
+                console.log(`Found match in journey ${journey.id}:`, {
+                  stopCustomerId,
+                  searchingFor: customerId,
+                  stop: stop
+                });
               }
               return matches;
             });
