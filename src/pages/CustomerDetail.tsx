@@ -308,7 +308,7 @@ const CustomerDetail: React.FC = () => {
               }`}
             >
               <Navigation className="w-4 h-4 inline mr-2" />
-              Rotalar & Seferler
+              Seferler
             </button>
           </nav>
         </div>
@@ -524,12 +524,7 @@ const CustomerDetail: React.FC = () => {
                         <p className="text-sm text-gray-600 mt-1">
                           {route.date ? formatDate(route.date) : 'Tarih belirtilmemiş'} • {route.stops?.length || 0} durak
                         </p>
-                        {customerJourneys.includes(route) && (
-                          <span className="text-xs text-purple-600 mt-1">Sefer</span>
-                        )}
-                        {customerRoutes.includes(route) && (
-                          <span className="text-xs text-blue-600 mt-1">Rota</span>
-                        )}
+                        <span className="text-xs text-purple-600 mt-1">Sefer</span>
                       </div>
                       <div className="flex items-center">
                         {route.status === 'completed' && (
@@ -581,7 +576,7 @@ const CustomerDetail: React.FC = () => {
                 <FileText className="w-5 h-5 mr-2" />
                 Notlar
               </h3>
-              <p className="text-gray-600">{customer.notes}</p>
+              <p className="text-gray-600 whitespace-pre-wrap break-words">{customer.notes}</p>
             </div>
           )}
 
@@ -694,20 +689,20 @@ const CustomerDetail: React.FC = () => {
             <div className="p-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900 flex items-center">
                 <Navigation className="w-5 h-5 mr-2" />
-                Rotalar ve Seferler
+                Geçmiş Seferler
               </h2>
             </div>
             <div className="divide-y divide-gray-200">
-              {allRouteData.length === 0 ? (
+              {customerJourneys.length === 0 ? (
                 <div className="p-6 text-center text-gray-500">
                   <Navigation className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                  <p>Henüz rota veya sefer bulunmuyor</p>
+                  <p>Henüz sefer bulunmuyor</p>
                 </div>
               ) : (
-                allRouteData.map((route, index) => (
+                customerJourneys.map((route, index) => (
                   <Link
-                    key={`route-${route.id}-${index}`}
-                    to={customerJourneys.includes(route) ? `/journeys/${route.id}` : `/routes/${route.id}`}
+                    key={`journey-${route.id}-${index}`}
+                    to={`/journeys/${route.id}`}
                     className="block p-4 hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex items-center justify-between">
@@ -718,12 +713,7 @@ const CustomerDetail: React.FC = () => {
                         <p className="text-sm text-gray-600 mt-1">
                           {route.date ? formatDate(route.date) : 'Tarih belirtilmemiş'} • {route.stops?.length || 0} durak
                         </p>
-                        {customerJourneys.includes(route) && (
-                          <span className="text-xs text-purple-600 mt-1">Sefer</span>
-                        )}
-                        {customerRoutes.includes(route) && (
-                          <span className="text-xs text-blue-600 mt-1">Rota</span>
-                        )}
+                        <span className="text-xs text-purple-600 mt-1">Sefer</span>
                       </div>
                       <div className="flex items-center">
                         {route.status === 'completed' && (
