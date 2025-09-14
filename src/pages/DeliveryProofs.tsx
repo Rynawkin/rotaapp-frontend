@@ -43,10 +43,12 @@ const DeliveryProofs: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [deliveryProofs, setDeliveryProofs] = useState<DeliveryProof[]>([]);
   const [filteredProofs, setFilteredProofs] = useState<DeliveryProof[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(true); // Always show filters now
   const [selectedImage, setSelectedImage] = useState<DeliveryProof | null>(null);
+  const [loadingStats, setLoadingStats] = useState({ customers: 0, journeys: 0, proofs: 0 });
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -62,13 +64,17 @@ const DeliveryProofs: React.FC = () => {
   const [availableDrivers, setAvailableDrivers] = useState<string[]>([]);
   const [availableCustomers, setAvailableCustomers] = useState<{id: number, name: string}[]>([]);
 
+  // Load customers and basic data on component mount
   useEffect(() => {
-    loadAllDeliveryProofs();
+    loadBasicData();
   }, []);
 
+  // Apply filters when they change (only if data is loaded)
   useEffect(() => {
-    applyFilters();
-  }, [filters, deliveryProofs]);
+    if (dataLoaded) {
+      applyFilters();
+    }
+  }, [filters, deliveryProofs, dataLoaded]);
 
   useEffect(() => {
     // Update URL params when filters change
@@ -81,11 +87,25 @@ const DeliveryProofs: React.FC = () => {
     setSearchParams(params);
   }, [filters, setSearchParams]);
 
+  const loadBasicData = async () => {
+    try {
+      // Only load customers and basic filter options initially
+      const customers = await customerService.getAll();
+      setAvailableCustomers(customers.map(c => ({id: c.id, name: c.name})));
+      console.log('Basic data loaded: customers, drivers will be loaded on demand');
+    } catch (error) {
+      console.error('Error loading basic data:', error);
+    }
+  };
+
   const loadAllDeliveryProofs = async () => {
     setLoading(true);
+    setLoadingStats({ customers: 0, journeys: 0, proofs: 0 });
+    
     try {
       // Get all customers first
       const customers = await customerService.getAll();
+      setLoadingStats(prev => ({ ...prev, customers: customers.length }));
       setAvailableCustomers(customers.map(c => ({id: c.id, name: c.name})));
       
       const allProofs: DeliveryProof[] = [];
@@ -94,6 +114,7 @@ const DeliveryProofs: React.FC = () => {
       // Get all journeys first
       console.log('Loading all journeys to find customer journeys...');
       const allJourneys = await journeyService.getAll();
+      setLoadingStats(prev => ({ ...prev, journeys: allJourneys.length }));
       console.log('All journeys loaded:', allJourneys);
 
       // For each customer, find their journeys and delivery proofs
@@ -271,10 +292,14 @@ const DeliveryProofs: React.FC = () => {
 
       setDeliveryProofs(uniqueProofs);
       setAvailableDrivers(Array.from(driversSet).sort());
+      setLoadingStats(prev => ({ ...prev, proofs: uniqueProofs.length }));
 
       console.log(`Loaded ${uniqueProofs.length} delivery proofs from ${customers.length} customers`);
+      setDataLoaded(true);
     } catch (error) {
       console.error('Error loading delivery proofs:', error);
+      setDeliveryProofs([]);
+      setFilteredProofs([]);
     } finally {
       setLoading(false);
     }
@@ -356,14 +381,11 @@ const DeliveryProofs: React.FC = () => {
     setSelectedImage(null);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-        <span className="ml-2 text-gray-600">Teslimat kanıtları yükleniyor...</span>
-      </div>
-    );
-  }
+  const handleLoadData = () => {
+    if (!loading) {
+      loadAllDeliveryProofs();
+    }
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -375,7 +397,10 @@ const DeliveryProofs: React.FC = () => {
             Teslimat Kanıtları
           </h1>
           <p className="text-gray-600 mt-1">
-            Tüm teslimat fotoğrafları ve imzaları ({filteredProofs.length} adet)
+            {dataLoaded 
+              ? `Tüm teslimat fotoğrafları ve imzaları (${filteredProofs.length} adet)`
+              : "Teslimat kanıtlarını görüntülemek için filtreleri ayarlayın ve 'Ara' butonuna tıklayın"
+            }
           </p>
         </div>
 
@@ -517,8 +542,8 @@ const DeliveryProofs: React.FC = () => {
             </div>
           </div>
 
-          {/* Clear Filters */}
-          <div className="mt-4 pt-4 border-t border-gray-200">
+          {/* Action Buttons */}
+          <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
             <button
               onClick={clearFilters}
               className="inline-flex items-center px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
@@ -526,12 +551,67 @@ const DeliveryProofs: React.FC = () => {
               <X className="w-4 h-4 mr-2" />
               Filtreleri Temizle
             </button>
+            
+            <button
+              onClick={handleLoadData}
+              disabled={loading}
+              className="inline-flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Yükleniyor...
+                </>
+              ) : (
+                <>
+                  <Search className="w-4 h-4 mr-2" />
+                  Teslimat Kanıtlarını Ara
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Progress */}
+      {loading && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-center mb-4">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            <span className="ml-3 text-lg font-medium text-gray-900">Teslimat kanıtları yükleniyor...</span>
+          </div>
+          <div className="space-y-2 text-sm text-gray-600">
+            <div className="flex justify-between">
+              <span>Müşteriler yüklendi:</span>
+              <span className="font-medium">{loadingStats.customers}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Seferler yüklendi:</span>
+              <span className="font-medium">{loadingStats.journeys}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Teslimat kanıtları bulundu:</span>
+              <span className="font-medium">{loadingStats.proofs}</span>
+            </div>
+          </div>
+          <div className="mt-4 text-center text-sm text-gray-500">
+            Bu işlem birkaç dakika sürebilir. Lütfen bekleyiniz...
           </div>
         </div>
       )}
 
       {/* Content */}
-      {filteredProofs.length === 0 ? (
+      {!loading && filteredProofs.length === 0 && !dataLoaded ? (
+        <div className="text-center py-12">
+          <Camera className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Teslimat Kanıtlarını Görüntüleyin
+          </h3>
+          <p className="text-gray-600 mb-6">
+            Yukarıdaki filtreleri kullanarak istediğiniz teslimat kanıtlarını bulun ve "Teslimat Kanıtlarını Ara" butonuna tıklayın.
+          </p>
+        </div>
+      ) : !loading && filteredProofs.length === 0 && dataLoaded ? (
         <div className="text-center py-12">
           <Camera className="w-16 h-16 mx-auto text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -556,7 +636,7 @@ const DeliveryProofs: React.FC = () => {
             </button>
           )}
         </div>
-      ) : (
+      ) : !loading && dataLoaded && (
         <>
           {/* Grid View */}
           {viewMode === 'grid' && (
