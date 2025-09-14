@@ -17,7 +17,9 @@
       "Bash(npm run build:*)",
       "Bash(npm run dev:*)",
       "Read(//c/Users/QP/Desktop/**)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(sed:*)"
     ],
     "deny": [],
     "ask": []
