@@ -287,13 +287,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
       badge: pendingLocationRequests > 0 ? pendingLocationRequests.toString() : null,
       roles: ['dispatcher', 'admin', 'superadmin'] // Sadece yöneticiler
     },
-    { 
-      icon: Navigation, 
-      label: 'Canlı Takip', 
-      path: '/tracking', 
-      badge: 'CANLI',
-      roles: ['dispatcher', 'admin', 'superadmin'] // Driver erişemez (kendi konumunu paylaşır ama takip edemez)
-    },
+    // { 
+    //   icon: Navigation, 
+    //   label: 'Canlı Takip', 
+    //   path: '/tracking', 
+    //   badge: 'CANLI',
+    //   roles: ['dispatcher', 'admin', 'superadmin'] // Driver erişemez (kendi konumunu paylaşır ama takip edemez)
+    // },
     { 
       icon: FileText, 
       label: 'Raporlar', 
