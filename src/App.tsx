@@ -24,6 +24,7 @@ const Customers = lazy(() => import('@/pages/Customers'));
 const CreateCustomer = lazy(() => import('@/pages/CreateCustomer'));
 const EditCustomer = lazy(() => import('@/pages/EditCustomer'));
 const CustomerDetail = lazy(() => import('@/pages/CustomerDetail'));
+const DeliveryProofs = lazy(() => import('@/pages/DeliveryProofs'));
 const TestMap = lazy(() => import('@/pages/TestMap'));
 const Drivers = lazy(() => import('@/pages/Drivers'));
 const CreateDriver = lazy(() => import('@/pages/CreateDriver'));
@@ -157,6 +158,13 @@ const AppRoutes: React.FC = () => {
       <Route path="/customers/:id/edit" element={
         <ProtectedLayout>
           <EditCustomer />
+        </ProtectedLayout>
+      } />
+
+      {/* Delivery Proofs */}
+      <Route path="/delivery-proofs" element={
+        <ProtectedLayout>
+          <DeliveryProofs />
         </ProtectedLayout>
       } />
 
