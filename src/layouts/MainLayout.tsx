@@ -22,8 +22,7 @@ import {
   Shield,
   Bug,
   MapPinOff,
-  AlertTriangle,
-  Camera
+  AlertTriangle
 } from 'lucide-react';
 import { api } from '@/services/api';
 import { routeService } from '@/services/route.service';
@@ -252,13 +251,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
       path: '/customers', 
       badge: customerCount > 0 ? customerCount.toString() : null,
       roles: ['dispatcher', 'admin', 'superadmin'] // Driver erişemez
-    },
-    { 
-      icon: Camera, 
-      label: 'Teslimat Kanıtları', 
-      path: '/delivery-proofs', 
-      badge: null,
-      roles: ['driver', 'dispatcher', 'admin', 'superadmin'] // Herkes erişebilir
     },
     { 
       icon: UserCheck, 

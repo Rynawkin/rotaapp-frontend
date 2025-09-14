@@ -1245,17 +1245,6 @@ const CustomerDetail: React.FC = () => {
                     ))}
                   </div>
                 )}
-
-                {/* View All Button */}
-                <div className="mt-6 text-center">
-                  <Link
-                    to="/delivery-proofs"
-                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    <Camera className="w-4 h-4 mr-2" />
-                    Tüm Teslimat Kanıtlarını Görüntüle
-                  </Link>
-                </div>
               </div>
             )}
           </div>
