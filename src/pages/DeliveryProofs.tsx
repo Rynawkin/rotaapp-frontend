@@ -103,25 +103,67 @@ const DeliveryProofs: React.FC = () => {
     setLoadingStats({ customers: 0, journeys: 0, proofs: 0 });
     
     try {
-      // Get all customers first
-      const customers = await customerService.getAll();
-      setLoadingStats(prev => ({ ...prev, customers: customers.length }));
-      setAvailableCustomers(customers.map(c => ({id: c.id, name: c.name})));
-      
       const allProofs: DeliveryProof[] = [];
       const driversSet = new Set<string>();
 
-      // Get all journeys first
-      console.log('Loading all journeys to find customer journeys...');
+      let customersToProcess: {id: number, name: string}[] = [];
+      let journeysToProcess: any[] = [];
+
+      // Filter strategy based on selected filters
+      if (filters.customer) {
+        // If specific customer selected, only process that customer
+        const selectedCustomer = availableCustomers.find(c => c.id === parseInt(filters.customer));
+        if (selectedCustomer) {
+          customersToProcess = [selectedCustomer];
+          console.log('Processing single customer:', selectedCustomer.name);
+        }
+      } else {
+        // No customer filter - get all customers (still heavy but we'll limit journeys)
+        const customers = await customerService.getAll();
+        setLoadingStats(prev => ({ ...prev, customers: customers.length }));
+        customersToProcess = customers.map(c => ({id: c.id, name: c.name}));
+        console.log('Processing all customers:', customers.length);
+      }
+
+      // Get journeys with potential date filtering
+      console.log('Loading journeys...');
       const allJourneys = await journeyService.getAll();
-      setLoadingStats(prev => ({ ...prev, journeys: allJourneys.length }));
-      console.log('All journeys loaded:', allJourneys);
+      
+      // Apply date filters on journeys if specified
+      if (filters.dateFrom || filters.dateTo) {
+        journeysToProcess = allJourneys.filter((journey: any) => {
+          const journeyDate = new Date(journey.createdAt || journey.date);
+          let passesFilter = true;
+          
+          if (filters.dateFrom) {
+            passesFilter = passesFilter && journeyDate >= new Date(filters.dateFrom);
+          }
+          if (filters.dateTo) {
+            passesFilter = passesFilter && journeyDate <= new Date(filters.dateTo);
+          }
+          
+          return passesFilter;
+        });
+        console.log(`Date filtered journeys: ${journeysToProcess.length} / ${allJourneys.length}`);
+      } else {
+        // If no date filter but no customer filter either, limit to recent journeys
+        if (!filters.customer) {
+          journeysToProcess = allJourneys
+            .sort((a: any, b: any) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime())
+            .slice(0, 100); // Limit to last 100 journeys
+          console.log(`Limited to last 100 journeys out of ${allJourneys.length}`);
+        } else {
+          journeysToProcess = allJourneys;
+        }
+      }
+      
+      setLoadingStats(prev => ({ ...prev, journeys: journeysToProcess.length }));
 
       // For each customer, find their journeys and delivery proofs
-      for (const customer of customers) {
+      for (const customer of customersToProcess) {
         try {
-          // Bu müşteriyi içeren journey'leri filtrele
-          const customerJourneys = allJourneys.filter((journey: any) => {
+          // Bu müşteriyi içeren journey'leri filtrele (already filtered journeys)
+          const customerJourneys = journeysToProcess.filter((journey: any) => {
             return journey.stops && journey.stops.some((stop: any) => {
               // RouteStop içindeki customerId'yi kontrol et
               const stopCustomerId = stop.routeStop?.customerId;
@@ -387,6 +429,8 @@ const DeliveryProofs: React.FC = () => {
     }
   };
 
+  const hasFilters = filters.customer || filters.dateFrom || filters.dateTo || filters.driver || filters.search;
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -542,6 +586,22 @@ const DeliveryProofs: React.FC = () => {
             </div>
           </div>
 
+          {/* Performance Info */}
+          {!hasFilters && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex">
+                <AlertTriangle className="w-5 h-5 text-yellow-600 mr-3 mt-0.5" />
+                <div>
+                  <h4 className="text-sm font-medium text-yellow-800">Performans İpucu</h4>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    Daha hızlı sonuçlar için <strong>müşteri</strong> veya <strong>tarih aralığı</strong> filtresi seçmenizi öneririz. 
+                    Filtre seçmezseniz sadece son 100 seferin teslimat kanıtları yüklenecektir.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
             <button
@@ -565,7 +625,7 @@ const DeliveryProofs: React.FC = () => {
               ) : (
                 <>
                   <Search className="w-4 h-4 mr-2" />
-                  Teslimat Kanıtlarını Ara
+                  {hasFilters ? 'Filtrelenmiş Kanıtları Ara' : 'Son 100 Seferin Kanıtlarını Ara'}
                 </>
               )}
             </button>
