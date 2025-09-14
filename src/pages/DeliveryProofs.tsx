@@ -91,10 +91,24 @@ const DeliveryProofs: React.FC = () => {
       const allProofs: DeliveryProof[] = [];
       const driversSet = new Set<string>();
 
-      // For each customer, get their journeys and delivery proofs
+      // Get all journeys first
+      console.log('Loading all journeys to find customer journeys...');
+      const allJourneys = await journeyService.getAll();
+      console.log('All journeys loaded:', allJourneys);
+
+      // For each customer, find their journeys and delivery proofs
       for (const customer of customers) {
         try {
-          const customerJourneys = await customerService.getJourneys(customer.id);
+          // Bu müşteriyi içeren journey'leri filtrele
+          const customerJourneys = allJourneys.filter((journey: any) => {
+            return journey.stops && journey.stops.some((stop: any) => {
+              // RouteStop içindeki customerId'yi kontrol et
+              const stopCustomerId = stop.routeStop?.customerId;
+              return stopCustomerId === customer.id;
+            });
+          });
+          
+          console.log(`Found ${customerJourneys.length} journeys for customer ${customer.name}:`, customerJourneys);
           
           for (const journey of customerJourneys) {
             try {
