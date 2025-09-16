@@ -470,18 +470,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
             >
               {sidebarOpen ? (
                 <div className="flex items-center justify-center w-full">
-                  <img 
-                    src="/yolpilot-logo.png" 
-                    alt="YolPilot" 
-                    className="h-16 w-auto max-w-[200px] object-contain"
+                  <img
+                    src="/yolpilot-logo.png"
+                    alt="YolPilot"
+                    className="h-20 w-auto max-w-[240px] object-contain"
                   />
                 </div>
               ) : (
                 <div className="flex items-center justify-center">
-                  <img 
-                    src="/yolpilot-logo.png" 
-                    alt="YolPilot" 
-                    className="h-14 w-14 object-contain"
+                  <img
+                    src="/yolpilot-logo.png"
+                    alt="YolPilot"
+                    className="h-16 w-16 object-contain"
                   />
                 </div>
               )}
