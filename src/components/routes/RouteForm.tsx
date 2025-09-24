@@ -599,6 +599,14 @@ const RouteForm: React.FC<RouteFormProps> = ({
             timeWindow = validateTimeWindow(timeWindow.start, timeWindow.end) || undefined;
           }
 
+          const orderType = stopData.positionConstraint === 'first' ? 10 :
+                           stopData.positionConstraint === 'last' ? 30 : 20;
+
+          console.log(`🚀 DEBUG - Stop ${index + 1} (${stopData.customer.name}):`, {
+            positionConstraint: stopData.positionConstraint,
+            orderType: orderType
+          });
+
           return {
             id: `${Date.now()}-${index}`,
             routeId: '',
@@ -606,6 +614,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
             customer: stopData.customer,
             order: index + 1,
             status: 'pending',
+            orderType: orderType,
             serviceTime: stopData.serviceTime,
             signatureRequired: stopData.signatureRequired || false,
             photoRequired: stopData.photoRequired || false,
