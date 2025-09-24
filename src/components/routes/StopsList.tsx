@@ -22,7 +22,7 @@ import { Customer } from '@/types';
 interface StopData {
   customer: Customer;
   overrideTimeWindow?: { start: string; end: string };
-  overridePriority?: 'high' | 'normal' | 'low';
+  positionConstraint?: 'first' | 'last' | 'none';
   serviceTime?: number;
   signatureRequired?: boolean;
   photoRequired?: boolean;
@@ -154,7 +154,7 @@ const StopsList: React.FC<StopsListProps> = ({
     
     setEditData({
       overrideTimeWindow: hasOverride ? stop.overrideTimeWindow : undefined,
-      overridePriority: stop.overridePriority || stop.customer.priority,
+      positionConstraint: stop.positionConstraint || 'none',
       serviceTime: stop.serviceTime || stop.customer.estimatedServiceTime || 10,
       signatureRequired: stop.signatureRequired || false,
       photoRequired: stop.photoRequired || false,
@@ -307,14 +307,13 @@ const StopsList: React.FC<StopsListProps> = ({
     });
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return 'text-red-600 bg-red-50';
-      case 'normal':
-        return 'text-blue-600 bg-blue-50';
-      case 'low':
-        return 'text-gray-600 bg-gray-50';
+  const getPositionColor = (position: string) => {
+    switch (position) {
+      case 'first':
+        return 'text-green-600 bg-green-50';
+      case 'last':
+        return 'text-orange-600 bg-orange-50';
+      case 'none':
       default:
         return 'text-gray-600 bg-gray-50';
     }
@@ -399,7 +398,7 @@ const StopsList: React.FC<StopsListProps> = ({
       <div className="space-y-2">
         {stops.map((stop, index) => {
           const isEditing = editingIndex === index;
-          const effectivePriority = stop.overridePriority || stop.customer.priority;
+          const effectivePosition = stop.positionConstraint || 'none';
           const effectiveTimeWindow = stop.overrideTimeWindow || stop.customer.timeWindow;
           const effectiveServiceTime = stop.serviceTime || stop.customer.estimatedServiceTime || 10;
           
@@ -411,8 +410,7 @@ const StopsList: React.FC<StopsListProps> = ({
           const isServiceTimeOverridden = stop.serviceTime && 
             stop.serviceTime !== (stop.customer.estimatedServiceTime || 10);
           
-          const isPriorityOverridden = stop.overridePriority && 
-            stop.overridePriority !== stop.customer.priority;
+          const isPositionConstrained = stop.positionConstraint && stop.positionConstraint !== 'none';
 
           return (
             <div
@@ -522,11 +520,12 @@ const StopsList: React.FC<StopsListProps> = ({
                             )}
 
                             <div className="flex items-center gap-2 mt-2">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(effectivePriority)}`}>
-                                {effectivePriority === 'high' && <Star className="w-3 h-3 mr-1" />}
-                                {effectivePriority === 'high' ? 'Yüksek' : effectivePriority === 'normal' ? 'Normal' : 'Düşük'}
-                                {isPriorityOverridden && (
-                                  <span className="ml-1">(düzenlenmiş)</span>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPositionColor(effectivePosition)}`}>
+                                {effectivePosition === 'first' && <Star className="w-3 h-3 mr-1" />}
+                                {effectivePosition === 'last' && <ArrowRight className="w-3 h-3 mr-1" />}
+                                {effectivePosition === 'first' ? 'İlk Durak' : effectivePosition === 'last' ? 'Son Durak' : 'Serbest Sıra'}
+                                {isPositionConstrained && (
+                                  <span className="ml-1">(sabitlenmiş)</span>
                                 )}
                               </span>
 
@@ -607,22 +606,22 @@ const StopsList: React.FC<StopsListProps> = ({
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {/* Priority Override */}
+                        {/* Position Constraint */}
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Öncelik
+                            Pozisyon Kısıtı
                           </label>
                           <select
-                            value={editData.overridePriority || stop.customer.priority}
+                            value={editData.positionConstraint || 'none'}
                             onChange={(e) => setEditData({
                               ...editData,
-                              overridePriority: e.target.value as 'high' | 'normal' | 'low'
+                              positionConstraint: e.target.value as 'first' | 'last' | 'none'
                             })}
                             className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                           >
-                            <option value="low">Düşük</option>
-                            <option value="normal">Normal</option>
-                            <option value="high">Yüksek</option>
+                            <option value="none">Serbest Sıra</option>
+                            <option value="first">İlk Durak (Öncelikli)</option>
+                            <option value="last">Son Durak (En Son)</option>
                           </select>
                         </div>
 

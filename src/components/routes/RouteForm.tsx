@@ -37,7 +37,7 @@ type OptimizationStatus = 'none' | 'success' | 'partial';
 interface StopData {
   customer: Customer;
   overrideTimeWindow?: { start: string; end: string };
-  overridePriority?: 'high' | 'normal' | 'low';
+  positionConstraint?: 'first' | 'last' | 'none';
   serviceTime?: number;
   signatureRequired?: boolean;
   photoRequired?: boolean;
@@ -175,7 +175,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
       return savedData.stops.map((stop: any) => ({
         customer: stop.customer,
         overrideTimeWindow: stop.overrideTimeWindow,
-        overridePriority: stop.overridePriority,
+        positionConstraint: stop.positionConstraint,
         serviceTime: stop.serviceTime,
         signatureRequired: stop.signatureRequired || false,
         photoRequired: stop.photoRequired || false,
@@ -288,7 +288,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
         return {
           customer,
           overrideTimeWindow: stop.overrideTimeWindow,
-          overridePriority: stop.overridePriority,
+          positionConstraint: stop.positionConstraint,
           serviceTime: stop.serviceTime || customer.estimatedServiceTime || 10,
           stopNotes: stop.stopNotes
         };
@@ -384,7 +384,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
               return {
                 customer,
                 overrideTimeWindow: stop.overrideTimeWindow,
-                overridePriority: stop.overridePriority,
+                positionConstraint: stop.positionConstraint,
                 serviceTime: stop.serviceTime || customer.estimatedServiceTime || 10,
                 stopNotes: stop.stopNotes
               };
@@ -505,7 +505,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
   const handleReorderStops = (reorderedStops: StopData[]) => {
     setStopsData(reorderedStops);
-    resetOptimization();
+    // Manuel sıralama sonrası optimize durumunu koruyoruz
+    // resetOptimization(); // Kaldırıldı - kullanıcı manuel müdahale sonrası da rota oluşturabilmeli
     setMapDirections(null);
   };
 
@@ -874,7 +875,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
         status: 'pending',
         arriveBetweenStart: timeWindow?.start,
         arriveBetweenEnd: timeWindow?.end,
-        overridePriority: stopData.overridePriority,
+        orderType: stopData.positionConstraint === 'first' ? 'First' :
+                   stopData.positionConstraint === 'last' ? 'Last' : 'Auto',
         serviceTime: stopData.serviceTime,
         signatureRequired: stopData.signatureRequired,
         photoRequired: stopData.photoRequired,
@@ -951,7 +953,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
         status: 'pending',
         arriveBetweenStart: timeWindow?.start,
         arriveBetweenEnd: timeWindow?.end,
-        overridePriority: stopData.overridePriority,
+        orderType: stopData.positionConstraint === 'first' ? 'First' :
+                   stopData.positionConstraint === 'last' ? 'Last' : 'Auto',
         serviceTime: stopData.serviceTime,
         signatureRequired: stopData.signatureRequired,
         photoRequired: stopData.photoRequired,
