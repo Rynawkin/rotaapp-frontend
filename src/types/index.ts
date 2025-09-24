@@ -451,6 +451,13 @@ export interface OptimizationResponse {
   totalDistance: number;
   totalDuration: number;
   hasExclusions: boolean;
+  endDetails?: {
+    name: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    estimatedArrivalTime?: string;
+  };
 }
 
 export interface ExcludedStop {

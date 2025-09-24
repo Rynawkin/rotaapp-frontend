@@ -513,7 +513,8 @@ class RouteService {
         excludedStops: excludedStops,
         totalDistance: response.data.totalDistance || 0,
         totalDuration: response.data.totalDuration || 0,
-        hasExclusions: response.data.hasExclusions || false
+        hasExclusions: response.data.hasExclusions || false,
+        endDetails: response.data.endDetails || undefined
       };
       
       console.log('4. Final optimization response:', optimizationResponse);
