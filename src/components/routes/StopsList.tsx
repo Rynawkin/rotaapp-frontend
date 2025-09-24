@@ -22,7 +22,7 @@ import { Customer } from '@/types';
 interface StopData {
   customer: Customer;
   overrideTimeWindow?: { start: string; end: string };
-  positionConstraint?: 'first' | 'last' | 'none';
+  positionConstraint?: 'first' | 'none';
   serviceTime?: number;
   signatureRequired?: boolean;
   photoRequired?: boolean;
@@ -221,8 +221,7 @@ const StopsList: React.FC<StopsListProps> = ({
         );
 
         if (existingConstraints.length > 0) {
-          const constraintLabel = updates.positionConstraint === 'first' ? 'İlk Durak' : 'Son Durak';
-          alert(`Sadece bir durak ${constraintLabel} olarak işaretlenebilir. Önce diğer ${constraintLabel} işaretini kaldırın.`);
+          alert(`Sadece bir durak İlk Durak olarak işaretlenebilir. Önce diğer İlk Durak işaretini kaldırın.`);
           return;
         }
       }
@@ -628,13 +627,12 @@ const StopsList: React.FC<StopsListProps> = ({
                             value={editData.positionConstraint || 'none'}
                             onChange={(e) => setEditData({
                               ...editData,
-                              positionConstraint: e.target.value as 'first' | 'last' | 'none'
+                              positionConstraint: e.target.value as 'first' | 'none'
                             })}
                             className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                           >
                             <option value="none">Serbest Sıra</option>
                             <option value="first">İlk Durak (Öncelikli)</option>
-                            <option value="last">Son Durak (En Son)</option>
                           </select>
                         </div>
 
