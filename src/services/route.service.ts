@@ -466,14 +466,16 @@ class RouteService {
     }
   }
 
-  async optimize(routeId: string | number, mode: 'distance' | 'duration' = 'distance'): Promise<OptimizationResponse> {
+  async optimize(routeId: string | number, mode: 'distance' | 'duration' = 'distance', avoidTolls: boolean = false): Promise<OptimizationResponse> {
     try {
       console.log('=== OPTIMIZE ROUTE (Backend) ===');
       console.log('1. Optimizing route ID:', routeId);
       console.log('2. Optimization mode:', mode);
+      console.log('3. Avoid tolls:', avoidTolls);
       
       const response = await api.post(`${this.baseUrl}/${routeId}/optimize`, {
-        optimizationMode: mode
+        optimizationMode: mode,
+        avoidTolls: avoidTolls
       });
       
       console.log('3. Optimize response:', response.data);

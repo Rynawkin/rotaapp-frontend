@@ -156,6 +156,7 @@ const Settings: React.FC = () => {
     defaultServiceTime: 15,
     defaultSignatureRequired: false,  // YENİ
     defaultPhotoRequired: false,      // YENİ
+    defaultAvoidTolls: false,         // YENİ - Ücretli yolları varsayılan olarak kullanma
     workingHours: {
       monday: { start: '08:00', end: '18:00', enabled: true },
       tuesday: { start: '08:00', end: '18:00', enabled: true },
@@ -1046,6 +1047,25 @@ const Settings: React.FC = () => {
                         setDeliverySettings({ 
                           ...deliverySettings, 
                           defaultPhotoRequired: e.target.checked 
+                        });
+                        setHasChanges(true);
+                      }}
+                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium text-gray-700">Ücretli Yolları Kullanma</span>
+                      <p className="text-sm text-gray-500 mt-1">Rota optimizasyonunda ücretli yollar varsayılan olarak kullanılsın</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={deliverySettings.defaultAvoidTolls}
+                      onChange={(e) => {
+                        setDeliverySettings({
+                          ...deliverySettings,
+                          defaultAvoidTolls: e.target.checked
                         });
                         setHasChanges(true);
                       }}

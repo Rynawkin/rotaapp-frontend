@@ -44,17 +44,23 @@ interface StopsListProps {
   onUpdateStop: (index: number, updates: Partial<StopData>) => void;
   onExcludedStopEdit?: (customerId: string) => void;
   onMoveExcludedToStops?: (excluded: any) => void;
+  depotReturn?: {
+    name: string;
+    address: string;
+    estimatedArrivalTime?: string;
+  };
 }
 
-const StopsList: React.FC<StopsListProps> = ({ 
-  stops, 
+const StopsList: React.FC<StopsListProps> = ({
+  stops,
   excludedStops = [],
   optimizationStatus,
-  onRemove, 
+  onRemove,
   onReorder,
   onUpdateStop,
   onExcludedStopEdit,
-  onMoveExcludedToStops
+  onMoveExcludedToStops,
+  depotReturn
 }) => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -747,6 +753,54 @@ const StopsList: React.FC<StopsListProps> = ({
           );
         })}
       </div>
+
+      {/* Depo Geri Dönüş Kartı */}
+      {optimizationStatus !== 'none' && depotReturn && stops.length > 0 && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border-2 border-dashed border-blue-300">
+          <div className="flex items-start">
+            {/* Depot Icon */}
+            <div className="mr-3">
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-semibold text-sm">
+                <MapPin className="w-4 h-4" />
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h4 className="font-medium text-blue-900 flex items-center">
+                    <span>Depoya Geri Dönüş</span>
+                    <span className="ml-2 text-xs bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full">Son Durak</span>
+                  </h4>
+
+                  <div className="mt-1 space-y-1">
+                    <p className="text-sm text-blue-700 flex items-start">
+                      <MapPin className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" />
+                      {depotReturn.address}
+                    </p>
+                  </div>
+
+                  {/* Depot Return ETA */}
+                  {depotReturn.estimatedArrivalTime && (
+                    <div className="mt-2 p-2 bg-white bg-opacity-70 border border-blue-200 rounded-lg">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center text-blue-700">
+                          <Clock className="w-4 h-4 mr-1.5" />
+                          <span className="font-medium">Depoya Tahmini Varış:</span>
+                        </div>
+                        <span className="font-semibold text-blue-900">
+                          {formatETA(depotReturn.estimatedArrivalTime)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {stops.length === 0 && excludedStops.length === 0 && (
         <div className="text-center py-8 text-gray-500">

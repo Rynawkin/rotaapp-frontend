@@ -190,7 +190,19 @@ const RouteForm: React.FC<RouteFormProps> = ({
   const [mapCenter, setMapCenter] = useState<LatLng>({ lat: 40.9869, lng: 29.0252 });
   const [mapDirections, setMapDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [optimizing, setOptimizing] = useState(false);
-  const [optimizationMode, setOptimizationMode] = useState<'distance' | 'duration'>('distance');
+  const [avoidTolls, setAvoidTolls] = useState<boolean>(() => {
+    // Settings'den default değeri al
+    try {
+      const settings = localStorage.getItem('appSettings');
+      if (settings) {
+        const parsed = JSON.parse(settings);
+        return parsed.delivery?.defaultAvoidTolls || false;
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+    return false;
+  });
   const [defaultSignatureRequired, setDefaultSignatureRequired] = useState(false);
   const [defaultPhotoRequired, setDefaultPhotoRequired] = useState(false);
   const [optimizedOrder, setOptimizedOrder] = useState<number[]>(() => {
@@ -617,7 +629,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
         routeId = createdRoute.id;
       }
 
-      const optimizedRoute = await routeService.optimize(routeId, optimizationMode);
+      const optimizedRoute = await routeService.optimize(routeId, 'distance', avoidTolls);
 
       if (optimizedRoute.hasExclusions && optimizedRoute.excludedStops && optimizedRoute.excludedStops.length > 0) {
         setOptimizationStatus('partial');
@@ -1157,14 +1169,15 @@ const RouteForm: React.FC<RouteFormProps> = ({
               )}
 
               {stopsData.length > 1 && (
-                <select
-                  value={optimizationMode}
-                  onChange={(e) => setOptimizationMode(e.target.value as 'distance' | 'duration')}
-                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-                >
-                  <option value="distance">En Kısa Mesafe</option>
-                  <option value="duration">En Hızlı Rota</option>
-                </select>
+                <label className="flex items-center space-x-2 px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50 transition-colors cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={avoidTolls}
+                    onChange={(e) => setAvoidTolls(e.target.checked)}
+                    className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                  />
+                  <span className="text-gray-700 font-medium">Ücretli yolları kullanma</span>
+                </label>
               )}
 
               <button
@@ -1269,6 +1282,15 @@ const RouteForm: React.FC<RouteFormProps> = ({
                   onReorder={handleReorderStops}
                   onUpdateStop={handleUpdateStop}
                   onMoveExcludedToStops={handleMoveExcludedToStops}
+                  depotReturn={
+                    optimizationStatus !== 'none' && depots.find(d => d.id.toString() === formData.depotId?.toString())
+                      ? {
+                          name: depots.find(d => d.id.toString() === formData.depotId?.toString())?.name || 'Depo',
+                          address: depots.find(d => d.id.toString() === formData.depotId?.toString())?.address || '',
+                          estimatedArrivalTime: initialData?.endDetails?.estimatedArrivalTime
+                        }
+                      : undefined
+                  }
                 />
               </div>
             ) : (
