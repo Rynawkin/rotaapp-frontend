@@ -278,15 +278,15 @@ class RouteService {
             ContactPhone: customer?.phone || '',
             ContactEmail: customer?.email || '',
             Type: 10,
-            OrderType: 20,
+            OrderType: stop.orderType || 20, // Use orderType from stop data
             ProofOfDeliveryRequired: stop.proofOfDeliveryRequired || false,  // ✅ DÜZELTME
             SignatureRequired: stop.signatureRequired || false,              // ✅ YENİ
             PhotoRequired: stop.photoRequired || false,                      // ✅ YENİ
-            ArriveBetweenStart: stop.arriveBetweenStart ? 
-              (stop.arriveBetweenStart.includes(':') ? `${stop.arriveBetweenStart}:00` : stop.arriveBetweenStart) : 
+            ArriveBetweenStart: stop.arriveBetweenStart ?
+              (stop.arriveBetweenStart.includes(':') ? `${stop.arriveBetweenStart}:00` : stop.arriveBetweenStart) :
               (stop.overrideTimeWindow?.start ? `${stop.overrideTimeWindow.start}:00` : null),
-            ArriveBetweenEnd: stop.arriveBetweenEnd ? 
-              (stop.arriveBetweenEnd.includes(':') ? `${stop.arriveBetweenEnd}:00` : stop.arriveBetweenEnd) : 
+            ArriveBetweenEnd: stop.arriveBetweenEnd ?
+              (stop.arriveBetweenEnd.includes(':') ? `${stop.arriveBetweenEnd}:00` : stop.arriveBetweenEnd) :
               (stop.overrideTimeWindow?.end ? `${stop.overrideTimeWindow.end}:00` : null),
             ServiceTime: serviceTimeSpan,
             EstimatedArrivalTime: stop.estimatedArrivalTime || null,
@@ -403,15 +403,15 @@ class RouteService {
             ContactPhone: customer?.phone || '',
             ContactEmail: customer?.email || '',
             Type: 10,
-            OrderType: 20,
+            OrderType: stop.orderType || 20, // Use existing orderType from stop
             ProofOfDeliveryRequired: stop.proofOfDeliveryRequired || false,  // ✅ DÜZELTME
             SignatureRequired: stop.signatureRequired || false,              // ✅ YENİ
             PhotoRequired: stop.photoRequired || false,                      // ✅ YENİ
-            ArriveBetweenStart: stop.arriveBetweenStart ? 
-              (stop.arriveBetweenStart.includes(':') ? `${stop.arriveBetweenStart}:00` : stop.arriveBetweenStart) : 
+            ArriveBetweenStart: stop.arriveBetweenStart ?
+              (stop.arriveBetweenStart.includes(':') ? `${stop.arriveBetweenStart}:00` : stop.arriveBetweenStart) :
               (stop.overrideTimeWindow?.start ? `${stop.overrideTimeWindow.start}:00` : null),
-            ArriveBetweenEnd: stop.arriveBetweenEnd ? 
-              (stop.arriveBetweenEnd.includes(':') ? `${stop.arriveBetweenEnd}:00` : stop.arriveBetweenEnd) : 
+            ArriveBetweenEnd: stop.arriveBetweenEnd ?
+              (stop.arriveBetweenEnd.includes(':') ? `${stop.arriveBetweenEnd}:00` : stop.arriveBetweenEnd) :
               (stop.overrideTimeWindow?.end ? `${stop.overrideTimeWindow.end}:00` : null),
             ServiceTime: this.minutesToTimeSpan(stop.serviceTime),
             EstimatedArrivalTime: stop.estimatedArrivalTime || null,

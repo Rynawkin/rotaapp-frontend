@@ -646,6 +646,37 @@ const RouteForm: React.FC<RouteFormProps> = ({
         routeId = createdRoute.id;
       }
 
+      // Optimize öncesi OrderType'ları güncelle
+      console.log('🔄 Updating OrderTypes before optimization...');
+
+      // Mevcut route'u al
+      const currentRoute = await routeService.getById(routeId);
+
+      // Stops'ları pozisyon kısıtlamalarıyla güncelle
+      const updatedStops = stopsData.map((stopData, index) => {
+        const orderType = stopData.positionConstraint === 'first' ? 10 :
+                         stopData.positionConstraint === 'last' ? 30 : 20;
+
+        console.log(`📍 Updating ${stopData.customer.name}: ${stopData.positionConstraint} → ${orderType}`);
+
+        return {
+          ...currentRoute.stops[index],
+          orderType: orderType,
+          positionConstraint: stopData.positionConstraint
+        };
+      });
+
+      try {
+        await routeService.update(routeId, {
+          ...currentRoute,
+          stops: updatedStops
+        });
+        console.log('✅ OrderTypes updated successfully');
+      } catch (updateError) {
+        console.error('❌ Failed to update OrderTypes:', updateError);
+        // Continue with optimization anyway
+      }
+
       console.log('🚀 Sending optimize request with:', { routeId, mode: 'distance', avoidTolls });
       const optimizedRoute = await routeService.optimize(routeId, 'distance', avoidTolls);
       console.log('✅ Received optimize response:', optimizedRoute);
