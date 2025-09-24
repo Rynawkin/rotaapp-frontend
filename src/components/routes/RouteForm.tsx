@@ -1192,7 +1192,11 @@ const RouteForm: React.FC<RouteFormProps> = ({
                   <input
                     type="checkbox"
                     checked={avoidTolls}
-                    onChange={(e) => setAvoidTolls(e.target.checked)}
+                    onChange={(e) => {
+                      setAvoidTolls(e.target.checked);
+                      // Ücretli yol ayarı değiştiğinde optimizasyonu resetle
+                      resetOptimization();
+                    }}
                     className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
                   />
                   <span className="text-gray-700 font-medium">Ücretli yollardan kaçın</span>
