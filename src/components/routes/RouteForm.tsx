@@ -551,7 +551,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
       const directions = await googleMapsService.getDirections(
         depotLocation,
         waypointLocations,
-        depotLocation
+        depotLocation,
+        avoidTolls
       );
 
       if (directions) {
@@ -737,8 +738,13 @@ const RouteForm: React.FC<RouteFormProps> = ({
       }
 
       // EndDetails'i güncelle
+      console.log('🚛 Full API response:', optimizedRoute);
+      console.log('🏭 EndDetails from API:', optimizedRoute.endDetails);
       if (optimizedRoute.endDetails) {
+        console.log('✅ Setting EndDetails:', optimizedRoute.endDetails);
         setEndDetails(optimizedRoute.endDetails);
+      } else {
+        console.log('❌ No EndDetails in API response');
       }
 
       if (!isEdit) {

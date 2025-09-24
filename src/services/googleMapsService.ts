@@ -214,7 +214,8 @@ class GoogleMapsService {
     const directionResult = await this.getDirections(
       depot,
       sortedWaypoints.map(w => w.location),
-      depot
+      depot,
+      false // avoidTolls parametresi - frontend optimize fonksiyonu için false
     );
 
     // Toplam mesafe ve süre hesapla
@@ -370,7 +371,8 @@ class GoogleMapsService {
   async getDirections(
     origin: LatLng,
     waypoints: LatLng[],
-    destination: LatLng
+    destination: LatLng,
+    avoidTolls: boolean = false
   ): Promise<google.maps.DirectionsResult | null> {
     if (!this.directionsService) {
       console.error('Directions service not initialized');
@@ -389,7 +391,8 @@ class GoogleMapsService {
           travelMode: google.maps.TravelMode.DRIVING,
           optimizeWaypoints: false, // Zaten öncelik bazlı optimize ettik
           unitSystem: google.maps.UnitSystem.METRIC,
-          region: 'TR'
+          region: 'TR',
+          avoidTolls: avoidTolls
         },
         (result, status) => {
           if (status === 'OK' && result) {
