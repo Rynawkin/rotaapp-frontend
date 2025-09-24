@@ -213,7 +213,20 @@ const StopsList: React.FC<StopsListProps> = ({
       } else {
         delete updates.overrideTimeWindow;
       }
-      
+
+      // Position constraint validation
+      if (updates.positionConstraint && updates.positionConstraint !== 'none') {
+        const existingConstraints = stops.filter((stop, index) =>
+          index !== editingIndex && stop.positionConstraint === updates.positionConstraint
+        );
+
+        if (existingConstraints.length > 0) {
+          const constraintLabel = updates.positionConstraint === 'first' ? 'İlk Durak' : 'Son Durak';
+          alert(`Sadece bir durak ${constraintLabel} olarak işaretlenebilir. Önce diğer ${constraintLabel} işaretini kaldırın.`);
+          return;
+        }
+      }
+
       // Müşteri varsayılanı ile aynıysa override'ı kaldır
       const stop = stops[editingIndex];
       if (updates.overrideTimeWindow) {

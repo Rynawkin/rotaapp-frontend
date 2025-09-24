@@ -875,8 +875,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
         status: 'pending',
         arriveBetweenStart: timeWindow?.start,
         arriveBetweenEnd: timeWindow?.end,
-        orderType: stopData.positionConstraint === 'first' ? 'First' :
-                   stopData.positionConstraint === 'last' ? 'Last' : 'Auto',
+        orderType: stopData.positionConstraint === 'first' ? 10 :
+                   stopData.positionConstraint === 'last' ? 30 : 20,
         serviceTime: stopData.serviceTime,
         signatureRequired: stopData.signatureRequired,
         photoRequired: stopData.photoRequired,
@@ -953,8 +953,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
         status: 'pending',
         arriveBetweenStart: timeWindow?.start,
         arriveBetweenEnd: timeWindow?.end,
-        orderType: stopData.positionConstraint === 'first' ? 'First' :
-                   stopData.positionConstraint === 'last' ? 'Last' : 'Auto',
+        orderType: stopData.positionConstraint === 'first' ? 10 :
+                   stopData.positionConstraint === 'last' ? 30 : 20,
         serviceTime: stopData.serviceTime,
         signatureRequired: stopData.signatureRequired,
         photoRequired: stopData.photoRequired,
