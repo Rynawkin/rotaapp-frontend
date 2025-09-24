@@ -212,6 +212,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
   const [optimizationStatus, setOptimizationStatus] = useState<OptimizationStatus>('none');
   const [excludedStops, setExcludedStops] = useState<ExcludedStop[]>([]);
+  const [endDetails, setEndDetails] = useState<{ estimatedArrivalTime?: string } | null>(null);
 
   // Modal state'leri
   const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -302,6 +303,11 @@ const RouteForm: React.FC<RouteFormProps> = ({
         setOptimizedOrder(initialStops.map((_, index) => index));
         setOptimizationStatus('success');
         updateFormData({ optimized: true });
+
+        // EndDetails'i de set et
+        if (initialData.endDetails) {
+          setEndDetails(initialData.endDetails);
+        }
       }
     }
   }, [initialData, customers]);
@@ -726,6 +732,11 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
         setStopsData(backendOptimizedStops);
         setOptimizedOrder(backendOptimizedStops.map((_, i) => i));
+      }
+
+      // EndDetails'i güncelle
+      if (optimizedRoute.endDetails) {
+        setEndDetails(optimizedRoute.endDetails);
       }
 
       if (!isEdit) {
@@ -1176,7 +1187,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
                     onChange={(e) => setAvoidTolls(e.target.checked)}
                     className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
                   />
-                  <span className="text-gray-700 font-medium">Ücretli yolları kullanma</span>
+                  <span className="text-gray-700 font-medium">Ücretli yollardan kaçın</span>
                 </label>
               )}
 
@@ -1287,7 +1298,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
                       ? {
                           name: depots.find(d => d.id.toString() === formData.depotId?.toString())?.name || 'Depo',
                           address: depots.find(d => d.id.toString() === formData.depotId?.toString())?.address || '',
-                          estimatedArrivalTime: initialData?.endDetails?.estimatedArrivalTime
+                          estimatedArrivalTime: endDetails?.estimatedArrivalTime || initialData?.endDetails?.estimatedArrivalTime
                         }
                       : undefined
                   }

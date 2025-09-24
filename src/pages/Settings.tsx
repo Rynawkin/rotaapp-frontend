@@ -1056,8 +1056,8 @@ const Settings: React.FC = () => {
 
                   <label className="flex items-center justify-between">
                     <div>
-                      <span className="font-medium text-gray-700">Ücretli Yolları Kullanma</span>
-                      <p className="text-sm text-gray-500 mt-1">Rota optimizasyonunda ücretli yollar varsayılan olarak kullanılsın</p>
+                      <span className="font-medium text-gray-700">Ücretli Yollardan Kaçınma</span>
+                      <p className="text-sm text-gray-500 mt-1">Rota optimizasyonunda ücretli yollardan varsayılan olarak kaçınılsın</p>
                     </div>
                     <input
                       type="checkbox"
