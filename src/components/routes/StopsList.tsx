@@ -323,8 +323,6 @@ const StopsList: React.FC<StopsListProps> = ({
     switch (position) {
       case 'first':
         return 'text-green-600 bg-green-50';
-      case 'last':
-        return 'text-orange-600 bg-orange-50';
       case 'none':
       default:
         return 'text-gray-600 bg-gray-50';
@@ -534,8 +532,7 @@ const StopsList: React.FC<StopsListProps> = ({
                             <div className="flex items-center gap-2 mt-2">
                               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPositionColor(effectivePosition)}`}>
                                 {effectivePosition === 'first' && <Star className="w-3 h-3 mr-1" />}
-                                {effectivePosition === 'last' && <ArrowRight className="w-3 h-3 mr-1" />}
-                                {effectivePosition === 'first' ? 'İlk Durak' : effectivePosition === 'last' ? 'Son Durak' : 'Serbest Sıra'}
+                                {effectivePosition === 'first' ? 'İlk Durak' : 'Serbest Sıra'}
                                 {isPositionConstrained && (
                                   <span className="ml-1">(sabitlenmiş)</span>
                                 )}
