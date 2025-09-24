@@ -241,6 +241,7 @@ class RouteService {
         DriverId: data.driverId ? Number(data.driverId) : undefined,
         VehicleId: data.vehicleId ? Number(data.vehicleId) : undefined,
         Optimized: data.optimized || false,
+        AvoidTolls: false, // Default to false for new routes
         TotalDistance: data.totalDistance || 0,
         TotalDuration: data.totalDuration || 0,
         Notes: data.notes || '',

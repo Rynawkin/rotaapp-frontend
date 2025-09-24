@@ -27,7 +27,8 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
-  UserCheck
+  UserCheck,
+  Home
 } from 'lucide-react';
 import { Journey, JourneyStop, JourneyStatus } from '@/types';
 import { journeyService, CompleteStopDto } from '@/services/journey.service';
@@ -757,6 +758,11 @@ const JourneyDetail: React.FC = () => {
     return timespan;
   };
 
+  const formatETA = (eta?: string) => {
+    if (!eta) return '-';
+    return eta;
+  };
+
   // Fotoğraf galerisi handler'ları
   const handleViewPhotos = (photos: any[]) => {
     setJourneyPhotos(photos);
@@ -1264,6 +1270,38 @@ const JourneyDetail: React.FC = () => {
             );
           })}
         </div>
+
+        {/* Depo Dönüş - SON DURAKTAN SONRA EKLENEN */}
+        {journey.route?.optimized && journey.route?.endDetails && journey.route?.endDetails.estimatedArrivalTime && (
+          <div className="p-4 bg-green-50 border-t-2 border-green-200">
+            <div className="flex items-start">
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-600 text-white font-semibold text-sm mr-3 flex-shrink-0">
+                <Home className="w-4 h-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="font-medium text-green-900">
+                    🏭 Depoya Dönüş
+                  </h4>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-600">
+                    Son Durak
+                  </span>
+                </div>
+                <div className="mt-2 p-2 bg-green-100 border border-green-300 rounded">
+                  <div className="text-xs font-medium text-green-800 mb-1">
+                    Tahmini Depo Varış Saati
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-green-700">Depoya Varış:</span>
+                    <span className="font-bold text-green-900 text-sm">
+                      {formatETA(journey.route.endDetails.estimatedArrivalTime)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* MODALS - Geri kalan modal'lar aynı kalacak */}

@@ -912,6 +912,58 @@ const RouteDetail: React.FC = () => {
                     </div>
                   </div>
                 ))}
+
+                {/* Depo Dönüş - SON DURAKTAN SONRA EKLENEN */}
+                {route.optimized && route.endDetails && route.endDetails.estimatedArrivalTime && (
+                  <div className="p-4 bg-green-50 border-t-2 border-green-200">
+                    <div className="flex items-start">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-600 text-white font-semibold text-sm mr-3 flex-shrink-0">
+                        <Home className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <h4 className="font-medium text-green-900">
+                            🏭 Depoya Dönüş
+                          </h4>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-600">
+                            Son Durak
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-green-700 truncate mb-2">
+                          {route.endDetails.name || depot?.name || 'Depo'}
+                        </p>
+
+                        <div className="mt-2 p-2 bg-green-100 border border-green-300 rounded">
+                          <div className="text-xs font-medium text-green-800 mb-1">
+                            Tahmini Depo Varış Saati
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-green-700">Depoya Varış:</span>
+                            <span className="font-bold text-green-900 text-sm">
+                              {formatETA(route.endDetails.estimatedArrivalTime)}
+                            </span>
+                          </div>
+
+                          {route.stops.length > 0 && route.stops[route.stops.length - 1].estimatedDepartureTime && (
+                            <div className="mt-1 pt-1 border-t border-green-300">
+                              <div className="flex items-center text-xs text-green-700">
+                                <ArrowRight className="w-3 h-3 mr-0.5" />
+                                <span>
+                                  Son duraktan ayrılış: {formatETA(route.stops[route.stops.length - 1].estimatedDepartureTime)}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mt-2 text-xs text-green-600 italic">
+                          ✅ Rota tamamlandığında depoya dönüş yapılacak
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
