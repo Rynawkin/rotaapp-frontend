@@ -635,7 +635,9 @@ const RouteForm: React.FC<RouteFormProps> = ({
         routeId = createdRoute.id;
       }
 
+      console.log('🚀 Sending optimize request with:', { routeId, mode: 'distance', avoidTolls });
       const optimizedRoute = await routeService.optimize(routeId, 'distance', avoidTolls);
+      console.log('✅ Received optimize response:', optimizedRoute);
 
       if (optimizedRoute.hasExclusions && optimizedRoute.excludedStops && optimizedRoute.excludedStops.length > 0) {
         setOptimizationStatus('partial');
