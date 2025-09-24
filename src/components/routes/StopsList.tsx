@@ -44,6 +44,11 @@ interface StopsListProps {
   onUpdateStop: (index: number, updates: Partial<StopData>) => void;
   onExcludedStopEdit?: (customerId: string) => void;
   onMoveExcludedToStops?: (excluded: any) => void;
+  depotStart?: {
+    name: string;
+    address: string;
+    startTime: string;
+  };
   depotReturn?: {
     name: string;
     address: string;
@@ -60,6 +65,7 @@ const StopsList: React.FC<StopsListProps> = ({
   onUpdateStop,
   onExcludedStopEdit,
   onMoveExcludedToStops,
+  depotStart,
   depotReturn
 }) => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -323,6 +329,47 @@ const StopsList: React.FC<StopsListProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Başlangıç Deposu */}
+      {depotStart && (
+        <div className="p-4 bg-blue-50 border-t-2 border-blue-200 rounded-lg">
+          <div className="flex items-start">
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-semibold text-sm mr-3 flex-shrink-0">
+              🏭
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-1">
+                <h4 className="font-medium text-blue-900">
+                  Başlangıç Deposu
+                </h4>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">
+                  İlk Durak
+                </span>
+              </div>
+              <div className="mt-2 space-y-2">
+                <div className="flex items-center text-sm text-blue-700">
+                  <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <span className="font-semibold">{depotStart.name}</span>
+                </div>
+                <div className="text-xs text-blue-600 ml-6">
+                  {depotStart.address}
+                </div>
+                <div className="mt-2 p-2 bg-blue-100 border border-blue-300 rounded">
+                  <div className="text-xs font-medium text-blue-800 mb-1">
+                    Başlangıç Saati
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-blue-700">Depodan Çıkış:</span>
+                    <span className="font-bold text-blue-900 text-sm">
+                      {depotStart.startTime}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Optimize edilmiş duraklar başlığı */}
       {stops.length > 0 && (
         <div className={`flex items-center justify-between p-3 rounded-lg ${

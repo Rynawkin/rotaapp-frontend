@@ -809,6 +809,49 @@ const RouteDetail: React.FC = () => {
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
+                {/* Başlangıç Deposu - EN BAŞA EKLENEN */}
+                {route.depot && (
+                  <div className="p-4 bg-blue-50 border-t-2 border-blue-200">
+                    <div className="flex items-start">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-semibold text-sm mr-3 flex-shrink-0">
+                        🏭
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <h4 className="font-medium text-blue-900">
+                            Başlangıç Deposu
+                          </h4>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">
+                            İlk Durak
+                          </span>
+                        </div>
+                        <div className="mt-2 space-y-2">
+                          <div className="flex items-center text-sm text-blue-700">
+                            <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
+                            <span className="font-semibold">{route.depot.name}</span>
+                          </div>
+                          <div className="text-xs text-blue-600 ml-6">
+                            {route.depot.address}
+                          </div>
+                          {route.startDetails?.startTime && (
+                            <div className="mt-2 p-2 bg-blue-100 border border-blue-300 rounded">
+                              <div className="text-xs font-medium text-blue-800 mb-1">
+                                Başlangıç Saati
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-blue-700">Depodan Çıkış:</span>
+                                <span className="font-bold text-blue-900 text-sm">
+                                  {formatETA(route.startDetails.startTime)}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {route.stops.map((stop, index) => (
                   <div
                     key={stop.id}
@@ -1004,6 +1047,20 @@ const RouteDetail: React.FC = () => {
               <div className="flex-1">
                 <p className="text-sm text-gray-600">Depo</p>
                 <p className="font-medium">{depot?.name || route.depot?.name || 'Depo bilgisi yok'}</p>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-3">
+              <Clock className="w-5 h-5 text-gray-400 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm text-gray-600">Rota Başlangıç Saati</p>
+                <p className="font-medium">
+                  {route.startDetails?.plannedStartTime
+                    ? formatETA(route.startDetails.plannedStartTime)
+                    : route.startDetails?.startTime
+                    ? formatETA(route.startDetails.startTime)
+                    : 'Belirlenmemiş'}
+                </p>
               </div>
             </div>
 

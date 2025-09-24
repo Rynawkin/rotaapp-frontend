@@ -1106,6 +1106,43 @@ const JourneyDetail: React.FC = () => {
           <h3 className="font-semibold text-gray-900">Aktif Duraklar ({normalStops.length})</h3>
         </div>
         <div className="divide-y">
+          {/* BAŞLANGIÇ DEPOSU - EN BAŞA EKLENDİ */}
+          {journey.route?.depot && (
+            <div className="p-4 bg-blue-50 border-b-2 border-blue-200">
+              <div className="flex items-start">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-semibold text-sm mr-3 flex-shrink-0">
+                  <Home className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <h4 className="font-medium text-blue-900">
+                      🏭 Başlangıç Deposu
+                    </h4>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">
+                      Başlangıç
+                    </span>
+                  </div>
+                  <p className="text-sm text-blue-700 mb-2">
+                    {journey.route.depot.name} - {journey.route.depot.address}
+                  </p>
+                  {journey.route.startDetails?.plannedStartTime && (
+                    <div className="mt-2 p-2 bg-blue-100 border border-blue-300 rounded">
+                      <div className="text-xs font-medium text-blue-800 mb-1">
+                        Planlanan Çıkış Saati
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-blue-700">Depodan Çıkış:</span>
+                        <span className="font-bold text-blue-900 text-sm">
+                          {formatTimeSpan(journey.route.startDetails.plannedStartTime)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {normalStops.map((stop: JourneyStop, index: number) => {
             const stopStatusLower = stop.status?.toLowerCase() || 'pending';
 

@@ -1305,6 +1305,15 @@ const RouteForm: React.FC<RouteFormProps> = ({
                   onReorder={handleReorderStops}
                   onUpdateStop={handleUpdateStop}
                   onMoveExcludedToStops={handleMoveExcludedToStops}
+                  depotStart={
+                    depots.find(d => d.id.toString() === formData.depotId?.toString())
+                      ? {
+                          name: depots.find(d => d.id.toString() === formData.depotId?.toString())?.name || '',
+                          address: depots.find(d => d.id.toString() === formData.depotId?.toString())?.address || '',
+                          startTime: startTime
+                        }
+                      : null
+                  }
                   depotReturn={
                     optimizationStatus !== 'none' && depots.find(d => d.id.toString() === formData.depotId?.toString())
                       ? {
