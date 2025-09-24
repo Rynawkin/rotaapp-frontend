@@ -730,38 +730,21 @@ const RouteForm: React.FC<RouteFormProps> = ({
         setOptimizationStatus('success');
         setExcludedStops([]);
 
-        const optimizedStopsData = optimizedRoute.optimizedStops.map((stop: any) => {
-          const existingStopData = stopsData.find(s =>
-            s.customer.id.toString() === stop.customerId.toString()
-          );
-          return {
-            customer: stop.customer || customers.find(c => c.id.toString() === stop.customerId.toString()),
-            serviceTime: stop.serviceTime,
-            stopNotes: stop.stopNotes || existingStopData?.stopNotes,
-            overrideTimeWindow: existingStopData?.overrideTimeWindow,
-            overridePriority: existingStopData?.overridePriority,
-            signatureRequired: existingStopData?.signatureRequired,
-            photoRequired: existingStopData?.photoRequired,
-            estimatedArrivalTime: stop.estimatedArrivalTime,
-            estimatedDepartureTime: stop.estimatedDepartureTime
-          };
-        }).filter(Boolean);
-
-        setStopsData(optimizedStopsData);
-        setOptimizedOrder(optimizedStopsData.map((_, i) => i));
-
-      } else if (optimizedRoute.stops) {
-        setOptimizationStatus('success');
-        setExcludedStops([]);
-
-        const backendOptimizedStops = optimizedRoute.stops
-          .sort((a, b) => a.order - b.order)
-          .map(stop => {
+        const optimizedStopsData = optimizedRoute.optimizedStops
+          .filter((stop: any) => stop.customerId) // Depot stop'larını filtrele (customerId null olan)
+          .map((stop: any) => {
             const existingStopData = stopsData.find(s =>
               s.customer.id.toString() === stop.customerId.toString()
             );
+            const customer = stop.customer || customers.find(c => c.id.toString() === stop.customerId.toString());
+
+            if (!customer) {
+              console.warn('Customer not found for stop:', stop);
+              return null;
+            }
+
             return {
-              customer: stop.customer || customers.find(c => c.id.toString() === stop.customerId.toString()),
+              customer: customer,
               serviceTime: stop.serviceTime,
               stopNotes: stop.stopNotes || existingStopData?.stopNotes,
               overrideTimeWindow: existingStopData?.overrideTimeWindow,
@@ -771,7 +754,41 @@ const RouteForm: React.FC<RouteFormProps> = ({
               estimatedArrivalTime: stop.estimatedArrivalTime,
               estimatedDepartureTime: stop.estimatedDepartureTime
             };
-          });
+          }).filter(Boolean);
+
+        setStopsData(optimizedStopsData);
+        setOptimizedOrder(optimizedStopsData.map((_, i) => i));
+
+      } else if (optimizedRoute.stops) {
+        setOptimizationStatus('success');
+        setExcludedStops([]);
+
+        const backendOptimizedStops = optimizedRoute.stops
+          .filter(stop => stop.customerId) // Depot stop'larını filtrele (customerId null olan)
+          .sort((a, b) => a.order - b.order)
+          .map(stop => {
+            const existingStopData = stopsData.find(s =>
+              s.customer.id.toString() === stop.customerId.toString()
+            );
+            const customer = stop.customer || customers.find(c => c.id.toString() === stop.customerId.toString());
+
+            if (!customer) {
+              console.warn('Customer not found for stop:', stop);
+              return null;
+            }
+
+            return {
+              customer: customer,
+              serviceTime: stop.serviceTime,
+              stopNotes: stop.stopNotes || existingStopData?.stopNotes,
+              overrideTimeWindow: existingStopData?.overrideTimeWindow,
+              overridePriority: existingStopData?.overridePriority,
+              signatureRequired: existingStopData?.signatureRequired,
+              photoRequired: existingStopData?.photoRequired,
+              estimatedArrivalTime: stop.estimatedArrivalTime,
+              estimatedDepartureTime: stop.estimatedDepartureTime
+            };
+          }).filter(Boolean);
 
         setStopsData(backendOptimizedStops);
         setOptimizedOrder(backendOptimizedStops.map((_, i) => i));
