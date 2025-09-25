@@ -36,6 +36,7 @@ type OptimizationStatus = 'none' | 'success' | 'partial';
 
 interface StopData {
   customer: Customer;
+  routeStopId?: string | number; // Route stop ID for API calls
   overrideTimeWindow?: { start: string; end: string };
   positionConstraint?: 'first' | 'none';
   serviceTime?: number;
@@ -287,10 +288,15 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
         return {
           customer,
+          routeStopId: stop.id, // Route stop ID from backend
           overrideTimeWindow: stop.overrideTimeWindow,
           positionConstraint: stop.positionConstraint,
           serviceTime: stop.serviceTime || customer.estimatedServiceTime || 10,
-          stopNotes: stop.stopNotes
+          signatureRequired: stop.signatureRequired || false,
+          photoRequired: stop.photoRequired || false,
+          stopNotes: stop.stopNotes,
+          estimatedArrivalTime: stop.estimatedArrivalTime,
+          estimatedDepartureTime: stop.estimatedDepartureTime
         };
       })
       .filter(Boolean) as StopData[];
@@ -510,18 +516,54 @@ const RouteForm: React.FC<RouteFormProps> = ({
     setMapDirections(null);
   };
 
-  // DÜZELTME: handleUpdateStop fonksiyonu - validation hatası kontrolü eklendi
-  const handleUpdateStop = (index: number, updates: Partial<StopData>) => {
+  // DÜZELTME: handleUpdateStop fonksiyonu - API çağrısı eklendi
+  const handleUpdateStop = async (index: number, updates: Partial<StopData>) => {
     // Eğer updates boş gelirse (validation hatası durumu), hiçbir şey yapma
     if (!updates || Object.keys(updates).length === 0) {
       console.log('Empty updates received, skipping update');
       return;
     }
-    
+
     const newStops = [...stopsData];
-    newStops[index] = { ...newStops[index], ...updates };
+    const currentStop = newStops[index];
+
+    // Update local state first
+    newStops[index] = { ...currentStop, ...updates };
     setStopsData(newStops);
     resetOptimization();
+
+    // If this is an edit mode and we have route/stop IDs, update backend
+    if (isEdit && initialData?.id && currentStop.routeStopId) {
+      try {
+        const routeId = parseInt(initialData.id.toString());
+        const stopId = parseInt(currentStop.routeStopId.toString());
+
+        console.log('Attempting to update stop via API:', {
+          routeId,
+          stopId,
+          updates
+        });
+
+        // Convert updates to API format
+        const apiUpdates = {
+          customerId: updates.customer?.id ? parseInt(updates.customer.id.toString()) : undefined,
+          arriveBetweenStart: updates.overrideTimeWindow?.start,
+          arriveBetweenEnd: updates.overrideTimeWindow?.end,
+          serviceTime: updates.serviceTime ? `${updates.serviceTime}` : undefined,
+          signatureRequired: updates.signatureRequired,
+          photoRequired: updates.photoRequired,
+          notes: updates.stopNotes
+        };
+
+        await routeService.updateStop(routeId, stopId, apiUpdates);
+        console.log('Stop updated successfully via API');
+
+      } catch (error) {
+        console.error('Failed to update stop via API:', error);
+        // For now, continue with local state update
+        // In production, you might want to revert local state or show error message
+      }
+    }
   };
 
   const handleMoveExcludedToStops = (excludedStop: ExcludedStop) => {

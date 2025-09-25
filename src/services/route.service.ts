@@ -638,9 +638,9 @@ class RouteService {
           endDate: endDate.toISOString()
         }
       });
-      
+
       const customers = await this.loadCustomersSafely();
-      
+
       const routes = response.data.map((route: any) => ({
         ...route,
         stops: response.data.stops?.map((stop: any) => {
@@ -657,10 +657,71 @@ class RouteService {
         totalDuration: route.totalDuration || 0,
         completedDeliveries: route.completedDeliveries || 0
       }));
-      
+
       return routes;
     } catch (error) {
       console.error('Error fetching routes by date range:', error);
+      throw error;
+    }
+  }
+
+  async updateStop(routeId: number, stopId: number, updates: {
+    customerId?: number;
+    name?: string;
+    address?: string;
+    latitude?: number;
+    longitude?: number;
+    notes?: string;
+    contactFullName?: string;
+    contactPhone?: string;
+    contactEmail?: string;
+    type?: number;
+    orderType?: number;
+    proofOfDeliveryRequired?: boolean;
+    signatureRequired?: boolean;
+    photoRequired?: boolean;
+    arriveBetweenStart?: string;
+    arriveBetweenEnd?: string;
+    serviceTime?: string;
+  }): Promise<boolean> {
+    try {
+      console.log('=== UPDATING ROUTE STOP ===');
+      console.log('RouteId:', routeId);
+      console.log('StopId:', stopId);
+      console.log('Updates:', updates);
+
+      const updateData = {
+        StopId: stopId,
+        RouteId: routeId,
+        CustomerId: updates.customerId,
+        Name: updates.name,
+        Address: updates.address,
+        Latitude: updates.latitude,
+        Longitude: updates.longitude,
+        Notes: updates.notes,
+        ContactFullName: updates.contactFullName,
+        ContactPhone: updates.contactPhone,
+        ContactEmail: updates.contactEmail,
+        Type: updates.type,
+        OrderType: updates.orderType,
+        ProofOfDeliveryRequired: updates.proofOfDeliveryRequired,
+        SignatureRequired: updates.signatureRequired,
+        PhotoRequired: updates.photoRequired,
+        ArriveBetweenStart: updates.arriveBetweenStart ? `${updates.arriveBetweenStart}:00` : null,
+        ArriveBetweenEnd: updates.arriveBetweenEnd ? `${updates.arriveBetweenEnd}:00` : null,
+        ServiceTime: updates.serviceTime
+      };
+
+      console.log('Sending to UpdateStop API:', updateData);
+
+      const response = await api.put(`${this.baseUrl}/${routeId}/stops/${stopId}`, updateData);
+
+      console.log('UpdateStop response:', response.data);
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error updating route stop:', error);
+      console.error('Error response:', error.response?.data);
       throw error;
     }
   }

@@ -21,6 +21,7 @@ import { Customer } from '@/types';
 
 interface StopData {
   customer: Customer;
+  routeStopId?: string | number; // Route stop ID for API calls
   overrideTimeWindow?: { start: string; end: string };
   positionConstraint?: 'first' | 'none';
   serviceTime?: number;
