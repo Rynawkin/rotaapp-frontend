@@ -518,6 +518,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
   // DÜZELTME: handleUpdateStop fonksiyonu - API çağrısı eklendi
   const handleUpdateStop = async (index: number, updates: Partial<StopData>) => {
+    console.log('=== handleUpdateStop CALLED ===');
+    console.log('Index:', index);
+    console.log('Updates:', updates);
+    console.log('isEdit:', isEdit);
+    console.log('initialData?.id:', initialData?.id);
+
     // Eğer updates boş gelirse (validation hatası durumu), hiçbir şey yapma
     if (!updates || Object.keys(updates).length === 0) {
       console.log('Empty updates received, skipping update');
@@ -526,6 +532,9 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
     const newStops = [...stopsData];
     const currentStop = newStops[index];
+
+    console.log('currentStop:', currentStop);
+    console.log('currentStop.routeStopId:', currentStop?.routeStopId);
 
     // Update local state first
     newStops[index] = { ...currentStop, ...updates };
