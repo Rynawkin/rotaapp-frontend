@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { 
-  GripVertical, 
-  X, 
-  MapPin, 
-  Phone, 
+import {
+  GripVertical,
+  X,
+  MapPin,
+  Phone,
   Clock,
   Star,
   Edit2,
@@ -18,6 +18,27 @@ import {
   FileSignature
 } from 'lucide-react';
 import { Customer } from '@/types';
+
+// Helper function to format time window conflict into Turkish explanation
+const formatTimeWindowConflictMessage = (timeWindowConflict: string): string => {
+  if (!timeWindowConflict) return '';
+
+  // Parse time window conflict string - could be in formats like:
+  // "07:00 - 09:00"
+  // "TimeWindow: 07:00-09:00"
+  // etc.
+
+  const timePattern = /(\d{2}:\d{2})\s*[-–]\s*(\d{2}:\d{2})/;
+  const match = timeWindowConflict.match(timePattern);
+
+  if (match) {
+    const [, startTime, endTime] = match;
+    return `Zaman penceresi: ${startTime} - ${endTime} saatleri arasında ziyaret edilmeli`;
+  }
+
+  // If no time pattern found, return a generic message
+  return timeWindowConflict ? `Zaman kısıtlaması: ${timeWindowConflict}` : '';
+};
 
 interface StopData {
   customer: Customer;
@@ -904,7 +925,7 @@ const StopsList: React.FC<StopsListProps> = ({
                         {excluded.reason}
                       </p>
                       <p className="text-xs text-red-500 mt-1">
-                        {excluded.timeWindowConflict}
+                        {formatTimeWindowConflictMessage(excluded.timeWindowConflict)}
                       </p>
                     </div>
                   </div>

@@ -775,9 +775,22 @@ const RouteForm: React.FC<RouteFormProps> = ({
             } : undefined
           };
 
+          // Türkçe açıklayıcı mesaj oluştur
+          let reasonText = ex.reason || 'Zaman kısıtlamaları nedeniyle dahil edilemedi';
+
+          // Eğer time window conflict varsa daha açıklayıcı mesaj ver
+          if (ex.timeWindowConflict && (stopData?.overrideTimeWindow || customer?.timeWindow)) {
+            const timeWindow = stopData?.overrideTimeWindow || customer?.timeWindow;
+            if (timeWindow) {
+              reasonText = `Bu durak ${timeWindow.start} - ${timeWindow.end} saatleri arasında ziyaret edilmek istiyor, ancak rota planlamasında bu saat aralığına sığmıyor`;
+            }
+          } else if (customer?.timeWindow) {
+            reasonText = `Müşteri ${customer.timeWindow.start} - ${customer.timeWindow.end} saatleri arasında ziyaret edilmek istiyor, ancak rota planlamasında bu saat aralığına sığmıyor`;
+          }
+
           return {
             stopData: stopData || fallbackStopData,
-            reason: ex.reason || 'Belirtilen zaman aralığında teslimat yapılamıyor',
+            reason: reasonText,
             timeWindowConflict: ex.timeWindowConflict
           };
         }).filter(ex => ex.stopData?.customer); // customer'ı olmayan excluded stop'ları filtrele
@@ -939,12 +952,38 @@ const RouteForm: React.FC<RouteFormProps> = ({
   const calculateTotalDuration = () => {
     let totalMinutes = 0;
 
+    // Servis sürelerini ekle
     stopsData.forEach(stop => {
       totalMinutes += stop.serviceTime || stop.customer.estimatedServiceTime || 10;
     });
 
+    // Optimize edilmiş rotalar için gerçek süreyi kullan
+    if (formData.optimized && formData.totalDuration > 0) {
+      return formData.totalDuration;
+    }
+
+    // Optimize edilmemiş rotalar için yaklaşık hesaplama
     if (stopsData.length > 0) {
-      totalMinutes += stopsData.length * 15;
+      // Daha gerçekçi seyahat süresi hesaplaması
+      // Ortalama durak arası seyahat süresi (şehir içi trafik dikkate alınarak)
+      const avgTravelTimePerStop = stopsData.length <= 5 ? 20 : // Küçük rotalar: 20dk
+                                   stopsData.length <= 10 ? 15 : // Orta rotalar: 15dk
+                                   12; // Büyük rotalar: 12dk (daha yoğun)
+
+      totalMinutes += stopsData.length * avgTravelTimePerStop;
+
+      // Depot'a dönüş süresi (son duraktan depot'a)
+      totalMinutes += 25; // Ortalama 25 dakika dönüş
+
+      // Time window'ları olan duraklar için ek bekleme süresi
+      const timeWindowStops = stopsData.filter(stop =>
+        stop.overrideTimeWindow || stop.customer.timeWindow
+      );
+      if (timeWindowStops.length > 0) {
+        // Her time window'lu durak için ortalama 10dk ekstra süre
+        // (erken varma durumunda bekleme süresi)
+        totalMinutes += timeWindowStops.length * 10;
+      }
     }
 
     return totalMinutes;
