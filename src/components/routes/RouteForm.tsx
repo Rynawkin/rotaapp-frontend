@@ -975,14 +975,14 @@ const RouteForm: React.FC<RouteFormProps> = ({
       // Depot'a dönüş süresi (son duraktan depot'a)
       totalMinutes += 25; // Ortalama 25 dakika dönüş
 
-      // Time window'ları olan duraklar için ek bekleme süresi
+      // Time window'ları olan duraklar için minimal ek bekleme süresi
       const timeWindowStops = stopsData.filter(stop =>
         stop.overrideTimeWindow || stop.customer.timeWindow
       );
       if (timeWindowStops.length > 0) {
-        // Her time window'lu durak için ortalama 10dk ekstra süre
-        // (erken varma durumunda bekleme süresi)
-        totalMinutes += timeWindowStops.length * 10;
+        // Her time window'lu durak için ortalama 3dk ekstra süre
+        // (erken varma durumunda minimal bekleme süresi)
+        totalMinutes += timeWindowStops.length * 3;
       }
     }
 
