@@ -593,10 +593,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
         lng: selectedDepot.longitude
       };
 
-      const waypointLocations = stopsData.map(stop => ({
-        lat: stop.customer.latitude,
-        lng: stop.customer.longitude
-      }));
+      const waypointLocations = stopsData
+        .filter(stop => stop.customer && stop.customer.latitude !== undefined && stop.customer.longitude !== undefined)
+        .map(stop => ({
+          lat: stop.customer.latitude,
+          lng: stop.customer.longitude
+        }));
 
       googleMapsService.initializeServices();
 
@@ -755,14 +757,19 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
         const excluded: ExcludedStop[] = optimizedRoute.excludedStops.map((ex: any) => {
           const stopData = stopsData.find(s =>
-            s.customer.id.toString() === ex.stop.customerId.toString()
+            s.customer.id.toString() === ex.stop?.customerId?.toString()
+          );
+
+          // Eğer stopData bulunamazsa, customer'ı customers array'inden bul
+          const customer = ex.stop?.customer || customers.find(c =>
+            c.id.toString() === ex.stop?.customerId?.toString()
           );
 
           const fallbackStopData: StopData = {
-            customer: ex.stop.customer,
-            serviceTime: ex.stop.serviceTime,
-            stopNotes: ex.stop.stopNotes,
-            overrideTimeWindow: ex.stop.arriveBetweenStart ? {
+            customer: customer,
+            serviceTime: ex.stop?.serviceTime || '00:15:00',
+            stopNotes: ex.stop?.stopNotes || '',
+            overrideTimeWindow: ex.stop?.arriveBetweenStart ? {
               start: ex.stop.arriveBetweenStart,
               end: ex.stop.arriveBetweenEnd
             } : undefined
@@ -773,7 +780,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
             reason: ex.reason || 'Belirtilen zaman aralığında teslimat yapılamıyor',
             timeWindowConflict: ex.timeWindowConflict
           };
-        });
+        }).filter(ex => ex.stopData?.customer); // customer'ı olmayan excluded stop'ları filtrele
 
         setExcludedStops(excluded);
 
@@ -781,8 +788,15 @@ const RouteForm: React.FC<RouteFormProps> = ({
           const existingStopData = stopsData.find(s =>
             s.customer.id.toString() === stop.customerId.toString()
           );
+          const customer = stop.customer || customers.find(c => c.id.toString() === stop.customerId.toString());
+
+          if (!customer) {
+            console.warn('Customer not found for optimized stop:', stop);
+            return null;
+          }
+
           return {
-            customer: stop.customer || customers.find(c => c.id.toString() === stop.customerId.toString()),
+            customer: customer,
             serviceTime: stop.serviceTime,
             stopNotes: stop.stopNotes || existingStopData?.stopNotes,
             overrideTimeWindow: existingStopData?.overrideTimeWindow,
