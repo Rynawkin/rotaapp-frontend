@@ -706,13 +706,32 @@ const RouteForm: React.FC<RouteFormProps> = ({
       // Stops'ları pozisyon kısıtlamalarıyla güncelle
       const updatedStops = stopsData.map((stopData, index) => {
         const orderType = stopData.positionConstraint === 'first' ? 10 : 20;
+        const currentStop = currentRoute.stops[index];
 
         console.log(`📍 Updating ${stopData.customer.name}: ${stopData.positionConstraint} → ${orderType}`);
 
+        // Time window handling - Override varsa onu kullan, yoksa customer default'unu kullan
+        let arriveBetweenStart: string | null = null;
+        let arriveBetweenEnd: string | null = null;
+
+        if (stopData.overrideTimeWindow) {
+          // Override time window varsa onu kullan
+          const timeWindow = validateTimeWindow(stopData.overrideTimeWindow.start, stopData.overrideTimeWindow.end);
+          arriveBetweenStart = timeWindow?.start || null;
+          arriveBetweenEnd = timeWindow?.end || null;
+        } else if (stopData.customer.timeWindow) {
+          // Override yoksa customer'ın default time window'unu kullan
+          const timeWindow = validateTimeWindow(stopData.customer.timeWindow.start, stopData.customer.timeWindow.end);
+          arriveBetweenStart = timeWindow?.start || null;
+          arriveBetweenEnd = timeWindow?.end || null;
+        }
+
         return {
-          ...currentRoute.stops[index],
+          ...currentStop,
           orderType: orderType,
-          positionConstraint: stopData.positionConstraint
+          positionConstraint: stopData.positionConstraint,
+          arriveBetweenStart: arriveBetweenStart,
+          arriveBetweenEnd: arriveBetweenEnd
         };
       });
 
