@@ -967,10 +967,20 @@ const RouteForm: React.FC<RouteFormProps> = ({
         throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
       }
 
-      // Time window validation
-      let timeWindow = stopData.overrideTimeWindow;
-      if (timeWindow) {
-        timeWindow = validateTimeWindow(timeWindow.start, timeWindow.end) || undefined;
+      // Time window handling - Override varsa onu kullan, yoksa customer default'unu kullan
+      let arriveBetweenStart: string | undefined;
+      let arriveBetweenEnd: string | undefined;
+
+      if (stopData.overrideTimeWindow) {
+        // Override time window varsa onu kullan
+        const timeWindow = validateTimeWindow(stopData.overrideTimeWindow.start, stopData.overrideTimeWindow.end);
+        arriveBetweenStart = timeWindow?.start;
+        arriveBetweenEnd = timeWindow?.end;
+      } else if (customer.timeWindow) {
+        // Override yoksa customer'ın default time window'unu kullan
+        const timeWindow = validateTimeWindow(customer.timeWindow.start, customer.timeWindow.end);
+        arriveBetweenStart = timeWindow?.start;
+        arriveBetweenEnd = timeWindow?.end;
       }
 
       return {
@@ -980,8 +990,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
         customer: customer,
         order: index + 1,
         status: 'pending',
-        arriveBetweenStart: timeWindow?.start,
-        arriveBetweenEnd: timeWindow?.end,
+        arriveBetweenStart: arriveBetweenStart,
+        arriveBetweenEnd: arriveBetweenEnd,
         orderType: stopData.positionConstraint === 'first' ? 10 : 20,
         serviceTime: stopData.serviceTime,
         signatureRequired: stopData.signatureRequired,
@@ -1044,10 +1054,20 @@ const RouteForm: React.FC<RouteFormProps> = ({
         throw new Error(`Durak ${index + 1} için geçersiz müşteri ID`);
       }
 
-      // Time window validation
-      let timeWindow = stopData.overrideTimeWindow;
-      if (timeWindow) {
-        timeWindow = validateTimeWindow(timeWindow.start, timeWindow.end) || undefined;
+      // Time window handling - Override varsa onu kullan, yoksa customer default'unu kullan
+      let arriveBetweenStart: string | undefined;
+      let arriveBetweenEnd: string | undefined;
+
+      if (stopData.overrideTimeWindow) {
+        // Override time window varsa onu kullan
+        const timeWindow = validateTimeWindow(stopData.overrideTimeWindow.start, stopData.overrideTimeWindow.end);
+        arriveBetweenStart = timeWindow?.start;
+        arriveBetweenEnd = timeWindow?.end;
+      } else if (customer.timeWindow) {
+        // Override yoksa customer'ın default time window'unu kullan
+        const timeWindow = validateTimeWindow(customer.timeWindow.start, customer.timeWindow.end);
+        arriveBetweenStart = timeWindow?.start;
+        arriveBetweenEnd = timeWindow?.end;
       }
 
       return {
@@ -1057,8 +1077,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
         customer: customer,
         order: index + 1,
         status: 'pending',
-        arriveBetweenStart: timeWindow?.start,
-        arriveBetweenEnd: timeWindow?.end,
+        arriveBetweenStart: arriveBetweenStart,
+        arriveBetweenEnd: arriveBetweenEnd,
         orderType: stopData.positionConstraint === 'first' ? 10 : 20,
         serviceTime: stopData.serviceTime,
         signatureRequired: stopData.signatureRequired,
