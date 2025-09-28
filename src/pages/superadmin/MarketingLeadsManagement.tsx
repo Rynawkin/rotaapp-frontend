@@ -73,13 +73,27 @@ const MarketingLeadsManagement: React.FC = () => {
       if (statusFilter !== 'all') params.status = statusFilter;
       if (sourceFilter !== 'all') params.source = sourceFilter;
 
-      const [leadsData, statsData] = await Promise.all([
-        adminService.getMarketingLeads(params),
-        adminService.getMarketingLeadStats()
-      ]);
-
+      // Load leads data
+      const leadsData = await adminService.getMarketingLeads(params);
       setLeads(leadsData);
-      setStats(statsData);
+
+      // Try to load stats, but don't fail if it errors
+      try {
+        const statsData = await adminService.getMarketingLeadStats();
+        setStats(statsData);
+      } catch (statsError) {
+        console.error('Error loading stats:', statsError);
+        // Set default stats if API fails
+        setStats({
+          totalLeads: leadsData.length || 0,
+          newLeads: 0,
+          qualifiedLeads: 0,
+          wonLeads: 0,
+          thisMonthLeads: 0,
+          conversionRate: 0
+        });
+        toast.error('İstatistikler yüklenemedi, varsayılan değerler gösteriliyor');
+      }
     } catch (error) {
       console.error('Error loading marketing leads:', error);
       toast.error('Marketing lead\'leri yüklenemedi');
