@@ -51,6 +51,7 @@ const WorkspaceDetail = lazy(() => import('@/pages/superadmin/WorkspaceDetail'))
 const WorkspaceEdit = lazy(() => import('@/pages/superadmin/WorkspaceEdit'));
 const PublicFeedback = lazy(() => import('./pages/PublicFeedback'));
 const IssuesManagement = lazy(() => import('./pages/superadmin/IssuesManagement'));
+const MarketingLeadsManagement = lazy(() => import('./pages/superadmin/MarketingLeadsManagement'));
 const PrivacyPolicy = lazy(() => import('./pages/legal/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/legal/TermsOfService'));
 const Support = lazy(() => import('./pages/legal/Support'));
@@ -280,6 +281,11 @@ const AppRoutes: React.FC = () => {
       <Route path="/superadmin/issues" element={
         <ProtectedRoute requiredRole="SuperAdmin">
           <IssuesManagement />
+        </ProtectedRoute>
+      } />
+      <Route path="/superadmin/marketing-leads" element={
+        <ProtectedRoute requiredRole="SuperAdmin">
+          <MarketingLeadsManagement />
         </ProtectedRoute>
       } />
       <Route path="/super-admin/workspace/:id/edit" element={

@@ -60,5 +60,26 @@ export const adminService = {
   async updateIssueStatus(issueId: number, data: { status: string; adminNotes?: string }) {
     const response = await api.put(`/workspace/issues/${issueId}/status`, data);
     return response.data;
+  },
+
+  // Marketing Lead Management Methods - YENİ EKLENEN
+  async getMarketingLeads(params?: any) {
+    const response = await api.get('/marketinglead', { params });
+    return response.data;
+  },
+
+  async getMarketingLead(id: number) {
+    const response = await api.get(`/marketinglead/${id}`);
+    return response.data;
+  },
+
+  async updateMarketingLead(id: number, data: { status: number; adminNotes?: string; assignedTo?: string }) {
+    const response = await api.put(`/marketinglead/${id}`, data);
+    return response.data;
+  },
+
+  async getMarketingLeadStats() {
+    const response = await api.get('/marketinglead/stats');
+    return response.data;
   }
 };

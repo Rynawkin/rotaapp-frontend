@@ -315,10 +315,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
       badge: 'SUPER',
       roles: ['superadmin'] // Sadece Super Admin
     },
-    { 
-      icon: Bug, 
-      label: 'Sorun Bildirimleri', 
-      path: '/superadmin/issues', 
+    {
+      icon: Bug,
+      label: 'Sorun Bildirimleri',
+      path: '/superadmin/issues',
+      badge: null,
+      roles: ['superadmin'] // Sadece Super Admin
+    },
+    {
+      icon: Users,
+      label: 'Marketing Lead\'leri',
+      path: '/superadmin/marketing-leads',
       badge: null,
       roles: ['superadmin'] // Sadece Super Admin
     }
@@ -711,13 +718,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
                             <Shield className="w-4 h-4 mr-2 text-gray-600" />
                             <span className="text-sm text-gray-700">Super Admin Panel</span>
                           </Link>
-                          <Link 
-                            to="/superadmin/issues" 
+                          <Link
+                            to="/superadmin/issues"
                             className="flex items-center px-4 py-2 hover:bg-gray-50"
                             onClick={() => setUserMenuOpen(false)}
                           >
                             <Bug className="w-4 h-4 mr-2 text-gray-600" />
                             <span className="text-sm text-gray-700">Sorun Bildirimleri</span>
+                          </Link>
+                          <Link
+                            to="/superadmin/marketing-leads"
+                            className="flex items-center px-4 py-2 hover:bg-gray-50"
+                            onClick={() => setUserMenuOpen(false)}
+                          >
+                            <Users className="w-4 h-4 mr-2 text-gray-600" />
+                            <span className="text-sm text-gray-700">Marketing Lead'leri</span>
                           </Link>
                         </>
                       )}
