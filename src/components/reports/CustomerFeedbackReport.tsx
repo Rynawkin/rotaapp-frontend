@@ -17,7 +17,8 @@ import {
   AlertCircle,
   Award,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  FileSpreadsheet
 } from 'lucide-react';
 import {
   BarChart,
@@ -53,6 +54,7 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [filterRating, setFilterRating] = useState<number | null>(null);
+  const [filterDriverId, setFilterDriverId] = useState<number | null>(null);
   const [view, setView] = useState<'overview' | 'details'>('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'submittedAt' | 'rating' | 'routeDate'>('submittedAt');
@@ -154,6 +156,11 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
       );
     }
 
+    // Şoför filtresi
+    if (filterDriverId) {
+      filtered = filtered.filter(f => f.driver?.id === filterDriverId);
+    }
+
     // Sıralama
     filtered.sort((a, b) => {
       let compareValue = 0;
@@ -179,6 +186,60 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
       setSortBy(field);
       setSortOrder('desc');
     }
+  };
+
+  // Excel export (filtrelenmiş sonuçlar)
+  const exportToExcel = () => {
+    const filteredData = getFilteredAndSortedFeedbacks();
+
+    if (filteredData.length === 0) {
+      toast.error('Dışa aktarılacak veri yok');
+      return;
+    }
+
+    // CSV formatında oluştur (Excel tarafından açılabilir)
+    let csv = '\uFEFF'; // UTF-8 BOM
+    csv += 'Müşteri,Adres,Sürücü,Genel Puan,Hız Puanı,Sürücü Davranış Puanı,Paket Durum Puanı,Yorum,Rota Tarihi,Form Gönderim Tarihi\n';
+
+    filteredData.forEach(feedback => {
+      const row = [
+        feedback.customer.name,
+        feedback.customer.address,
+        feedback.driver?.name || '-',
+        feedback.overallRating,
+        feedback.deliverySpeedRating || '-',
+        feedback.driverBehaviorRating || '-',
+        feedback.packageConditionRating || '-',
+        (feedback.comments || '-').replace(/"/g, '""'), // CSV escape
+        format(new Date(feedback.journey.date), 'dd/MM/yyyy'),
+        format(new Date(feedback.submittedAt), 'dd/MM/yyyy HH:mm')
+      ];
+      csv += row.map(cell => `"${cell}"`).join(',') + '\n';
+    });
+
+    // Download
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `musteri-memnuniyeti-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.success(`${filteredData.length} kayıt Excel'e aktarıldı`);
+  };
+
+  // Benzersiz şoförleri al
+  const getUniqueDrivers = () => {
+    const driversMap = new Map();
+    feedbacks.forEach(f => {
+      if (f.driver) {
+        driversMap.set(f.driver.id, f.driver);
+      }
+    });
+    return Array.from(driversMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   };
 
   const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'];
@@ -210,8 +271,8 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
             <button
               onClick={() => setView('overview')}
               className={`px-3 py-1 rounded ${
-                view === 'overview' 
-                  ? 'bg-blue-100 text-blue-700' 
+                view === 'overview'
+                  ? 'bg-blue-100 text-blue-700'
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
@@ -220,21 +281,32 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
             <button
               onClick={() => setView('details')}
               className={`px-3 py-1 rounded ${
-                view === 'details' 
-                  ? 'bg-blue-100 text-blue-700' 
+                view === 'details'
+                  ? 'bg-blue-100 text-blue-700'
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
               Detaylı Liste
             </button>
           </div>
-          <button
-            onClick={exportToCSV}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-          >
-            <Download className="w-4 h-4" />
-            CSV İndir
-          </button>
+          {view === 'overview' ? (
+            <button
+              onClick={exportToCSV}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              CSV İndir
+            </button>
+          ) : (
+            <button
+              onClick={exportToExcel}
+              disabled={getFilteredAndSortedFeedbacks().length === 0}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              Excel İndir ({getFilteredAndSortedFeedbacks().length})
+            </button>
+          )}
         </div>
       </div>
 
@@ -467,8 +539,8 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
         <div className="bg-white rounded-xl shadow-sm">
           {/* Filtreler ve Arama */}
           <div className="p-4 border-b space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 flex-1">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3 flex-1 flex-wrap">
                 <Filter className="w-4 h-4 text-gray-500" />
 
                 {/* Puan Filtresi */}
@@ -485,6 +557,18 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
                   <option value="1">1 Yıldız</option>
                 </select>
 
+                {/* Şoför Filtresi */}
+                <select
+                  value={filterDriverId || ''}
+                  onChange={(e) => setFilterDriverId(e.target.value ? Number(e.target.value) : null)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Tüm Şoförler</option>
+                  {getUniqueDrivers().map(driver => (
+                    <option key={driver.id} value={driver.id}>{driver.name}</option>
+                  ))}
+                </select>
+
                 {/* Arama */}
                 <div className="relative flex-1 max-w-xs">
                   <input
@@ -499,7 +583,7 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
               </div>
 
               <div className="text-sm text-gray-600">
-                {getFilteredAndSortedFeedbacks().length} / {stats.totalFeedbacks} geri bildirim
+                {getFilteredAndSortedFeedbacks().length} / {stats.totalFeedbacks} kayıt
               </div>
             </div>
           </div>
