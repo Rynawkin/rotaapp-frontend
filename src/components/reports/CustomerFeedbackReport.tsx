@@ -54,6 +54,9 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
   const [totalPages, setTotalPages] = useState(1);
   const [filterRating, setFilterRating] = useState<number | null>(null);
   const [view, setView] = useState<'overview' | 'details'>('overview');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'submittedAt' | 'rating' | 'routeDate'>('submittedAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     loadData();
@@ -137,6 +140,45 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
         }`}
       />
     ));
+  };
+
+  // Filtreleme ve sıralama
+  const getFilteredAndSortedFeedbacks = () => {
+    let filtered = [...feedbacks];
+
+    // Arama filtresi
+    if (searchTerm) {
+      filtered = filtered.filter(f =>
+        f.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        f.customer.address.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Sıralama
+    filtered.sort((a, b) => {
+      let compareValue = 0;
+
+      if (sortBy === 'submittedAt') {
+        compareValue = new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime();
+      } else if (sortBy === 'rating') {
+        compareValue = a.overallRating - b.overallRating;
+      } else if (sortBy === 'routeDate') {
+        compareValue = new Date(a.journey.date).getTime() - new Date(b.journey.date).getTime();
+      }
+
+      return sortOrder === 'asc' ? compareValue : -compareValue;
+    });
+
+    return filtered;
+  };
+
+  const handleSort = (field: 'submittedAt' | 'rating' | 'routeDate') => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('desc');
+    }
   };
 
   const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'];
@@ -385,11 +427,14 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
                 <div key={feedback.id} className="border-l-4 border-blue-500 pl-4 py-2">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <p className="font-medium text-gray-900">{feedback.customer.name}</p>
                         <div className="flex">{renderStars(feedback.overallRating)}</div>
                         <span className="text-sm text-gray-500">
-                          {format(new Date(feedback.submittedAt), 'dd MMM yyyy HH:mm', { locale: tr })}
+                          Form: {format(new Date(feedback.submittedAt), 'dd MMM yyyy HH:mm', { locale: tr })}
+                        </span>
+                        <span className="text-sm text-gray-400">
+                          | Rota: {format(new Date(feedback.journey.date), 'dd MMM yyyy', { locale: tr })}
                         </span>
                       </div>
                       {feedback.comments && (
@@ -420,25 +465,42 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
       ) : (
         /* Detaylı Liste Görünümü */
         <div className="bg-white rounded-xl shadow-sm">
-          {/* Filtreler */}
-          <div className="p-4 border-b flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Filter className="w-4 h-4 text-gray-500" />
-              <select
-                value={filterRating || ''}
-                onChange={(e) => setFilterRating(e.target.value ? Number(e.target.value) : null)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Tüm Puanlar</option>
-                <option value="5">5 Yıldız</option>
-                <option value="4">4 Yıldız</option>
-                <option value="3">3 Yıldız</option>
-                <option value="2">2 Yıldız</option>
-                <option value="1">1 Yıldız</option>
-              </select>
-            </div>
-            <div className="text-sm text-gray-600">
-              Toplam {stats.totalFeedbacks} geri bildirim
+          {/* Filtreler ve Arama */}
+          <div className="p-4 border-b space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 flex-1">
+                <Filter className="w-4 h-4 text-gray-500" />
+
+                {/* Puan Filtresi */}
+                <select
+                  value={filterRating || ''}
+                  onChange={(e) => setFilterRating(e.target.value ? Number(e.target.value) : null)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Tüm Puanlar</option>
+                  <option value="5">5 Yıldız</option>
+                  <option value="4">4 Yıldız</option>
+                  <option value="3">3 Yıldız</option>
+                  <option value="2">2 Yıldız</option>
+                  <option value="1">1 Yıldız</option>
+                </select>
+
+                {/* Arama */}
+                <div className="relative flex-1 max-w-xs">
+                  <input
+                    type="text"
+                    placeholder="Müşteri adı ara..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <User className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                </div>
+              </div>
+
+              <div className="text-sm text-gray-600">
+                {getFilteredAndSortedFeedbacks().length} / {stats.totalFeedbacks} geri bildirim
+              </div>
             </div>
           </div>
 
@@ -448,17 +510,54 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
               <thead>
                 <tr className="border-b bg-gray-50">
                   <th className="text-left py-3 px-4 font-medium text-gray-700">Müşteri</th>
-                  <th className="text-center py-3 px-4 font-medium text-gray-700">Genel</th>
+                  <th
+                    className="text-center py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('rating')}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      Genel Puan
+                      {sortBy === 'rating' && (
+                        <span className="text-blue-600">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
                   <th className="text-center py-3 px-4 font-medium text-gray-700">Hız</th>
                   <th className="text-center py-3 px-4 font-medium text-gray-700">Sürücü</th>
                   <th className="text-center py-3 px-4 font-medium text-gray-700">Paket</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-700">Yorum</th>
-                  <th className="text-center py-3 px-4 font-medium text-gray-700">Tarih</th>
+                  <th
+                    className="text-center py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('routeDate')}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      Rota Tarihi
+                      {sortBy === 'routeDate' && (
+                        <span className="text-blue-600">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    className="text-center py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('submittedAt')}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      Form Tarihi
+                      {sortBy === 'submittedAt' && (
+                        <span className="text-blue-600">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
                   <th className="text-center py-3 px-4 font-medium text-gray-700">İşlem</th>
                 </tr>
               </thead>
               <tbody>
-                {feedbacks.map((feedback) => (
+                {getFilteredAndSortedFeedbacks().map((feedback) => (
                   <tr key={feedback.id} className="border-b hover:bg-gray-50">
                     <td className="py-3 px-4">
                       <div>
@@ -505,7 +604,17 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
                       )}
                     </td>
                     <td className="text-center py-3 px-4 text-sm text-gray-600">
-                      {format(new Date(feedback.submittedAt), 'dd/MM/yyyy')}
+                      {format(new Date(feedback.journey.date), 'dd/MM/yyyy')}
+                    </td>
+                    <td className="text-center py-3 px-4">
+                      <div className="text-sm">
+                        <div className="text-gray-900">
+                          {format(new Date(feedback.submittedAt), 'dd/MM/yyyy')}
+                        </div>
+                        <div className="text-gray-500 text-xs">
+                          {format(new Date(feedback.submittedAt), 'HH:mm')}
+                        </div>
+                      </div>
                     </td>
                     <td className="text-center py-3 px-4">
                       <button
@@ -660,12 +769,18 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
                 </div>
               )}
 
-              {/* Gönderim Bilgileri */}
+              {/* Tarih Bilgileri */}
               <div>
-                <h4 className="font-medium text-gray-900 mb-3">Gönderim Bilgileri</h4>
+                <h4 className="font-medium text-gray-900 mb-3">Tarih Bilgileri</h4>
                 <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Gönderim Tarihi:</span>
+                    <span className="text-gray-600">Rota Tarihi:</span>
+                    <span className="font-medium">
+                      {format(new Date(selectedFeedback.journey.date), 'dd MMMM yyyy', { locale: tr })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Form Gönderim Tarihi:</span>
                     <span className="font-medium">
                       {format(new Date(selectedFeedback.submittedAt), 'dd MMMM yyyy HH:mm', { locale: tr })}
                     </span>

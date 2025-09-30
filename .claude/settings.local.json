@@ -19,7 +19,8 @@
       "Read(//c/Users/QP/Desktop/**)",
       "Bash(find:*)",
       "Bash(cat:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []
