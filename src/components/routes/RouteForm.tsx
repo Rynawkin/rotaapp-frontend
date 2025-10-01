@@ -436,6 +436,17 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
   // Toplu müşteri ekleme handler'ı
   const handleAddMultipleCustomers = (customers: Customer[]) => {
+    // TIME WINDOW KONTROLÜ: 25 durak limiti
+    const hasTimeWindows = [...stopsData, ...customers.map(c => ({ customer: c }))]
+      .some(s => s.customer.timeWindow || (s as any).overrideTimeWindow);
+
+    const futureStopCount = stopsData.length + customers.length;
+
+    if (hasTimeWindows && futureStopCount > 25) {
+      alert(`⚠️ Zaman pencereli rotalar için maksimum 25 durak ekleyebilirsiniz.\n\nMevcut: ${stopsData.length} durak\nEklemek istediğiniz: ${customers.length} durak\nToplam: ${futureStopCount} durak\n\nLütfen daha az müşteri seçin veya mevcut duraklardan bazılarını kaldırın.`);
+      return;
+    }
+
     const newStops: StopData[] = customers
       .filter(customer => {
         // Zaten eklenmişleri filtrele
@@ -469,12 +480,22 @@ const RouteForm: React.FC<RouteFormProps> = ({
   const handleCreateCustomer = async (customerData: Partial<Customer>) => {
     setSavingCustomer(true);
     try {
+      // TIME WINDOW KONTROLÜ: 25 durak limiti
+      const hasTimeWindows = stopsData.some(s => s.customer.timeWindow || s.overrideTimeWindow) ||
+                             customerData.timeWindow;
+
+      if (hasTimeWindows && stopsData.length >= 25) {
+        alert(`⚠️ Zaman pencereli rotalar için maksimum 25 durak ekleyebilirsiniz.\n\nMevcut durak sayısı: ${stopsData.length}\n\nLütfen önce mevcut duraklardan bazılarını kaldırın.`);
+        setSavingCustomer(false);
+        return;
+      }
+
       // Yeni müşteriyi API'ye kaydet
       const newCustomer = await customerService.create(customerData);
-      
+
       // Müşteri listesini güncelle
       setCustomers(prev => [...prev, newCustomer]);
-      
+
       // Yeni müşteriyi direkt stop listesine ekle
       const newStopData = {
         customer: newCustomer,
@@ -576,6 +597,15 @@ const RouteForm: React.FC<RouteFormProps> = ({
   };
 
   const handleMoveExcludedToStops = (excludedStop: ExcludedStop) => {
+    // TIME WINDOW KONTROLÜ: 25 durak limiti
+    const hasTimeWindows = [...stopsData, excludedStop.stopData]
+      .some(s => s.customer.timeWindow || s.overrideTimeWindow);
+
+    if (hasTimeWindows && stopsData.length >= 25) {
+      alert(`⚠️ Zaman pencereli rotalar için maksimum 25 durak ekleyebilirsiniz.\n\nMevcut durak sayısı: ${stopsData.length}\n\nLütfen önce mevcut duraklardan bazılarını kaldırın.`);
+      return;
+    }
+
     setStopsData([...stopsData, excludedStop.stopData]);
     setExcludedStops(excludedStops.filter(s => s.stopData.customer.id !== excludedStop.stopData.customer.id));
     resetOptimization();
