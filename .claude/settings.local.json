@@ -20,7 +20,9 @@
       "Bash(find:*)",
       "Bash(cat:*)",
       "Bash(sed:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(Select-String -Pattern \"error|warning|succeeded|failed\")",
+      "Bash(Select-Object -Last 20)"
     ],
     "deny": [],
     "ask": []
