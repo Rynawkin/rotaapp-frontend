@@ -15,6 +15,13 @@ export default defineConfig({
     host: true,
     hmr: {
       overlay: true
+    },
+    proxy: {
+      '/api': {
+        target: 'https://api.yolpilot.com',
+        changeOrigin: true,
+        secure: true
+      }
     }
   }
 })
