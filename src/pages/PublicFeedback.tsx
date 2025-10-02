@@ -33,6 +33,9 @@ export default function PublicFeedback() {
     const [driverBehavior, setDriverBehavior] = useState(0);
     const [packageCondition, setPackageCondition] = useState(0);
     const [comments, setComments] = useState('');
+    const [submitterName, setSubmitterName] = useState('');
+    const [submitterPhone, setSubmitterPhone] = useState('');
+    const [submitterEmail, setSubmitterEmail] = useState('');
 
     useEffect(() => {
         if (token) {
@@ -63,6 +66,11 @@ export default function PublicFeedback() {
             return;
         }
 
+        if (!submitterName.trim()) {
+            toast.error('Lütfen adınızı ve soyadınızı girin');
+            return;
+        }
+
         setSubmitting(true);
         try {
             await axios.post(`${API_URL}/feedback/submit`, {
@@ -71,7 +79,10 @@ export default function PublicFeedback() {
                 deliverySpeedRating: deliverySpeed || null,
                 driverBehaviorRating: driverBehavior || null,
                 packageConditionRating: packageCondition || null,
-                comments: comments || null
+                comments: comments || null,
+                submitterName: submitterName.trim(),
+                submitterPhone: submitterPhone.trim() || null,
+                submitterEmail: submitterEmail.trim() || null
             });
 
             setSubmitted(true);
@@ -263,6 +274,53 @@ export default function PublicFeedback() {
                                         Temizle
                                     </button>
                                 )}
+                            </div>
+                        </div>
+
+                        {/* Submitter Info */}
+                        <div className="pt-4 border-t">
+                            <h3 className="text-sm font-medium text-gray-900 mb-4">İletişim Bilgileriniz</h3>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Ad Soyad <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={submitterName}
+                                        onChange={(e) => setSubmitterName(e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        placeholder="Adınız ve soyadınız"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Telefon
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        value={submitterPhone}
+                                        onChange={(e) => setSubmitterPhone(e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        placeholder="5xx xxx xx xx"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        E-posta
+                                    </label>
+                                    <input
+                                        type="email"
+                                        value={submitterEmail}
+                                        onChange={(e) => setSubmitterEmail(e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        placeholder="ornek@email.com"
+                                    />
+                                </div>
                             </div>
                         </div>
 
