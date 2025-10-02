@@ -268,15 +268,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
   useEffect(() => {
     if (map && mapReady) {
       const hasContent = (markers && markers.length > 0) || depot;
-      
-      if (hasContent && !initialBoundsSet.current) {
+
+      if (hasContent) {
         console.log('Setting bounds with markers:', markers?.length, 'depot:', depot);
         const bounds = new window.google.maps.LatLngBounds();
-        
+
         if (depot) {
           bounds.extend(new window.google.maps.LatLng(depot.lat, depot.lng));
         }
-        
+
         if (markers && markers.length > 0) {
           markers.forEach(marker => {
             if (marker.position && marker.position.lat && marker.position.lng) {
@@ -284,9 +284,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
             }
           });
         }
-        
+
         map.fitBounds(bounds);
-        
+
         // Eğer sadece tek bir nokta varsa, zoom level'ı ayarla
         if ((markers?.length === 1 && !depot) || (!markers?.length && depot)) {
           setTimeout(() => {
@@ -295,7 +295,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         } else {
           const padding = { top: 60, right: 60, bottom: 100, left: 60 };
           map.fitBounds(bounds, padding);
-          
+
           setTimeout(() => {
             const currentZoom = map.getZoom();
             if (currentZoom && currentZoom > 16) {
@@ -303,11 +303,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
             }
           }, 100);
         }
-        
+
         initialBoundsSet.current = true;
       }
     }
-  }, [map, mapReady, markers?.length, depot?.lat, depot?.lng]);
+  }, [map, mapReady, markers, depot]);
 
   // Debug log
   useEffect(() => {

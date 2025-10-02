@@ -85,8 +85,8 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
     whatsAppVerified: initialData?.whatsAppVerified || false,
     whatsAppOptInDate: initialData?.whatsAppOptInDate,
 
-    latitude: initialData?.latitude || 40.9869,
-    longitude: initialData?.longitude || 29.0252,
+    latitude: initialData?.latitude || undefined,
+    longitude: initialData?.longitude || undefined,
     priority: initialData?.priority || 'normal',
     estimatedServiceTime: initialData?.estimatedServiceTime || defaultServiceTime,
     notes: initialData?.notes || '',
