@@ -1,4 +1,4 @@
-import api from './api';
+import { api } from './api';
 import { VehicleMaintenance, CreateMaintenanceDto, UpdateMaintenanceDto, MaintenanceReminder } from '@/types';
 
 class MaintenanceService {
