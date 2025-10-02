@@ -9,14 +9,15 @@ const CreateRoute: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [formKey, setFormKey] = useState(0); // Form'u reset etmek için key kullanacağız
 
   const handleSubmit = async (formData: Partial<Route>) => {
     setLoading(true);
     setError(null);
-    
+
     try {
       let route;
-      
+
       if (formData.id) {
         // Route zaten var, update et
         route = await routeService.update(formData.id, formData);
@@ -24,11 +25,21 @@ const CreateRoute: React.FC = () => {
         // Yeni route oluştur
         route = await routeService.create(formData);
       }
-      
-      alert('Rota başarıyla oluşturuldu!');
-      setTimeout(() => {
+
+      const userChoice = window.confirm(
+        'Rota başarıyla oluşturuldu!\n\n' +
+        'Oluşturulan rotayı görmek ister misiniz?\n\n' +
+        'Evet: Rota detayına git\n' +
+        'Hayır: Yeni rota oluşturmaya devam et'
+      );
+
+      if (userChoice) {
+        // Rota detayına git
         navigate(`/routes/${route.id || formData.id}`);
-      }, 100);
+      } else {
+        // Formu sıfırla ve yeni rota oluşturmaya devam et
+        setFormKey(prev => prev + 1);
+      }
     } catch (error: any) {
       const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Rota işleminde bir hata oluştu.';
       setError(errorMessage);
@@ -86,6 +97,7 @@ const CreateRoute: React.FC = () => {
       )}
 
       <RouteForm
+        key={formKey}
         onSubmit={handleSubmit}
         onSaveAsDraft={handleSaveAsDraft}
         loading={loading}
