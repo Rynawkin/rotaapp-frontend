@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { 
+import {
   Plus,
   Search,
   Filter,
@@ -19,10 +19,19 @@ import {
   Grid,
   List,
   AlertCircle,
-  Loader2
+  Loader2,
+  ChevronUp,
+  ChevronDown,
+  X,
+  FileDown,
+  FileUp,
+  HelpCircle
 } from 'lucide-react';
 import { Customer } from '@/types';
 import { customerService } from '@/services/customer.service';
+
+type SortField = 'name' | 'code' | 'priority' | 'createdAt';
+type SortDirection = 'asc' | 'desc';
 
 const Customers: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -32,6 +41,11 @@ const Customers: React.FC = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [dropdownOpen, setDropdownOpen] = useState<number | null>(null);
+  const [sortField, setSortField] = useState<SortField>('createdAt');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [quickFilter, setQuickFilter] = useState('all');
+  const [selectedCustomers, setSelectedCustomers] = useState<Set<number>>(new Set());
+  const [showImportHelp, setShowImportHelp] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load customers
@@ -56,21 +70,111 @@ const Customers: React.FC = () => {
   // Get all unique tags
   const allTags = Array.from(new Set(customers.flatMap(c => c.tags || [])));
 
+  // Quick filters
+  const applyQuickFilter = (filter: string) => {
+    setQuickFilter(filter);
+    setSearchQuery('');
+    setSelectedPriority('all');
+    setSelectedTags([]);
+
+    switch(filter) {
+      case 'vip':
+        setSelectedTags(['vip']);
+        break;
+      case 'high_priority':
+        setSelectedPriority('high');
+        break;
+      case 'time_window':
+        // Filtre fonksiyonunda zaten kontrol ediliyor
+        break;
+      case 'recent':
+        // Son 7 gün - filtre fonksiyonunda kontrol edilecek
+        break;
+      case 'all':
+      default:
+        break;
+    }
+  };
+
   // Filter customers
   const filteredCustomers = customers.filter(customer => {
-    const matchesSearch = 
+    const matchesSearch =
       customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       customer.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
       customer.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
       customer.phone.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesPriority = selectedPriority === 'all' || customer.priority === selectedPriority;
-    
-    const matchesTags = selectedTags.length === 0 || 
+
+    const matchesTags = selectedTags.length === 0 ||
       selectedTags.some(tag => customer.tags?.includes(tag));
-    
-    return matchesSearch && matchesPriority && matchesTags;
+
+    // Quick filter: time window
+    const matchesTimeWindow = quickFilter !== 'time_window' || customer.timeWindow;
+
+    // Quick filter: recent (son 7 gün)
+    const matchesRecent = quickFilter !== 'recent' || (() => {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      return customer.createdAt && new Date(customer.createdAt) >= sevenDaysAgo;
+    })();
+
+    return matchesSearch && matchesPriority && matchesTags && matchesTimeWindow && matchesRecent;
   });
+
+  // Sorting
+  const sortedCustomers = [...filteredCustomers].sort((a, b) => {
+    let comparison = 0;
+
+    switch (sortField) {
+      case 'name':
+        comparison = a.name.localeCompare(b.name, 'tr');
+        break;
+      case 'code':
+        comparison = a.code.localeCompare(b.code, 'tr');
+        break;
+      case 'priority':
+        const priorityOrder = { high: 3, normal: 2, low: 1 };
+        comparison = (priorityOrder[a.priority as keyof typeof priorityOrder] || 0) -
+                    (priorityOrder[b.priority as keyof typeof priorityOrder] || 0);
+        break;
+      case 'createdAt':
+        comparison = new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+        break;
+      default:
+        comparison = 0;
+    }
+
+    return sortDirection === 'asc' ? comparison : -comparison;
+  });
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
+
+  // Bulk selection
+  const toggleCustomerSelection = (customerId: number) => {
+    const newSelected = new Set(selectedCustomers);
+    if (newSelected.has(customerId)) {
+      newSelected.delete(customerId);
+    } else {
+      newSelected.add(customerId);
+    }
+    setSelectedCustomers(newSelected);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedCustomers.size === sortedCustomers.length) {
+      setSelectedCustomers(new Set());
+    } else {
+      setSelectedCustomers(new Set(sortedCustomers.map(c => c.id)));
+    }
+  };
 
   // Delete customer
   const handleDelete = async (id: number) => {
@@ -80,11 +184,33 @@ const Customers: React.FC = () => {
     }
   };
 
+  // Bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedCustomers.size === 0) return;
+
+    if (window.confirm(`${selectedCustomers.size} müşteriyi silmek istediğinizden emin misiniz?`)) {
+      try {
+        await Promise.all(
+          Array.from(selectedCustomers).map(id => customerService.delete(id))
+        );
+        setSelectedCustomers(new Set());
+        loadCustomers();
+      } catch (error) {
+        console.error('Toplu silme hatası:', error);
+        alert('Bazı müşteriler silinemedi. Lütfen tekrar deneyin.');
+      }
+    }
+  };
+
   // Export customers to CSV
   const handleExport = () => {
+    const dataToExport = selectedCustomers.size > 0
+      ? sortedCustomers.filter(c => selectedCustomers.has(c.id))
+      : sortedCustomers;
+
     const csvHeaders = ['Kod', 'İsim', 'Adres', 'Telefon', 'Email', 'Öncelik', 'Zaman Penceresi', 'Etiketler', 'Notlar'];
-    
-    const csvData = filteredCustomers.map(customer => [
+
+    const csvData = dataToExport.map(customer => [
       customer.code,
       customer.name,
       customer.address,
@@ -105,7 +231,10 @@ const Customers: React.FC = () => {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `musteriler_${new Date().toISOString().split('T')[0]}.csv`;
+    const fileName = selectedCustomers.size > 0
+      ? `secili_musteriler_${new Date().toISOString().split('T')[0]}.csv`
+      : `tum_musteriler_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = fileName;
     link.click();
     window.URL.revokeObjectURL(url);
   };
@@ -120,55 +249,65 @@ const Customers: React.FC = () => {
       const text = e.target?.result as string;
       const lines = text.split('\n');
       const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-      
+
       const newCustomers: Partial<Customer>[] = [];
-      
+      const warnings: string[] = [];
+
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
-        
+
         // CSV satırını parse et (tırnak işaretlerini dikkate al)
         const values = line.match(/(".*?"|[^,]+)/g)?.map(v => v.replace(/"/g, '').trim()) || [];
-        
+
         if (values.length >= 4) { // En az kod, isim, adres, telefon olmalı
           const [timeStart, timeEnd] = values[6] ? values[6].split('-') : ['', ''];
           const tags = values[7] ? values[7].split(',').map(t => t.trim()) : [];
-          
+
           newCustomers.push({
             code: values[0],
             name: values[1],
             address: values[2],
             phone: values[3],
             email: values[4] || undefined,
-            priority: values[5]?.toLowerCase() === 'yüksek' ? 'high' : 
+            priority: values[5]?.toLowerCase() === 'yüksek' ? 'high' :
                      values[5]?.toLowerCase() === 'düşük' ? 'low' : 'normal',
             timeWindow: timeStart && timeEnd ? { start: timeStart.trim(), end: timeEnd.trim() } : undefined,
             tags: tags.length > 0 ? tags : undefined,
             notes: values[8] || undefined,
-            // Varsayılan koordinatlar (gerçek uygulamada geocoding API kullanılabilir)
-            latitude: 40.9869 + Math.random() * 0.1,
-            longitude: 29.0252 + Math.random() * 0.1
+            // ⚠️ UYARI: Koordinat bilgisi yok - manuel girilmeli
+            latitude: undefined,
+            longitude: undefined
           });
+
+          warnings.push(`⚠️ ${values[1]}: Koordinat bilgisi yok - manuel girilmeli`);
         }
       }
-      
+
       if (newCustomers.length > 0) {
-        try {
-          await customerService.bulkImport(newCustomers);
-          alert(`✅ ${newCustomers.length} müşteri başarıyla içe aktarıldı!`);
-          loadCustomers();
-        } catch (error: any) {
-          const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'İçe aktarma sırasında bir hata oluştu';
-          alert(`❌ ${errorMessage}`);
-          console.error('Import error:', error);
+        const confirmMessage = `✅ ${newCustomers.length} müşteri içe aktarılacak.\n\n` +
+          `⚠️ ÖNEMLİ: Koordinat bilgileri eksik!\n` +
+          `İçe aktarılan müşterilerin koordinatlarını manuel olarak girmeniz gerekecek.\n\n` +
+          `Devam etmek istiyor musunuz?`;
+
+        if (window.confirm(confirmMessage)) {
+          try {
+            await customerService.bulkImport(newCustomers);
+            alert(`✅ ${newCustomers.length} müşteri başarıyla içe aktarıldı!\n\n⚠️ Koordinatları düzenlemeyi unutmayın!`);
+            loadCustomers();
+          } catch (error: any) {
+            const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'İçe aktarma sırasında bir hata oluştu';
+            alert(`❌ ${errorMessage}`);
+            console.error('Import error:', error);
+          }
         }
       } else {
         alert('⚠️ İçe aktarılacak geçerli müşteri bulunamadı.');
       }
     };
-    
+
     reader.readAsText(file, 'UTF-8');
-    
+
     // Input'u temizle (aynı dosya tekrar seçilebilsin)
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -203,31 +342,15 @@ const Customers: React.FC = () => {
     }
   };
 
-  // Format date
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('tr-TR', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
-  };
-
-  // Toggle tag filter
-  const toggleTag = (tag: string) => {
-    setSelectedTags(prev =>
-      prev.includes(tag)
-        ? prev.filter(t => t !== tag)
-        : [...prev, tag]
-    );
-  };
-
   // Download sample CSV template
   const downloadTemplate = () => {
     const template = [
       'Kod,İsim,Adres,Telefon,Email,Öncelik,Zaman Penceresi,Etiketler,Notlar',
-      'MUS001,Örnek Market,Kadıköy Moda Cad. No:1,0532 111 2233,ornek@email.com,Normal,09:00-17:00,"market,vip",Özel notlar'
+      'MUS001,Örnek Market,Kadıköy Moda Cad. No:1,0532 111 2233,ornek@email.com,Normal,09:00-17:00,"market,vip",Özel notlar',
+      'MUS002,ABC Ltd.,Beşiktaş Barbaros Bulvarı No:52,0533 222 3344,abc@example.com,Yüksek,10:00-16:00,toptan,',
+      'MUS003,XYZ Market,Şişli Osmanbey Cad. No:15,0534 333 4455,,Düşük,,,Kapıda ödeme'
     ].join('\n');
-    
+
     const blob = new Blob(['\ufeff' + template], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -242,6 +365,15 @@ const Customers: React.FC = () => {
     // Son 2 satırda veya tek kayıt varsa yukarı aç
     const shouldOpenUpward = totalItems <= 2 || index >= totalItems - 2;
     return shouldOpenUpward ? 'bottom-full mb-2' : 'top-full mt-2';
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) {
+      return <ChevronUp className="w-4 h-4 text-gray-300" />;
+    }
+    return sortDirection === 'asc' ?
+      <ChevronUp className="w-4 h-4 text-blue-600" /> :
+      <ChevronDown className="w-4 h-4 text-blue-600" />;
   };
 
   if (loading) {
@@ -270,35 +402,104 @@ const Customers: React.FC = () => {
           <p className="text-gray-600 mt-1">Tüm müşterilerinizi yönetin</p>
         </div>
         <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-          <div className="relative group">
-            <button 
+          {/* Import Button with Help */}
+          <div className="relative">
+            <button
               onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center"
+              className="px-4 py-2 bg-blue-600 border border-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
             >
-              <Upload className="w-4 h-4 mr-2" />
-              Import
+              <FileUp className="w-4 h-4 mr-2" />
+              İçe Aktar
             </button>
-            <div className="absolute right-0 mt-1 w-48 bg-gray-800 text-white text-xs rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-              CSV dosyası seçin. 
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  downloadTemplate();
-                }}
-                className="text-blue-300 underline pointer-events-auto"
-              >
-                Örnek şablon indir
-              </button>
-            </div>
+            <button
+              onClick={() => setShowImportHelp(!showImportHelp)}
+              className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-yellow-600 transition-colors"
+              title="Yardım"
+            >
+              ?
+            </button>
+
+            {/* Import Help Modal */}
+            {showImportHelp && (
+              <>
+                <div
+                  className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                  onClick={() => setShowImportHelp(false)}
+                />
+                <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-xl border border-gray-200 p-6 z-50">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center">
+                      <HelpCircle className="w-6 h-6 text-blue-600 mr-2" />
+                      <h3 className="text-lg font-semibold text-gray-900">Excel İçe Aktarma</h3>
+                    </div>
+                    <button
+                      onClick={() => setShowImportHelp(false)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 text-sm">
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-2">📋 Adımlar:</h4>
+                      <ol className="list-decimal list-inside space-y-1 text-gray-600">
+                        <li>Şablon dosyasını indirin</li>
+                        <li>Excel'de açıp müşteri bilgilerini doldurun</li>
+                        <li>CSV formatında kaydedin</li>
+                        <li>"İçe Aktar" butonuna tıklayın</li>
+                      </ol>
+                    </div>
+
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                      <h4 className="font-semibold text-yellow-800 mb-1">⚠️ Önemli Not:</h4>
+                      <p className="text-yellow-700 text-xs">
+                        İçe aktarılan müşterilerin <strong>koordinat bilgileri boş</strong> gelecektir.
+                        Her müşteri için haritadan konum seçmelisiniz.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-2">📝 Sütun Açıklamaları:</h4>
+                      <ul className="space-y-1 text-gray-600 text-xs">
+                        <li><strong>Kod:</strong> Benzersiz müşteri kodu (zorunlu)</li>
+                        <li><strong>İsim:</strong> Müşteri adı (zorunlu)</li>
+                        <li><strong>Adres:</strong> Açık adres (zorunlu)</li>
+                        <li><strong>Telefon:</strong> İletişim numarası (zorunlu)</li>
+                        <li><strong>Email:</strong> E-posta adresi (opsiyonel)</li>
+                        <li><strong>Öncelik:</strong> Yüksek/Normal/Düşük</li>
+                        <li><strong>Zaman Penceresi:</strong> 09:00-17:00 formatında</li>
+                        <li><strong>Etiketler:</strong> Virgülle ayrılmış (vip,toptan)</li>
+                        <li><strong>Notlar:</strong> Ek bilgiler (opsiyonel)</li>
+                      </ul>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        downloadTemplate();
+                        setShowImportHelp(false);
+                      }}
+                      className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                    >
+                      <FileDown className="w-4 h-4 mr-2" />
+                      Şablon Dosyasını İndir
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
-          <button 
+
+          {/* Export Button */}
+          <button
             onClick={handleExport}
-            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center"
+            className="px-4 py-2 bg-green-600 border border-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
           >
-            <Download className="w-4 h-4 mr-2" />
-            Export
+            <FileDown className="w-4 h-4 mr-2" />
+            {selectedCustomers.size > 0 ? `Seçilenleri Dışa Aktar (${selectedCustomers.size})` : 'Dışa Aktar'}
           </button>
-          <Link 
+
+          <Link
             to="/customers/new"
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
           >
@@ -308,9 +509,9 @@ const Customers: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Dashboard Style */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
+        <div className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Toplam Müşteri</p>
@@ -321,7 +522,7 @@ const Customers: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
+        <div className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">VIP Müşteri</p>
@@ -334,7 +535,7 @@ const Customers: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
+        <div className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Yüksek Öncelikli</p>
@@ -347,7 +548,7 @@ const Customers: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
+        <div className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Zaman Pencereli</p>
@@ -362,8 +563,65 @@ const Customers: React.FC = () => {
         </div>
       </div>
 
+      {/* Quick Filters */}
+      <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <span className="text-sm font-medium text-gray-600 whitespace-nowrap">Hızlı Filtre:</span>
+          <button
+            onClick={() => applyQuickFilter('all')}
+            className={`px-4 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+              quickFilter === 'all'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Tümü ({customers.length})
+          </button>
+          <button
+            onClick={() => applyQuickFilter('vip')}
+            className={`px-4 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+              quickFilter === 'vip'
+                ? 'bg-yellow-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            VIP ({customers.filter(c => c.tags?.includes('vip')).length})
+          </button>
+          <button
+            onClick={() => applyQuickFilter('high_priority')}
+            className={`px-4 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+              quickFilter === 'high_priority'
+                ? 'bg-red-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Yüksek Öncelikli ({customers.filter(c => c.priority === 'high').length})
+          </button>
+          <button
+            onClick={() => applyQuickFilter('time_window')}
+            className={`px-4 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+              quickFilter === 'time_window'
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Zaman Pencereli ({customers.filter(c => c.timeWindow).length})
+          </button>
+          <button
+            onClick={() => applyQuickFilter('recent')}
+            className={`px-4 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+              quickFilter === 'recent'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Son Eklenenler
+          </button>
+        </div>
+      </div>
+
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
+      <div className="bg-white rounded-xl shadow-sm p-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-3 lg:space-y-0">
           <div className="flex-1 flex flex-col lg:flex-row lg:items-center space-y-3 lg:space-y-0 lg:space-x-3">
             {/* Search */}
@@ -408,12 +666,13 @@ const Customers: React.FC = () => {
           </div>
 
           {/* Clear Filters */}
-          {(searchQuery || selectedPriority !== 'all' || selectedTags.length > 0) && (
+          {(searchQuery || selectedPriority !== 'all' || selectedTags.length > 0 || quickFilter !== 'all') && (
             <button
               onClick={() => {
                 setSearchQuery('');
                 setSelectedPriority('all');
                 setSelectedTags([]);
+                setQuickFilter('all');
               }}
               className="px-4 py-2 text-gray-600 hover:text-gray-900"
             >
@@ -430,7 +689,12 @@ const Customers: React.FC = () => {
               {allTags.map(tag => (
                 <button
                   key={tag}
-                  onClick={() => toggleTag(tag)}
+                  onClick={() => {
+                    const newTags = selectedTags.includes(tag)
+                      ? selectedTags.filter(t => t !== tag)
+                      : [...selectedTags, tag];
+                    setSelectedTags(newTags);
+                  }}
                   className={`px-3 py-1 rounded-full text-sm transition-colors ${
                     selectedTags.includes(tag)
                       ? 'bg-blue-600 text-white'
@@ -446,177 +710,240 @@ const Customers: React.FC = () => {
         )}
       </div>
 
+      {/* Results Counter and Bulk Actions */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-600">
+          <span className="font-semibold text-gray-900">{sortedCustomers.length}</span> müşteri gösteriliyor
+          {sortedCustomers.length !== customers.length && (
+            <span className="text-gray-500"> ({customers.length} toplam)</span>
+          )}
+        </p>
+
+        {selectedCustomers.size > 0 && (
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-600">
+              <span className="font-semibold text-blue-600">{selectedCustomers.size}</span> müşteri seçildi
+            </span>
+            <button
+              onClick={handleBulkDelete}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center text-sm"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Seçilenleri Sil
+            </button>
+            <button
+              onClick={() => setSelectedCustomers(new Set())}
+              className="px-3 py-2 text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Table View */}
       {viewMode === 'table' ? (
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          {/* ✅ DÜZELTME: min-height eklendi ve overflow-x kaldırıldı geçici olarak */}
-          <div className="relative" style={{ minHeight: '200px' }}>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      checked={selectedCustomers.size === sortedCustomers.length && sortedCustomers.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                  </th>
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                    onClick={() => handleSort('name')}
+                  >
+                    <div className="flex items-center">
                       Müşteri
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      İletişim
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Adres
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <SortIcon field="name" />
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    İletişim
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Adres
+                  </th>
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                    onClick={() => handleSort('priority')}
+                  >
+                    <div className="flex items-center">
                       Öncelik
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Zaman Penceresi
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Etiketler
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      İşlemler
-                    </th>
+                      <SortIcon field="priority" />
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Zaman Penceresi
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Etiketler
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    İşlemler
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {sortedCustomers.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                      <MapPin className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                      <p>Müşteri bulunamadı</p>
+                      <p className="text-sm mt-1">Filtrelerinizi değiştirmeyi deneyin</p>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredCustomers.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                        <MapPin className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                        <p>Müşteri bulunamadı</p>
-                        <p className="text-sm mt-1">Filtrelerinizi değiştirmeyi deneyin</p>
+                ) : (
+                  sortedCustomers.map((customer, index) => (
+                    <tr key={customer.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedCustomers.has(customer.id)}
+                          onChange={() => toggleCustomerSelection(customer.id)}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center">
+                          <div className="p-2 bg-blue-100 rounded-lg mr-3">
+                            <MapPin className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{customer.name}</p>
+                            <p className="text-xs text-gray-500">{customer.code}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center text-sm text-gray-600">
+                            <Phone className="w-4 h-4 mr-1" />
+                            {customer.phone}
+                          </div>
+                          {customer.email && (
+                            <div className="flex items-center text-sm text-gray-600">
+                              <Mail className="w-4 h-4 mr-1" />
+                              {customer.email}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm text-gray-900">{customer.address}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(customer.priority)}`}>
+                          {customer.priority === 'high' && <Star className="w-3 h-3 mr-1" />}
+                          {getPriorityLabel(customer.priority)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {customer.timeWindow ? (
+                          <div className="flex items-center text-sm text-gray-600">
+                            <Clock className="w-4 h-4 mr-1" />
+                            {customer.timeWindow.start} - {customer.timeWindow.end}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {customer.tags && customer.tags.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {customer.tags.map(tag => (
+                              <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="relative">
+                          <button
+                            onClick={() => setDropdownOpen(dropdownOpen === customer.id ? null : customer.id)}
+                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                          >
+                            <MoreVertical className="w-5 h-5 text-gray-600" />
+                          </button>
+
+                          {dropdownOpen === customer.id && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-10"
+                                onClick={() => setDropdownOpen(null)}
+                              />
+                              <div className={`absolute right-0 w-48 bg-white rounded-lg shadow-lg border py-1 z-20 ${getDropdownPosition(index, sortedCustomers.length)}`}>
+                                <Link
+                                  to={`/customers/${customer.id}`}
+                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
+                                  onClick={() => setDropdownOpen(null)}
+                                >
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  Görüntüle
+                                </Link>
+                                <Link
+                                  to={`/customers/${customer.id}/edit`}
+                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
+                                  onClick={() => setDropdownOpen(null)}
+                                >
+                                  <Edit className="w-4 h-4 mr-2" />
+                                  Düzenle
+                                </Link>
+                                <hr className="my-1" />
+                                <button
+                                  onClick={() => {
+                                    handleDelete(customer.id);
+                                    setDropdownOpen(null);
+                                  }}
+                                  className="flex items-center px-4 py-2 hover:bg-gray-50 text-red-600 w-full text-left"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Sil
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
-                  ) : (
-                    filteredCustomers.map((customer, index) => (
-                      <tr key={customer.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center">
-                            <div className="p-2 bg-blue-100 rounded-lg mr-3">
-                              <MapPin className="w-5 h-5 text-blue-600" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">{customer.name}</p>
-                              <p className="text-xs text-gray-500">{customer.code}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="space-y-1">
-                            <div className="flex items-center text-sm text-gray-600">
-                              <Phone className="w-4 h-4 mr-1" />
-                              {customer.phone}
-                            </div>
-                            {customer.email && (
-                              <div className="flex items-center text-sm text-gray-600">
-                                <Mail className="w-4 h-4 mr-1" />
-                                {customer.email}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="text-sm text-gray-900">{customer.address}</p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(customer.priority)}`}>
-                            {customer.priority === 'high' && <Star className="w-3 h-3 mr-1" />}
-                            {getPriorityLabel(customer.priority)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          {customer.timeWindow ? (
-                            <div className="flex items-center text-sm text-gray-600">
-                              <Clock className="w-4 h-4 mr-1" />
-                              {customer.timeWindow.start} - {customer.timeWindow.end}
-                            </div>
-                          ) : (
-                            <span className="text-sm text-gray-400">-</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          {customer.tags && customer.tags.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {customer.tags.map(tag => (
-                                <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-sm text-gray-400">-</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="relative">
-                            <button
-                              onClick={() => setDropdownOpen(dropdownOpen === customer.id ? null : customer.id)}
-                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                              <MoreVertical className="w-5 h-5 text-gray-600" />
-                            </button>
-                            
-                            {dropdownOpen === customer.id && (
-                              <>
-                                <div 
-                                  className="fixed inset-0 z-10" 
-                                  onClick={() => setDropdownOpen(null)}
-                                />
-                                {/* ✅ DÜZELTME: Dinamik pozisyon */}
-                                <div className={`absolute right-0 w-48 bg-white rounded-lg shadow-lg border py-1 z-20 ${getDropdownPosition(index, filteredCustomers.length)}`}>
-                                  <Link
-                                    to={`/customers/${customer.id}`}
-                                    className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
-                                    onClick={() => setDropdownOpen(null)}
-                                  >
-                                    <Eye className="w-4 h-4 mr-2" />
-                                    Görüntüle
-                                  </Link>
-                                  <Link
-                                    to={`/customers/${customer.id}/edit`}
-                                    className="flex items-center px-4 py-2 hover:bg-gray-50 text-gray-700"
-                                    onClick={() => setDropdownOpen(null)}
-                                  >
-                                    <Edit className="w-4 h-4 mr-2" />
-                                    Düzenle
-                                  </Link>
-                                  <hr className="my-1" />
-                                  <button
-                                    onClick={() => {
-                                      handleDelete(customer.id);
-                                      setDropdownOpen(null);
-                                    }}
-                                    className="flex items-center px-4 py-2 hover:bg-gray-50 text-red-600 w-full text-left"
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-2" />
-                                    Sil
-                                  </button>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       ) : (
         /* Grid View */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredCustomers.length === 0 ? (
+          {sortedCustomers.length === 0 ? (
             <div className="col-span-full text-center py-12">
               <MapPin className="w-12 h-12 mx-auto text-gray-300 mb-3" />
               <p className="text-gray-500">Müşteri bulunamadı</p>
               <p className="text-sm text-gray-400 mt-1">Filtrelerinizi değiştirmeyi deneyin</p>
             </div>
           ) : (
-            filteredCustomers.map((customer) => (
-              <div key={customer.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between mb-3">
+            sortedCustomers.map((customer) => (
+              <div key={customer.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow relative">
+                {/* Checkbox for selection */}
+                <input
+                  type="checkbox"
+                  checked={selectedCustomers.has(customer.id)}
+                  onChange={() => toggleCustomerSelection(customer.id)}
+                  className="absolute top-3 left-3 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 z-10"
+                />
+
+                <div className="flex items-start justify-between mb-3 ml-6">
                   <div className="flex items-center">
                     <div className="p-2 bg-blue-100 rounded-lg mr-3">
                       <MapPin className="w-5 h-5 text-blue-600" />
@@ -633,11 +960,11 @@ const Customers: React.FC = () => {
                     >
                       <MoreVertical className="w-4 h-4 text-gray-600" />
                     </button>
-                    
+
                     {dropdownOpen === customer.id && (
                       <>
-                        <div 
-                          className="fixed inset-0 z-10" 
+                        <div
+                          className="fixed inset-0 z-10"
                           onClick={() => setDropdownOpen(null)}
                         />
                         <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border py-1 z-20">
