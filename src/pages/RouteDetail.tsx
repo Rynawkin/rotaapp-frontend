@@ -518,7 +518,7 @@ const RouteDetail: React.FC = () => {
           height="650px"
           markers={mapMarkers}
           depot={getDepotLocation()}
-          directions={route?.optimized ? mapDirections : null}
+          directions={mapDirections}
           customers={customers}
           showTraffic={false}
           selectedCustomerId={selectedStopId ? route?.stops.find(s => s.id === selectedStopId)?.customerId : undefined}

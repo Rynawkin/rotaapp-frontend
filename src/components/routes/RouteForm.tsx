@@ -521,11 +521,42 @@ const RouteForm: React.FC<RouteFormProps> = ({
     }
   };
 
-  const handleRemoveCustomer = (customerId: string | number) => {
+  const handleRemoveCustomer = async (customerId: string | number) => {
     const newStopsData = stopsData.filter(s => s.customer.id.toString() !== customerId.toString());
     setStopsData(newStopsData);
     resetOptimization();
-    if (newStopsData.length <= 1) {
+
+    // Eğer yeterli durak varsa ve harita hazırsa, polyline'ları yeniden hesapla
+    if (newStopsData.length > 0 && isGoogleMapsLoaded && formData.depotId) {
+      const depot = depots.find(d => d.id.toString() === formData.depotId?.toString());
+      if (depot) {
+        try {
+          const depotLocation = {
+            lat: depot.latitude,
+            lng: depot.longitude
+          };
+
+          const waypoints = newStopsData.map(stop => ({
+            lat: stop.customer.latitude,
+            lng: stop.customer.longitude
+          }));
+
+          googleMapsService.initializeServices();
+          const directions = await googleMapsService.getDirections(
+            depotLocation,
+            waypoints,
+            depotLocation
+          );
+
+          if (directions) {
+            setMapDirections(directions);
+          }
+        } catch (error) {
+          console.error('Polyline güncellenirken hata:', error);
+          setMapDirections(null);
+        }
+      }
+    } else {
       setMapDirections(null);
     }
   };
