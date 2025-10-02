@@ -30,6 +30,7 @@ import { Customer, Driver, Route as RouteType, Depot } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/services/api';
 import WeatherWidget from '@/components/dashboard/WeatherWidget';
+import MaintenanceAlertsWidget from '@/components/dashboard/MaintenanceAlertsWidget';
 
 interface FeedbackStats {
   averageRating: number;
@@ -610,6 +611,9 @@ const Dashboard: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Maintenance Alerts Widget - Conditional */}
+      {canAccessDispatcherFeatures() && <MaintenanceAlertsWidget />}
 
       {/* Today Summary Card */}
       {todayRoutes.length > 0 && (
