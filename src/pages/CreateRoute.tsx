@@ -26,6 +26,9 @@ const CreateRoute: React.FC = () => {
         route = await routeService.create(formData);
       }
 
+      // Formu her durumda sıfırla
+      setFormKey(prev => prev + 1);
+
       const userChoice = window.confirm(
         'Rota başarıyla oluşturuldu!\n\n' +
         'Oluşturulan rotayı görmek ister misiniz?\n\n' +
@@ -36,10 +39,8 @@ const CreateRoute: React.FC = () => {
       if (userChoice) {
         // Rota detayına git
         navigate(`/routes/${route.id || formData.id}`);
-      } else {
-        // Formu sıfırla ve yeni rota oluşturmaya devam et
-        setFormKey(prev => prev + 1);
       }
+      // Hayır seçerse zaten form temiz, sayfada kalır
     } catch (error: any) {
       const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Rota işleminde bir hata oluştu.';
       setError(errorMessage);
