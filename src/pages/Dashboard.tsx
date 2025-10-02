@@ -25,9 +25,11 @@ import { customerService } from '@/services/customer.service';
 import { driverService } from '@/services/driver.service';
 import { journeyService, JourneySummary } from '@/services/journey.service';
 import { routeService } from '@/services/route.service';
-import { Customer, Driver, Route as RouteType } from '@/types';
+import { depotService } from '@/services/depot.service';
+import { Customer, Driver, Route as RouteType, Depot } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/services/api';
+import WeatherWidget from '@/components/dashboard/WeatherWidget';
 
 interface FeedbackStats {
   averageRating: number;
@@ -48,6 +50,7 @@ const Dashboard: React.FC = () => {
   const [feedbackStats, setFeedbackStats] = useState<FeedbackStats | null>(null);
   const [delayedStops, setDelayedStops] = useState<any[]>([]);
   const [topDrivers, setTopDrivers] = useState<any[]>([]);
+  const [depots, setDepots] = useState<Depot[]>([]);
   const navigate = useNavigate();
 
   const { user, canAccessDispatcherFeatures } = useAuth();
@@ -100,6 +103,14 @@ const Dashboard: React.FC = () => {
         }).catch(err => {
           console.log('Route verileri yüklenemedi');
           setRoutes([]);
+          return [];
+        }),
+        depotService.getAll().then(data => {
+          setDepots(data);
+          return data;
+        }).catch(err => {
+          console.log('Depot verileri yüklenemedi');
+          setDepots([]);
           return [];
         })
       );
@@ -255,18 +266,19 @@ const Dashboard: React.FC = () => {
     // Aktif sürücüler
     const activeDrivers = drivers.filter(d => d.status === 'available').length;
 
-    // Ortalama teslimat süresi
-    const thisMonthAvgTime = thisMonthJourneys.length > 0
-      ? thisMonthJourneys.reduce((sum, j) => sum + j.totalDuration, 0) / thisMonthJourneys.length
-      : 0;
+    // Tamamlanan sefer sayısı
+    const thisMonthCompletedJourneys = thisMonthJourneys.filter(j => j.status === 'completed').length;
+    const previousMonthCompletedJourneys = previousMonthJourneys.filter(j => j.status === 'completed').length;
 
-    const previousMonthAvgTime = previousMonthJourneys.length > 0
-      ? previousMonthJourneys.reduce((sum, j) => sum + j.totalDuration, 0) / previousMonthJourneys.length
-      : 0;
+    const journeyChange = previousMonthCompletedJourneys > 0
+      ? ((thisMonthCompletedJourneys - previousMonthCompletedJourneys) / previousMonthCompletedJourneys * 100).toFixed(0)
+      : thisMonthCompletedJourneys > 0 ? '100' : '0';
 
-    const timeChange = previousMonthAvgTime > 0
-      ? ((thisMonthAvgTime - previousMonthAvgTime) / previousMonthAvgTime * 100).toFixed(0)
-      : '0';
+    // Başarı oranı (completed / total journeys)
+    const totalJourneysThisMonth = thisMonthJourneys.length;
+    const successRate = totalJourneysThisMonth > 0
+      ? Math.round((thisMonthCompletedJourneys / totalJourneysThisMonth) * 100)
+      : 0;
 
     const statsData = [];
 
@@ -307,16 +319,18 @@ const Dashboard: React.FC = () => {
       });
     }
 
-    // Ortalama teslimat süresi
-    statsData.push({
-      title: 'Ortalama Süre',
-      value: thisMonthAvgTime > 0 ? `${Math.round(thisMonthAvgTime)} dk` : '0 dk',
-      change: `${Number(timeChange) > 0 ? '+' : ''}${timeChange}%`,
-      trend: Number(timeChange) < 0 ? 'down' : Number(timeChange) > 0 ? 'up' : 'neutral',
-      icon: Clock,
-      color: 'orange',
-      subtitle: 'Sefer başına'
-    });
+    // Tamamlanan sefer sayısı (Dispatcher için)
+    if (canAccessDispatcherFeatures()) {
+      statsData.push({
+        title: 'Tamamlanan Sefer',
+        value: thisMonthCompletedJourneys.toString(),
+        change: `${Number(journeyChange) > 0 ? '+' : ''}${journeyChange}%`,
+        trend: Number(journeyChange) > 0 ? 'up' : Number(journeyChange) < 0 ? 'down' : 'neutral',
+        icon: CheckCircle,
+        color: 'orange',
+        subtitle: 'Bu ay'
+      });
+    }
 
     // Müşteri memnuniyeti (Dispatcher için)
     if (canAccessDispatcherFeatures() && feedbackStats && feedbackStats.totalFeedbacks > 0) {
@@ -568,10 +582,28 @@ const Dashboard: React.FC = () => {
             Hoş geldiniz {user?.fullName}! İşte {user?.isDriver && !canAccessDispatcherFeatures() ? 'size özel' : 'bugünkü'} özet bilgileriniz.
           </p>
         </div>
-        <div className="mt-4 sm:mt-0">
+        <div className="mt-4 sm:mt-0 flex items-center gap-2">
+          {canAccessDispatcherFeatures() && (
+            <>
+              <Link
+                to="/routes/create"
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center text-sm"
+              >
+                <Route className="w-4 h-4 mr-2" />
+                Yeni Rota
+              </Link>
+              <Link
+                to="/customers/create"
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center text-sm"
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Yeni Müşteri
+              </Link>
+            </>
+          )}
           <button
             onClick={handleDownloadReport}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center text-sm"
           >
             <Calendar className="w-4 h-4 mr-2" />
             Rapor İndir
@@ -579,7 +611,52 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Delayed Deliveries Alert - Dispatcher only */}
+      {/* Today Summary Card */}
+      {todayRoutes.length > 0 && (
+        <div className="bg-gradient-to-r from-blue-600 to-purple-700 rounded-xl shadow-sm p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold mb-2">Bugün</h2>
+              <div className="flex items-center gap-6">
+                <div>
+                  <p className="text-3xl font-bold">{todayRoutes.length}</p>
+                  <p className="text-sm text-blue-100">Toplam Rota</p>
+                </div>
+                <div>
+                  <p className="text-3xl font-bold">
+                    {todayRoutes.filter(r => r.status === 'active').length}
+                  </p>
+                  <p className="text-sm text-blue-100">Aktif</p>
+                </div>
+                <div>
+                  <p className="text-3xl font-bold">
+                    {todayRoutes.filter(r => r.status === 'completed').length}
+                  </p>
+                  <p className="text-sm text-blue-100">Tamamlandı</p>
+                </div>
+                <div>
+                  <p className="text-3xl font-bold">
+                    {todayRoutes.filter(r => r.status === 'pending').length}
+                  </p>
+                  <p className="text-sm text-blue-100">Bekliyor</p>
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-blue-100 mb-1">Bugünkü İlerleme</p>
+              <p className="text-4xl font-bold">
+                {todayRoutes.length > 0
+                  ? Math.round(
+                      todayRoutes.reduce((sum, r) => sum + r.progress, 0) / todayRoutes.length
+                    )
+                  : 0}%
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active Journeys Alert - Dispatcher only */}
       {canAccessDispatcherFeatures() && delayedStops.length > 0 && (
         <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-lg">
           <div className="flex items-center">
@@ -628,6 +705,9 @@ const Dashboard: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* Weather Widget */}
+      <WeatherWidget depots={depots} />
 
       {/* Charts and Widgets Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
