@@ -87,7 +87,6 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
 
     latitude: initialData?.latitude || undefined,
     longitude: initialData?.longitude || undefined,
-    priority: initialData?.priority || 'normal',
     estimatedServiceTime: initialData?.estimatedServiceTime || defaultServiceTime,
     notes: initialData?.notes || '',
     tags: initialData?.tags || [],
@@ -340,7 +339,6 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
       whatsAppVerified: false,
       latitude: 40.9869,
       longitude: 29.0252,
-      priority: 'normal',
       estimatedServiceTime: defaultServiceTime,
       notes: '',
       tags: []
@@ -571,25 +569,6 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                   <span className="font-medium">{errors.email}</span>
                 </div>
               )}
-            </div>
-
-            {/* Priority */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Öncelik
-              </label>
-              <div className="relative">
-                <Star className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <select
-                  value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'high' | 'normal' | 'low' })}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
-                >
-                  <option value="low">Düşük</option>
-                  <option value="normal">Normal</option>
-                  <option value="high">Yüksek</option>
-                </select>
-              </div>
             </div>
           </div>
         </div>

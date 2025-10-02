@@ -99,7 +99,6 @@ export interface Customer {
     start: string;
     end: string;
   };
-  priority: 'high' | 'normal' | 'low';
   estimatedServiceTime?: number;
   notes?: string;
   tags?: string[];
@@ -201,7 +200,6 @@ export interface RouteStop {
     start: string;
     end: string;
   };
-  overridePriority?: 'high' | 'normal' | 'low';
   serviceTime?: number;
   signatureRequired?: boolean;  // YENİ
   photoRequired?: boolean;      // YENİ
@@ -378,7 +376,6 @@ export interface CustomerAnalyticsReport {
   completedOrders: number;
   failedOrders: number;
   avgServiceTime: number;
-  priority: Customer['priority'];
   lastOrderDate?: Date;
 }
 
@@ -411,7 +408,6 @@ export interface ReportFilters {
   vehicleId?: string;
   customerId?: string;
   routeStatus?: Route['status'];
-  priority?: Customer['priority'];
   depotId?: string;
 }
 
@@ -473,7 +469,6 @@ export type OptimizationStatus = 'none' | 'success' | 'partial';
 export interface StopData {
   customer: Customer;
   overrideTimeWindow?: { start: string; end: string };
-  overridePriority?: 'high' | 'normal' | 'low';
   serviceTime?: number;
   signatureRequired?: boolean;  // YENİ
   photoRequired?: boolean;      // YENİ

@@ -30,14 +30,13 @@ import {
 import { Customer } from '@/types';
 import { customerService } from '@/services/customer.service';
 
-type SortField = 'name' | 'code' | 'priority' | 'createdAt';
+type SortField = 'name' | 'code' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
 
 const Customers: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPriority, setSelectedPriority] = useState('all');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [dropdownOpen, setDropdownOpen] = useState<number | null>(null);
@@ -74,15 +73,11 @@ const Customers: React.FC = () => {
   const applyQuickFilter = (filter: string) => {
     setQuickFilter(filter);
     setSearchQuery('');
-    setSelectedPriority('all');
     setSelectedTags([]);
 
     switch(filter) {
       case 'vip':
         setSelectedTags(['vip']);
-        break;
-      case 'high_priority':
-        setSelectedPriority('high');
         break;
       case 'time_window':
         // Filtre fonksiyonunda zaten kontrol ediliyor
@@ -104,8 +99,6 @@ const Customers: React.FC = () => {
       customer.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
       customer.phone.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesPriority = selectedPriority === 'all' || customer.priority === selectedPriority;
-
     const matchesTags = selectedTags.length === 0 ||
       selectedTags.some(tag => customer.tags?.includes(tag));
 
@@ -119,7 +112,7 @@ const Customers: React.FC = () => {
       return customer.createdAt && new Date(customer.createdAt) >= sevenDaysAgo;
     })();
 
-    return matchesSearch && matchesPriority && matchesTags && matchesTimeWindow && matchesRecent;
+    return matchesSearch && matchesTags && matchesTimeWindow && matchesRecent;
   });
 
   // Sorting
@@ -132,11 +125,6 @@ const Customers: React.FC = () => {
         break;
       case 'code':
         comparison = a.code.localeCompare(b.code, 'tr');
-        break;
-      case 'priority':
-        const priorityOrder = { high: 3, normal: 2, low: 1 };
-        comparison = (priorityOrder[a.priority as keyof typeof priorityOrder] || 0) -
-                    (priorityOrder[b.priority as keyof typeof priorityOrder] || 0);
         break;
       case 'createdAt':
         comparison = new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
@@ -208,7 +196,7 @@ const Customers: React.FC = () => {
       ? sortedCustomers.filter(c => selectedCustomers.has(c.id))
       : sortedCustomers;
 
-    const csvHeaders = ['Kod', 'İsim', 'Adres', 'Telefon', 'Email', 'Öncelik', 'Zaman Penceresi', 'Etiketler', 'Notlar'];
+    const csvHeaders = ['Kod', 'İsim', 'Adres', 'Telefon', 'Email', 'Zaman Penceresi', 'Etiketler', 'Notlar'];
 
     const csvData = dataToExport.map(customer => [
       customer.code,
@@ -216,7 +204,6 @@ const Customers: React.FC = () => {
       customer.address,
       customer.phone,
       customer.email || '',
-      getPriorityLabel(customer.priority),
       customer.timeWindow ? `${customer.timeWindow.start}-${customer.timeWindow.end}` : '',
       customer.tags?.join(', ') || '',
       customer.notes || ''
@@ -261,8 +248,8 @@ const Customers: React.FC = () => {
         const values = line.match(/(".*?"|[^,]+)/g)?.map(v => v.replace(/"/g, '').trim()) || [];
 
         if (values.length >= 4) { // En az kod, isim, adres, telefon olmalı
-          const [timeStart, timeEnd] = values[6] ? values[6].split('-') : ['', ''];
-          const tags = values[7] ? values[7].split(',').map(t => t.trim()) : [];
+          const [timeStart, timeEnd] = values[5] ? values[5].split('-') : ['', ''];
+          const tags = values[6] ? values[6].split(',').map(t => t.trim()) : [];
 
           newCustomers.push({
             code: values[0],
@@ -270,11 +257,9 @@ const Customers: React.FC = () => {
             address: values[2],
             phone: values[3],
             email: values[4] || undefined,
-            priority: values[5]?.toLowerCase() === 'yüksek' ? 'high' :
-                     values[5]?.toLowerCase() === 'düşük' ? 'low' : 'normal',
             timeWindow: timeStart && timeEnd ? { start: timeStart.trim(), end: timeEnd.trim() } : undefined,
             tags: tags.length > 0 ? tags : undefined,
-            notes: values[8] || undefined,
+            notes: values[7] || undefined,
             // ⚠️ UYARI: Koordinat bilgisi yok - manuel girilmeli
             latitude: undefined,
             longitude: undefined
@@ -314,41 +299,13 @@ const Customers: React.FC = () => {
     }
   };
 
-  // Get priority color
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return 'text-red-600 bg-red-50';
-      case 'normal':
-        return 'text-blue-600 bg-blue-50';
-      case 'low':
-        return 'text-gray-600 bg-gray-50';
-      default:
-        return 'text-gray-600 bg-gray-50';
-    }
-  };
-
-  // Get priority label
-  const getPriorityLabel = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return 'Yüksek';
-      case 'normal':
-        return 'Normal';
-      case 'low':
-        return 'Düşük';
-      default:
-        return priority;
-    }
-  };
-
   // Download sample CSV template
   const downloadTemplate = () => {
     const template = [
-      'Kod,İsim,Adres,Telefon,Email,Öncelik,Zaman Penceresi,Etiketler,Notlar',
-      'MUS001,Örnek Market,Kadıköy Moda Cad. No:1,0532 111 2233,ornek@email.com,Normal,09:00-17:00,"market,vip",Özel notlar',
-      'MUS002,ABC Ltd.,Beşiktaş Barbaros Bulvarı No:52,0533 222 3344,abc@example.com,Yüksek,10:00-16:00,toptan,',
-      'MUS003,XYZ Market,Şişli Osmanbey Cad. No:15,0534 333 4455,,Düşük,,,Kapıda ödeme'
+      'Kod,İsim,Adres,Telefon,Email,Zaman Penceresi,Etiketler,Notlar',
+      'MUS001,Örnek Market,Kadıköy Moda Cad. No:1,0532 111 2233,ornek@email.com,09:00-17:00,"market,vip",Özel notlar',
+      'MUS002,ABC Ltd.,Beşiktaş Barbaros Bulvarı No:52,0533 222 3344,abc@example.com,10:00-16:00,toptan,',
+      'MUS003,XYZ Market,Şişli Osmanbey Cad. No:15,0534 333 4455,,,,"Kapıda ödeme"'
     ].join('\n');
 
     const blob = new Blob(['\ufeff' + template], { type: 'text/csv;charset=utf-8;' });
@@ -467,7 +424,6 @@ const Customers: React.FC = () => {
                         <li><strong>Adres:</strong> Açık adres (zorunlu)</li>
                         <li><strong>Telefon:</strong> İletişim numarası (zorunlu)</li>
                         <li><strong>Email:</strong> E-posta adresi (opsiyonel)</li>
-                        <li><strong>Öncelik:</strong> Yüksek/Normal/Düşük</li>
                         <li><strong>Zaman Penceresi:</strong> 09:00-17:00 formatında</li>
                         <li><strong>Etiketler:</strong> Virgülle ayrılmış (vip,toptan)</li>
                         <li><strong>Notlar:</strong> Ek bilgiler (opsiyonel)</li>
@@ -510,7 +466,7 @@ const Customers: React.FC = () => {
       </div>
 
       {/* Stats Cards - Dashboard Style */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
@@ -532,19 +488,6 @@ const Customers: React.FC = () => {
             </div>
             <div className="p-3 bg-yellow-100 rounded-lg">
               <Star className="w-6 h-6 text-yellow-600" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Yüksek Öncelikli</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {customers.filter(c => c.priority === 'high').length}
-              </p>
-            </div>
-            <div className="p-3 bg-red-100 rounded-lg">
-              <AlertCircle className="w-6 h-6 text-red-600" />
             </div>
           </div>
         </div>
@@ -588,16 +531,6 @@ const Customers: React.FC = () => {
             VIP ({customers.filter(c => c.tags?.includes('vip')).length})
           </button>
           <button
-            onClick={() => applyQuickFilter('high_priority')}
-            className={`px-4 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
-              quickFilter === 'high_priority'
-                ? 'bg-red-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Yüksek Öncelikli ({customers.filter(c => c.priority === 'high').length})
-          </button>
-          <button
             onClick={() => applyQuickFilter('time_window')}
             className={`px-4 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
               quickFilter === 'time_window'
@@ -636,18 +569,6 @@ const Customers: React.FC = () => {
               />
             </div>
 
-            {/* Priority Filter */}
-            <select
-              value={selectedPriority}
-              onChange={(e) => setSelectedPriority(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">Tüm Öncelikler</option>
-              <option value="high">Yüksek</option>
-              <option value="normal">Normal</option>
-              <option value="low">Düşük</option>
-            </select>
-
             {/* View Mode Toggle */}
             <div className="flex items-center bg-gray-100 rounded-lg p-1">
               <button
@@ -666,11 +587,10 @@ const Customers: React.FC = () => {
           </div>
 
           {/* Clear Filters */}
-          {(searchQuery || selectedPriority !== 'all' || selectedTags.length > 0 || quickFilter !== 'all') && (
+          {(searchQuery || selectedTags.length > 0 || quickFilter !== 'all') && (
             <button
               onClick={() => {
                 setSearchQuery('');
-                setSelectedPriority('all');
                 setSelectedTags([]);
                 setQuickFilter('all');
               }}
@@ -771,15 +691,6 @@ const Customers: React.FC = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Adres
                   </th>
-                  <th
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                    onClick={() => handleSort('priority')}
-                  >
-                    <div className="flex items-center">
-                      Öncelik
-                      <SortIcon field="priority" />
-                    </div>
-                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Zaman Penceresi
                   </th>
@@ -794,7 +705,7 @@ const Customers: React.FC = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {sortedCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                       <MapPin className="w-12 h-12 mx-auto text-gray-300 mb-3" />
                       <p>Müşteri bulunamadı</p>
                       <p className="text-sm mt-1">Filtrelerinizi değiştirmeyi deneyin</p>
@@ -838,12 +749,6 @@ const Customers: React.FC = () => {
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-sm text-gray-900">{customer.address}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(customer.priority)}`}>
-                          {customer.priority === 'high' && <Star className="w-3 h-3 mr-1" />}
-                          {getPriorityLabel(customer.priority)}
-                        </span>
                       </td>
                       <td className="px-6 py-4">
                         {customer.timeWindow ? (
@@ -1024,21 +929,15 @@ const Customers: React.FC = () => {
                   )}
                 </div>
 
-                <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(customer.priority)}`}>
-                    {customer.priority === 'high' && <Star className="w-3 h-3 mr-1" />}
-                    {getPriorityLabel(customer.priority)}
-                  </span>
-                  {customer.tags && customer.tags.length > 0 && (
-                    <div className="flex gap-1">
-                      {customer.tags.map(tag => (
-                        <span key={tag} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {customer.tags && customer.tags.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-100 flex gap-1 flex-wrap">
+                    {customer.tags.map(tag => (
+                      <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             ))
           )}
