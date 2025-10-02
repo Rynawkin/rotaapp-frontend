@@ -8,6 +8,9 @@ export interface FeedbackItem {
   packageConditionRating?: number;
   comments?: string;
   submittedAt: Date;
+  submitterName?: string;
+  submitterEmail?: string;
+  submitterPhone?: string;
   customer: {
     id: number;
     name: string;

@@ -772,6 +772,31 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
                 </div>
               </div>
 
+              {/* Değerlendirmeyi Yapan Kişi */}
+              {selectedFeedback.submitterName && (
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3">Değerlendirmeyi Yapan Kişi</h4>
+                  <div className="bg-blue-50 rounded-lg p-4 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Ad Soyad:</span>
+                      <span className="font-medium">{selectedFeedback.submitterName}</span>
+                    </div>
+                    {selectedFeedback.submitterPhone && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Telefon:</span>
+                        <span className="font-medium">{selectedFeedback.submitterPhone}</span>
+                      </div>
+                    )}
+                    {selectedFeedback.submitterEmail && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">E-posta:</span>
+                        <span className="font-medium">{selectedFeedback.submitterEmail}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Teslimat Bilgileri */}
               {selectedFeedback.driver && (
                 <div>
