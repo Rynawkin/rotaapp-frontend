@@ -1,6 +1,7 @@
 // OpenWeatherMap ücretsiz API kullanıyoruz (günlük 1000 request ücretsiz)
 const WEATHER_API_KEY = '4d8fb5b93d4af21d66a2948710284366'; // Free tier API key
 const WEATHER_API_BASE = 'https://api.openweathermap.org/data/2.5';
+const CACHE_DURATION = 12 * 60 * 60 * 1000; // 12 saat (milisaniye cinsinden)
 
 export interface WeatherData {
   location: string;
@@ -25,12 +26,81 @@ export interface DailyForecast {
   rainChance: number;
 }
 
+interface CachedWeatherData {
+  data: WeatherData;
+  timestamp: number;
+}
+
 class WeatherService {
   /**
-   * Koordinatlara göre hava durumu bilgisi al
+   * Cache key oluştur
+   */
+  private getCacheKey(lat: number, lon: number): string {
+    return `weather_${lat.toFixed(2)}_${lon.toFixed(2)}`;
+  }
+
+  /**
+   * Cache'den veri al
+   */
+  private getFromCache(lat: number, lon: number): WeatherData | null {
+    try {
+      const cacheKey = this.getCacheKey(lat, lon);
+      const cached = localStorage.getItem(cacheKey);
+
+      if (!cached) return null;
+
+      const cachedData: CachedWeatherData = JSON.parse(cached);
+      const now = Date.now();
+
+      // 12 saat geçmişse cache'i temizle
+      if (now - cachedData.timestamp > CACHE_DURATION) {
+        localStorage.removeItem(cacheKey);
+        return null;
+      }
+
+      console.log(`✅ Cache'den yüklendi: ${cacheKey} (${Math.round((CACHE_DURATION - (now - cachedData.timestamp)) / 3600000)} saat kaldı)`);
+      return cachedData.data;
+    } catch (error) {
+      console.error('Cache okuma hatası:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Cache'e veri kaydet
+   */
+  private saveToCache(lat: number, lon: number, data: WeatherData): void {
+    try {
+      const cacheKey = this.getCacheKey(lat, lon);
+      const cachedData: CachedWeatherData = {
+        data,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(cacheKey, JSON.stringify(cachedData));
+      console.log(`💾 Cache'e kaydedildi: ${cacheKey}`);
+    } catch (error) {
+      console.error('Cache yazma hatası:', error);
+    }
+  }
+
+  /**
+   * Koordinatlara göre hava durumu bilgisi al (12 saat cache ile)
    */
   async getWeatherByCoordinates(lat: number, lon: number, locationName: string, depotId?: string | number): Promise<WeatherData | null> {
+    // Önce cache'e bak
+    const cachedData = this.getFromCache(lat, lon);
+    if (cachedData) {
+      return {
+        ...cachedData,
+        location: locationName, // Lokasyon adını güncelle
+        depotId
+      };
+    }
+
     try {
+      // Cache yoksa API'den çek
+      console.log(`🌐 API'den çekiliyor: ${locationName} (${lat}, ${lon})`);
+
       // Mevcut hava durumu
       const currentResponse = await fetch(
         `${WEATHER_API_BASE}/weather?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric&lang=tr`
@@ -55,7 +125,7 @@ class WeatherService {
         forecast = this.processForecastData(forecastData);
       }
 
-      return {
+      const weatherData: WeatherData = {
         location: locationName,
         depotId,
         temperature: Math.round(currentData.main.temp),
@@ -67,6 +137,11 @@ class WeatherService {
         rainChance: currentData.rain ? Math.round((currentData.rain['1h'] || 0) * 10) : 0,
         forecast
       };
+
+      // Cache'e kaydet
+      this.saveToCache(lat, lon, weatherData);
+
+      return weatherData;
     } catch (error) {
       console.error('Hava durumu alınırken hata:', error);
       return null;
