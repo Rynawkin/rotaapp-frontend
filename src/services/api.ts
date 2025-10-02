@@ -1,6 +1,9 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5055/api';
+// Production'da relative path (/api), development'ta absolute URL
+const API_URL = import.meta.env.MODE === 'production'
+  ? '/api'  // Vercel rewrite kullan
+  : (import.meta.env.VITE_API_URL || 'http://localhost:5055/api');
 
 console.log('API URL:', API_URL);
 
