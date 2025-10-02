@@ -95,8 +95,8 @@ const RouteDetail: React.FC = () => {
       const markers = generateMapMarkers();
       setMapMarkers(markers);
 
-      // Google Maps yüklendiyse ve rota optimize edildiyse directions'ı yükle
-      if (isGoogleMapsLoaded && route.optimized && depot) {
+      // Google Maps yüklendiyse ve depot varsa directions'ı yükle (optimized kontrolü kaldırıldı)
+      if (isGoogleMapsLoaded && depot && route.stops.length > 0) {
         loadRouteOnMap(route);
       }
     }
@@ -187,7 +187,6 @@ const RouteDetail: React.FC = () => {
 
   const loadRouteOnMap = async (routeData: Route) => {
     if (!routeData.stops || routeData.stops.length === 0) return;
-    if (!routeData.optimized) return;
     if (!isGoogleMapsLoaded) return;
     if (!depot) return;
 
