@@ -208,7 +208,8 @@ export interface CreateMaintenanceDto {
   workshop?: string;
   parts?: string;
   notes?: string;
-  reminderDays?: number; // Hatırlatma için kaç gün öncesinden
+  reminderDays?: number; // Hatırlatma için kaç gün öncesinden (tarih bazlı)
+  reminderKm?: number; // Hatırlatma için kaç km öncesinden (km bazlı)
 }
 
 export interface UpdateMaintenanceDto extends Partial<CreateMaintenanceDto> {}
@@ -222,6 +223,7 @@ export interface Route {
   driver?: Driver;
   vehicleId?: string;
   vehicle?: Vehicle;
+  currentKm?: number; // Current kilometer reading of the vehicle
   depotId: string;
   status: 'draft' | 'planned' | 'in_progress' | 'completed' | 'cancelled';
   stops: RouteStop[];

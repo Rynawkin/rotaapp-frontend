@@ -30,7 +30,8 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
     workshop: '',
     parts: '',
     notes: '',
-    reminderDays: 7
+    reminderDays: 7,
+    reminderKm: undefined
   });
 
   useEffect(() => {
@@ -48,7 +49,8 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
         workshop: maintenance.workshop || '',
         parts: maintenance.parts || '',
         notes: maintenance.notes || '',
-        reminderDays: 7
+        reminderDays: 7,
+        reminderKm: undefined
       });
     }
   }, [maintenance, vehicle.id]);
@@ -257,7 +259,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Kaç Gün Önceden Hatırlatma
+                  Kaç Gün Önceden Hatırlatma (Tarih Bazlı)
                 </label>
                 <select
                   name="reminderDays"
@@ -265,20 +267,38 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                 >
+                  <option value="">Hatırlatma yok</option>
                   <option value={3}>3 gün önce</option>
                   <option value={7}>7 gün önce</option>
                   <option value={14}>14 gün önce</option>
                   <option value={30}>30 gün önce</option>
                 </select>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Kaç KM Önceden Hatırlatma (KM Bazlı)
+                </label>
+                <select
+                  name="reminderKm"
+                  value={formData.reminderKm || ''}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                >
+                  <option value="">Hatırlatma yok</option>
+                  <option value={1000}>1.000 km önce</option>
+                  <option value={3000}>3.000 km önce</option>
+                  <option value={5000}>5.000 km önce</option>
+                </select>
+              </div>
             </div>
 
             <div className="text-sm text-blue-700 bg-blue-100 rounded p-3">
-              <p className="font-medium mb-1">Hatırlatma Mail Alacaklar:</p>
-              <ul className="list-disc list-inside space-y-1">
-                <li>Workspace Admin</li>
-                <li>Dispatcher</li>
-                <li>Araca atanmış sürücü (varsa)</li>
+              <p className="font-medium mb-1">Hatırlatma Sistemi:</p>
+              <ul className="list-disc list-inside space-y-1 text-xs">
+                <li>Tarih veya KM bazlı hatırlatma seçebilirsiniz (veya her ikisi)</li>
+                <li>Hangisi önce gerçekleşirse hatırlatma o zaman gönderilir</li>
+                <li>Mail alacaklar: Workspace Admin, Dispatcher, Araca atanmış sürücü</li>
               </ul>
             </div>
           </div>

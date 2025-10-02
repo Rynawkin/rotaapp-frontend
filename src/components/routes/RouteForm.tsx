@@ -147,6 +147,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
     date: savedData?.date || initialData?.date || new Date(),
     driverId: savedData?.driverId || initialData?.driverId || '',
     vehicleId: savedData?.vehicleId || initialData?.vehicleId || '',
+    currentKm: savedData?.currentKm || initialData?.currentKm || undefined,
     depotId: savedData?.depotId || initialData?.depotId || '',
     notes: savedData?.notes || initialData?.notes || '',
     stops: savedData?.stops || initialData?.stops || [],
@@ -743,6 +744,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
         const routeData: Partial<Route> = {
           ...formData,
           stops,
+          currentKm: formData.currentKm,
           totalDeliveries: stops.length,
           status: 'planned',
           optimized: false,
@@ -1074,6 +1076,11 @@ const RouteForm: React.FC<RouteFormProps> = ({
       return;
     }
 
+    if (!formData.currentKm) {
+      alert('Lütfen aracın güncel kilometresini giriniz!');
+      return;
+    }
+
     const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
     if (!selectedDepot) {
       alert('Lütfen bir depo seçin!');
@@ -1140,6 +1147,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
     const routeData: Partial<Route> = {
       ...formData,
       stops,
+      currentKm: formData.currentKm,
       totalDeliveries: stops.length,
       totalDuration: formData.totalDuration || calculateTotalDuration(),
       totalDistance: formData.totalDistance || 0,
@@ -1409,6 +1417,27 @@ const RouteForm: React.FC<RouteFormProps> = ({
                   ))}
                 </select>
               </div>
+
+              {/* Current KM Input - Shown when vehicle is selected */}
+              {formData.vehicleId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Güncel Kilometre <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.currentKm || ''}
+                    onChange={(e) => updateFormData({ currentKm: e.target.value ? parseInt(e.target.value) : undefined })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Aracın güncel km'sini giriniz"
+                    required
+                    min="0"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Aracın güncel kilometresini girmeniz gerekmektedir
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="md:col-span-2">
