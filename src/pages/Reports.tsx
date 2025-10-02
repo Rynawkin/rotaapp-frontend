@@ -69,7 +69,7 @@ interface KPIMetric {
 
 const Reports: React.FC = () => {
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'quarter' | 'custom'>('month');
-  const [startDate, setStartDate] = useState<string>(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+  const [startDate, setStartDate] = useState<string>(format(subDays(new Date(), 90), 'yyyy-MM-dd')); // 30 günden 90 güne çıkarıldı
   const [endDate, setEndDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState<'overview' | 'deliveries' | 'drivers' | 'vehicles' | 'customers' | 'feedback'>('overview');
