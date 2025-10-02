@@ -945,11 +945,12 @@ const Reports: React.FC = () => {
             </div>
           )}
 
-          {/* Müşteri Memnuniyeti Tab */}
-          {selectedTab === 'feedback' && (
-            <CustomerFeedbackReport startDate={startDate} endDate={endDate} />
-          )}
         </>
+      )}
+
+      {/* Müşteri Memnuniyeti Tab */}
+      {selectedTab === 'feedback' && (
+        <CustomerFeedbackReport startDate={startDate} endDate={endDate} />
       )}
 
       {/* Footer İstatistikler */}
