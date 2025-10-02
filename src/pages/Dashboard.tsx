@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  TrendingUp, 
-  Users, 
-  Truck, 
+import {
+  TrendingUp,
+  Users,
+  Truck,
   MapPin,
   ArrowUp,
   ArrowDown,
@@ -16,17 +16,26 @@ import {
   Activity,
   BarChart3,
   Route,
-  Loader2
+  Loader2,
+  Star,
+  Award,
+  Bell
 } from 'lucide-react';
 import { customerService } from '@/services/customer.service';
 import { driverService } from '@/services/driver.service';
 import { journeyService, JourneySummary } from '@/services/journey.service';
 import { routeService } from '@/services/route.service';
 import { Customer, Driver, Route as RouteType } from '@/types';
-import { useAuth } from '@/contexts/AuthContext'; // ✅ DOĞRU IMPORT
+import { useAuth } from '@/contexts/AuthContext';
+import { api } from '@/services/api';
+
+interface FeedbackStats {
+  averageRating: number;
+  totalFeedbacks: number;
+  last7DaysAverage: number;
+}
 
 const Dashboard: React.FC = () => {
-  const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any[]>([]);
   const [todayRoutes, setTodayRoutes] = useState<any[]>([]);
@@ -36,22 +45,22 @@ const Dashboard: React.FC = () => {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [journeySummaries, setJourneySummaries] = useState<JourneySummary[]>([]);
   const [routes, setRoutes] = useState<RouteType[]>([]);
+  const [feedbackStats, setFeedbackStats] = useState<FeedbackStats | null>(null);
+  const [delayedStops, setDelayedStops] = useState<any[]>([]);
+  const [topDrivers, setTopDrivers] = useState<any[]>([]);
   const navigate = useNavigate();
-  
-  // ✅ ROL KONTROLÜ İÇİN AUTH HOOK
+
   const { user, canAccessDispatcherFeatures } = useAuth();
 
   useEffect(() => {
     loadDashboardData();
-  }, [selectedPeriod]);
+  }, []);
 
   const loadDashboardData = async () => {
     setLoading(true);
     try {
       const promises: Promise<any>[] = [];
-      
-      // ✅ ROL BAZLI VERİ YÜKLEME
-      // Dispatcher yetkisi olanlar customer ve driver verilerini çekebilir
+
       if (canAccessDispatcherFeatures()) {
         promises.push(
           customerService.getAll().then(data => {
@@ -72,13 +81,10 @@ const Dashboard: React.FC = () => {
           })
         );
       } else {
-        // Driver rolü için boş array set et
         setCustomers([]);
         setDrivers([]);
       }
 
-      // Journey ve Route verileri tüm roller için yüklenebilir
-      // Backend zaten rol bazlı filtreleme yapıyor
       promises.push(
         journeyService.getAllSummary().then(data => {
           setJourneySummaries(data);
@@ -98,14 +104,22 @@ const Dashboard: React.FC = () => {
         })
       );
 
+      // Feedback istatistiklerini yükle
+      if (canAccessDispatcherFeatures()) {
+        promises.push(
+          loadFeedbackStats().catch(err => {
+            console.log('Feedback verileri yüklenemedi');
+            return null;
+          })
+        );
+      }
+
       const results = await Promise.allSettled(promises);
-      
-      // Başarılı sonuçları al
+
       const successfulResults = results
         .filter(r => r.status === 'fulfilled')
         .map(r => (r as PromiseFulfilledResult<any>).value);
 
-      // İstatistikleri hesapla
       const customersData = canAccessDispatcherFeatures() && successfulResults[0] ? successfulResults[0] : [];
       const driversData = canAccessDispatcherFeatures() && successfulResults[1] ? successfulResults[1] : [];
       const journeysData = canAccessDispatcherFeatures() ? successfulResults[2] || [] : successfulResults[0] || [];
@@ -116,69 +130,163 @@ const Dashboard: React.FC = () => {
       generateRecentActivities(journeysData, routesData);
       calculateWeeklyData(journeysData);
 
+      // Dispatcher için ek hesaplamalar
+      if (canAccessDispatcherFeatures()) {
+        calculateTopDrivers(journeysData, driversData);
+        calculateDelayedStops(journeysData);
+      }
+
     } catch (error: any) {
       console.error('Dashboard verileri yüklenirken hata:', error);
       const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Dashboard verileri yüklenirken hata oluştu';
-      // Note: Dashboard doesn't have setError state, so just console log the user-friendly message
       console.error('User-friendly error:', errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
+  const loadFeedbackStats = async (): Promise<FeedbackStats | null> => {
+    try {
+      // Son 30 gün için feedback stats
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+
+      const response = await api.get('/workspace/feedback/stats', {
+        params: {
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString()
+        }
+      });
+
+      const stats: FeedbackStats = {
+        averageRating: response.data.averageOverallRating || 0,
+        totalFeedbacks: response.data.totalFeedbacks || 0,
+        last7DaysAverage: response.data.last7DaysAverage || 0
+      };
+
+      setFeedbackStats(stats);
+      return stats;
+    } catch (error) {
+      console.error('Feedback stats yüklenirken hata:', error);
+      return null;
+    }
+  };
+
+  const calculateDelayedStops = (journeySummaries: JourneySummary[]) => {
+    // Bu basit bir implementasyon - gerçek delayed stop hesaplaması için
+    // journey detail'dan stop bilgileri gerekli
+    const activeJourneys = journeySummaries.filter(j =>
+      j.status === 'in_progress' || j.status === 'started'
+    );
+
+    // Şimdilik sadece aktif journey sayısını gösterelim
+    setDelayedStops(activeJourneys.slice(0, 3));
+  };
+
+  const calculateTopDrivers = (journeySummaries: JourneySummary[], drivers: Driver[]) => {
+    // Sürücü başına teslimat sayısını hesapla
+    const driverStats = new Map<number, { driver: Driver; deliveries: number; journeys: number }>();
+
+    drivers.forEach(driver => {
+      driverStats.set(driver.id, {
+        driver,
+        deliveries: 0,
+        journeys: 0
+      });
+    });
+
+    journeySummaries.forEach(journey => {
+      if (journey.driverId) {
+        const stats = driverStats.get(journey.driverId);
+        if (stats) {
+          stats.deliveries += journey.completedStops;
+          stats.journeys += 1;
+          driverStats.set(journey.driverId, stats);
+        }
+      }
+    });
+
+    // En çok teslimat yapan 5 sürücü
+    const topDriversList = Array.from(driverStats.values())
+      .filter(stat => stat.deliveries > 0)
+      .sort((a, b) => b.deliveries - a.deliveries)
+      .slice(0, 5);
+
+    setTopDrivers(topDriversList);
+  };
+
   const calculateStats = (
-    customers: Customer[], 
-    drivers: Driver[], 
-    journeySummaries: JourneySummary[], 
+    customers: Customer[],
+    drivers: Driver[],
+    journeySummaries: JourneySummary[],
     routes: RouteType[]
   ) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Bugünkü journey'leri filtrele
-    const todayJourneys = journeySummaries.filter(j => {
+    const lastMonth = new Date();
+    lastMonth.setDate(today.getDate() - 30);
+
+    // Bu ay ve geçen ay verilerini ayır
+    const thisMonthJourneys = journeySummaries.filter(j => {
       const journeyDate = new Date(j.startedAt || j.createdAt);
-      journeyDate.setHours(0, 0, 0, 0);
-      return journeyDate.getTime() === today.getTime();
+      return journeyDate >= lastMonth;
     });
 
-    // ✅ Özet verilerden hesaplama - Detay yok!
-    const completedDeliveries = journeySummaries.reduce((total, j) => {
-      return total + j.completedStops;
-    }, 0);
+    const lastMonthDate = new Date();
+    lastMonthDate.setDate(today.getDate() - 60);
 
-    const totalDeliveries = journeySummaries.reduce((total, j) => {
-      return total + j.totalStops;
-    }, 0);
+    const previousMonthJourneys = journeySummaries.filter(j => {
+      const journeyDate = new Date(j.startedAt || j.createdAt);
+      return journeyDate >= lastMonthDate && journeyDate < lastMonth;
+    });
 
-    // Aktif (available) sürücüleri say
+    // Gerçek değişim hesaplamaları
+    const thisMonthDeliveries = thisMonthJourneys.reduce((total, j) => total + j.completedStops, 0);
+    const previousMonthDeliveries = previousMonthJourneys.reduce((total, j) => total + j.completedStops, 0);
+    const deliveryChange = previousMonthDeliveries > 0
+      ? ((thisMonthDeliveries - previousMonthDeliveries) / previousMonthDeliveries * 100).toFixed(0)
+      : '0';
+
+    // Müşteri değişimi
+    const customerChange = '+5%'; // TODO: Backend'den müşteri ekleme geçmişi gerekli
+
+    // Aktif sürücüler
     const activeDrivers = drivers.filter(d => d.status === 'available').length;
 
-    // Ortalama teslimat süresini hesapla (dakika)
-    const averageTime = journeySummaries.length > 0 
-      ? journeySummaries.reduce((sum, j) => sum + j.totalDuration, 0) / journeySummaries.length
+    // Ortalama teslimat süresi
+    const thisMonthAvgTime = thisMonthJourneys.length > 0
+      ? thisMonthJourneys.reduce((sum, j) => sum + j.totalDuration, 0) / thisMonthJourneys.length
       : 0;
 
-    // ✅ ROL BAZLI İSTATİSTİKLER
+    const previousMonthAvgTime = previousMonthJourneys.length > 0
+      ? previousMonthJourneys.reduce((sum, j) => sum + j.totalDuration, 0) / previousMonthJourneys.length
+      : 0;
+
+    const timeChange = previousMonthAvgTime > 0
+      ? ((thisMonthAvgTime - previousMonthAvgTime) / previousMonthAvgTime * 100).toFixed(0)
+      : '0';
+
     const statsData = [];
-    
-    // Toplam teslimat - Tüm roller görebilir
+
+    // Toplam teslimat
     statsData.push({
       title: 'Toplam Teslimat',
-      value: totalDeliveries.toString(),
-      change: '+12%',
-      trend: 'up',
+      value: thisMonthDeliveries.toString(),
+      change: `${deliveryChange > '0' ? '+' : ''}${deliveryChange}%`,
+      trend: Number(deliveryChange) > 0 ? 'up' : Number(deliveryChange) < 0 ? 'down' : 'neutral',
       icon: Package,
       color: 'blue',
-      subtitle: 'Bu ay'
+      subtitle: 'Bu ay (son 30 gün)'
     });
 
-    // Müşteri sayısı - Sadece dispatcher ve üzeri
+    // Müşteri sayısı
     if (canAccessDispatcherFeatures()) {
       statsData.push({
         title: 'Aktif Müşteri',
         value: customers.length.toString(),
-        change: '+5%',
+        change: customerChange,
         trend: 'up',
         icon: Users,
         color: 'green',
@@ -186,41 +294,56 @@ const Dashboard: React.FC = () => {
       });
     }
 
-    // Aktif sürücü - Sadece dispatcher ve üzeri
+    // Aktif sürücü
     if (canAccessDispatcherFeatures()) {
       statsData.push({
         title: 'Aktif Sürücü',
         value: activeDrivers.toString(),
-        change: '0%',
+        change: `${drivers.length} toplam`,
         trend: 'neutral',
         icon: Truck,
         color: 'purple',
-        subtitle: 'Bugün'
+        subtitle: 'Müsait durumda'
       });
     }
 
-    // Ortalama teslimat süresi - Tüm roller görebilir
+    // Ortalama teslimat süresi
     statsData.push({
-      title: 'Ortalama Teslimat Süresi',
-      value: averageTime > 0 ? `${Math.round(averageTime)} dk` : '0 dk',
-      change: '-8%',
-      trend: 'down',
+      title: 'Ortalama Süre',
+      value: thisMonthAvgTime > 0 ? `${Math.round(thisMonthAvgTime)} dk` : '0 dk',
+      change: `${Number(timeChange) > 0 ? '+' : ''}${timeChange}%`,
+      trend: Number(timeChange) < 0 ? 'down' : Number(timeChange) > 0 ? 'up' : 'neutral',
       icon: Clock,
       color: 'orange',
-      subtitle: 'Bu hafta'
+      subtitle: 'Sefer başına'
     });
 
-    // Driver rolü için ek istatistik
+    // Müşteri memnuniyeti (Dispatcher için)
+    if (canAccessDispatcherFeatures() && feedbackStats && feedbackStats.totalFeedbacks > 0) {
+      statsData.push({
+        title: 'Müşteri Memnuniyeti',
+        value: feedbackStats.averageRating.toFixed(1),
+        change: `${feedbackStats.totalFeedbacks} değerlendirme`,
+        trend: feedbackStats.averageRating >= 4 ? 'up' : feedbackStats.averageRating >= 3 ? 'neutral' : 'down',
+        icon: Star,
+        color: 'yellow',
+        subtitle: 'Ortalama puan'
+      });
+    }
+
+    // Driver için özel istatistik
     if (user?.isDriver && !canAccessDispatcherFeatures()) {
       const myJourneys = journeySummaries.filter(j => j.driverId === user.id);
+      const myDeliveries = myJourneys.reduce((total, j) => total + j.completedStops, 0);
+
       statsData.push({
-        title: 'Benim Seferlerim',
-        value: myJourneys.length.toString(),
-        change: '0%',
+        title: 'Benim Teslimatlarım',
+        value: myDeliveries.toString(),
+        change: `${myJourneys.length} sefer`,
         trend: 'neutral',
         icon: Navigation,
         color: 'indigo',
-        subtitle: 'Bugün'
+        subtitle: 'Bu ay'
       });
     }
 
@@ -228,14 +351,13 @@ const Dashboard: React.FC = () => {
   };
 
   const filterTodayRoutes = (
-    routes: RouteType[], 
-    journeySummaries: JourneySummary[], 
+    routes: RouteType[],
+    journeySummaries: JourneySummary[],
     drivers: Driver[]
   ) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Bugünkü rotaları filtrele
     let todayRoutesData = routes
       .filter(route => {
         const routeDate = new Date(route.date);
@@ -243,25 +365,21 @@ const Dashboard: React.FC = () => {
         return routeDate.getTime() === today.getTime();
       });
 
-    // ✅ Driver rolü için sadece kendi rotalarını göster
     if (user?.isDriver && !canAccessDispatcherFeatures()) {
-      todayRoutesData = todayRoutesData.filter(route => 
+      todayRoutesData = todayRoutesData.filter(route =>
         route.driverId === user.id || route.driver?.id === user.id
       );
     }
 
     const mappedRoutes = todayRoutesData
       .map(route => {
-        // ✅ Summary'den journey bilgisi al
         const journey = journeySummaries.find(j => j.routeId === Number(route.id));
         const driver = drivers.find(d => d.id === Number(route.driverId));
-        
-        // İlerleme yüzdesini hesapla
-        const progress = journey 
+
+        const progress = journey
           ? Math.round((journey.completedStops / journey.totalStops) * 100)
           : 0;
 
-        // Durumu belirle
         let status = 'pending';
         if (journey) {
           status = journey.status === 'completed' ? 'completed' :
@@ -285,17 +403,15 @@ const Dashboard: React.FC = () => {
 
   const generateRecentActivities = (journeySummaries: JourneySummary[], routes: RouteType[]) => {
     const activities: any[] = [];
-    
-    // ✅ Driver için sadece kendi aktiviteleri
+
     let filteredJourneys = journeySummaries;
     let filteredRoutes = routes;
-    
+
     if (user?.isDriver && !canAccessDispatcherFeatures()) {
       filteredJourneys = journeySummaries.filter(j => j.driverId === user.id);
       filteredRoutes = routes.filter(r => r.driverId === user.id);
     }
 
-    // ✅ Summary verilerinden aktivite oluştur
     filteredJourneys.slice(0, 5).forEach((journey) => {
       if (journey.status === 'completed') {
         activities.push({
@@ -318,7 +434,6 @@ const Dashboard: React.FC = () => {
       }
     });
 
-    // Son oluşturulan rotalar
     filteredRoutes.slice(0, 3).forEach(route => {
       activities.push({
         id: `r-${route.id}`,
@@ -339,7 +454,6 @@ const Dashboard: React.FC = () => {
     const today = new Date();
     const weekData: any[] = [];
 
-    // ✅ Driver için sadece kendi journey'leri
     let filteredJourneys = journeySummaries;
     if (user?.isDriver && !canAccessDispatcherFeatures()) {
       filteredJourneys = journeySummaries.filter(j => j.driverId === user.id);
@@ -349,8 +463,7 @@ const Dashboard: React.FC = () => {
       const date = new Date(today);
       date.setDate(today.getDate() - i);
       date.setHours(0, 0, 0, 0);
-      
-      // ✅ Summary verilerinden hesapla
+
       const dayJourneys = filteredJourneys.filter(j => {
         const journeyDate = new Date(j.startedAt || j.createdAt);
         journeyDate.setHours(0, 0, 0, 0);
@@ -363,8 +476,7 @@ const Dashboard: React.FC = () => {
 
       weekData.push({
         day: daysOfWeek[date.getDay() === 0 ? 6 : date.getDay() - 1],
-        deliveries: dayDeliveries,
-        target: date.getDay() === 0 || date.getDay() === 6 ? 50 : 150
+        deliveries: dayDeliveries
       });
     }
 
@@ -373,7 +485,7 @@ const Dashboard: React.FC = () => {
 
   const formatTimeAgo = (date?: Date | string): string => {
     if (!date) return 'Bilinmiyor';
-    
+
     const now = new Date();
     const past = new Date(date);
     const diffMs = now.getTime() - past.getTime();
@@ -424,8 +536,8 @@ const Dashboard: React.FC = () => {
       ]),
       [''],
       ['Haftalık Performans'],
-      ['Gün', 'Teslimat', 'Hedef'],
-      ...weeklyData.map(data => [data.day, data.deliveries.toString(), data.target.toString()])
+      ['Gün', 'Teslimat'],
+      ...weeklyData.map(data => [data.day, data.deliveries.toString()])
     ];
 
     const csvContent = reportData.map(row => row.join(',')).join('\n');
@@ -456,18 +568,8 @@ const Dashboard: React.FC = () => {
             Hoş geldiniz {user?.fullName}! İşte {user?.isDriver && !canAccessDispatcherFeatures() ? 'size özel' : 'bugünkü'} özet bilgileriniz.
           </p>
         </div>
-        <div className="mt-4 sm:mt-0 flex items-center space-x-2">
-          <select 
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="today">Bugün</option>
-            <option value="week">Bu Hafta</option>
-            <option value="month">Bu Ay</option>
-            <option value="year">Bu Yıl</option>
-          </select>
-          <button 
+        <div className="mt-4 sm:mt-0">
+          <button
             onClick={handleDownloadReport}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
           >
@@ -476,6 +578,29 @@ const Dashboard: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Delayed Deliveries Alert - Dispatcher only */}
+      {canAccessDispatcherFeatures() && delayedStops.length > 0 && (
+        <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-lg">
+          <div className="flex items-center">
+            <Bell className="w-5 h-5 text-orange-600 mr-3" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-orange-900">
+                {delayedStops.length} aktif sefer devam ediyor
+              </p>
+              <p className="text-xs text-orange-700 mt-1">
+                Seferlerin ilerlemesini takip edin
+              </p>
+            </div>
+            <Link
+              to="/journeys"
+              className="text-sm text-orange-700 hover:text-orange-800 font-medium"
+            >
+              Görüntüle →
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -486,8 +611,8 @@ const Dashboard: React.FC = () => {
                 <stat.icon className={`w-6 h-6 text-${stat.color}-600`} />
               </div>
               <div className={`flex items-center text-sm font-medium ${
-                stat.trend === 'up' ? 'text-green-600' : 
-                stat.trend === 'down' ? 'text-red-600' : 
+                stat.trend === 'up' ? 'text-green-600' :
+                stat.trend === 'down' ? 'text-red-600' :
                 'text-gray-600'
               }`}>
                 {stat.trend === 'up' && <ArrowUp className="w-4 h-4 mr-1" />}
@@ -504,7 +629,7 @@ const Dashboard: React.FC = () => {
         ))}
       </div>
 
-      {/* Charts and Activity Row */}
+      {/* Charts and Widgets Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Weekly Chart */}
         <div className="lg:col-span-2 bg-white rounded-xl shadow-sm p-6">
@@ -515,71 +640,93 @@ const Dashboard: React.FC = () => {
             <BarChart3 className="w-5 h-5 text-gray-400" />
           </div>
           <div className="space-y-4">
-            {weeklyData.map((day, index) => (
-              <div key={index} className="flex items-center">
-                <span className="text-sm text-gray-600 w-12">{day.day}</span>
-                <div className="flex-1 mx-4">
-                  <div className="relative h-8 bg-gray-100 rounded-lg overflow-hidden">
-                    <div 
-                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg transition-all duration-500"
-                      style={{ width: `${(day.deliveries / 200) * 100}%` }}
-                    />
-                    {canAccessDispatcherFeatures() && (
-                      <div 
-                        className="absolute top-0 left-0 h-full border-r-2 border-dashed border-gray-400"
-                        style={{ left: `${(day.target / 200) * 100}%` }}
+            {weeklyData.map((day, index) => {
+              const maxDeliveries = Math.max(...weeklyData.map(d => d.deliveries), 1);
+              return (
+                <div key={index} className="flex items-center">
+                  <span className="text-sm text-gray-600 w-12">{day.day}</span>
+                  <div className="flex-1 mx-4">
+                    <div className="relative h-8 bg-gray-100 rounded-lg overflow-hidden">
+                      <div
+                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg transition-all duration-500"
+                        style={{ width: `${(day.deliveries / maxDeliveries) * 100}%` }}
                       />
-                    )}
+                    </div>
                   </div>
+                  <span className="text-sm font-semibold text-gray-900 w-16 text-right">
+                    {day.deliveries}
+                  </span>
                 </div>
-                <span className="text-sm font-semibold text-gray-900 w-16 text-right">
-                  {day.deliveries}
-                </span>
-              </div>
-            ))}
-            <div className="flex items-center justify-end mt-4 space-x-4 text-sm">
+              );
+            })}
+            <div className="flex items-center justify-end mt-4 text-sm">
               <div className="flex items-center">
                 <div className="w-3 h-3 bg-blue-500 rounded mr-2"></div>
-                <span className="text-gray-600">Gerçekleşen</span>
+                <span className="text-gray-600">Teslimat Sayısı</span>
               </div>
-              {canAccessDispatcherFeatures() && (
-                <div className="flex items-center">
-                  <div className="w-0.5 h-3 bg-gray-400 mr-2"></div>
-                  <span className="text-gray-600">Hedef</span>
-                </div>
-              )}
             </div>
           </div>
         </div>
 
-        {/* Recent Activities */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">Son Aktiviteler</h2>
-            <Activity className="w-5 h-5 text-gray-400" />
-          </div>
-          <div className="space-y-4">
-            {recentActivities.length > 0 ? (
-              recentActivities.map((activity) => (
-                <div key={activity.id} className="flex items-start space-x-3">
-                  <activity.icon className={`w-5 h-5 mt-0.5 ${activity.color}`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900">{activity.message}</p>
-                    <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
+        {/* Top Drivers - Dispatcher only */}
+        {canAccessDispatcherFeatures() && topDrivers.length > 0 ? (
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-gray-900">🏆 En İyi Sürücüler</h2>
+              <Award className="w-5 h-5 text-gray-400" />
+            </div>
+            <div className="space-y-3">
+              {topDrivers.map((item, index) => (
+                <div key={item.driver.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                  <div className="flex items-center">
+                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold mr-3 ${
+                      index === 0 ? 'bg-yellow-100 text-yellow-700' :
+                      index === 1 ? 'bg-gray-100 text-gray-700' :
+                      index === 2 ? 'bg-orange-100 text-orange-700' :
+                      'bg-blue-50 text-blue-600'
+                    }`}>
+                      {index + 1}
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{item.driver.name}</p>
+                      <p className="text-xs text-gray-500">{item.journeys} sefer</p>
+                    </div>
                   </div>
+                  <span className="text-sm font-semibold text-blue-600">{item.deliveries}</span>
                 </div>
-              ))
-            ) : (
-              <p className="text-sm text-gray-500 text-center py-4">Henüz aktivite yok</p>
-            )}
+              ))}
+            </div>
           </div>
-          <button 
-            onClick={() => navigate('/journeys')}
-            className="block w-full mt-4 text-sm text-blue-600 hover:text-blue-700 font-medium text-center"
-          >
-            Tüm Seferleri Gör →
-          </button>
-        </div>
+        ) : (
+          /* Recent Activities - fallback when no top drivers */
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-gray-900">Son Aktiviteler</h2>
+              <Activity className="w-5 h-5 text-gray-400" />
+            </div>
+            <div className="space-y-4">
+              {recentActivities.length > 0 ? (
+                recentActivities.map((activity) => (
+                  <div key={activity.id} className="flex items-start space-x-3">
+                    <activity.icon className={`w-5 h-5 mt-0.5 ${activity.color}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-900">{activity.message}</p>
+                      <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500 text-center py-4">Henüz aktivite yok</p>
+              )}
+            </div>
+            <button
+              onClick={() => navigate('/journeys')}
+              className="block w-full mt-4 text-sm text-blue-600 hover:text-blue-700 font-medium text-center"
+            >
+              Tüm Seferleri Gör →
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Today's Routes */}
@@ -589,8 +736,8 @@ const Dashboard: React.FC = () => {
             <h2 className="text-lg font-semibold text-gray-900">
               {user?.isDriver && !canAccessDispatcherFeatures() ? 'Benim Bugünkü Rotalarım' : 'Bugünkü Rotalar'}
             </h2>
-            <Link 
-              to="/routes" 
+            <Link
+              to="/routes"
               className="text-sm text-blue-600 hover:text-blue-700 font-medium"
             >
               Tümünü Gör →
@@ -647,7 +794,7 @@ const Dashboard: React.FC = () => {
                       <div className="flex items-center">
                         <div className="flex-1 mr-3">
                           <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
+                            <div
                               className={`h-2 rounded-full ${
                                 route.progress === 100 ? 'bg-green-500' : 'bg-blue-500'
                               }`}
@@ -662,8 +809,8 @@ const Dashboard: React.FC = () => {
                       {route.deliveries}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <Link 
-                        to={`/routes/${route.id}`} 
+                      <Link
+                        to={`/routes/${route.id}`}
                         className="text-blue-600 hover:text-blue-700 font-medium"
                       >
                         Detay →
@@ -677,8 +824,8 @@ const Dashboard: React.FC = () => {
             <div className="p-6 text-center text-gray-500">
               <MapPin className="w-12 h-12 mx-auto text-gray-300 mb-3" />
               <p>
-                {user?.isDriver && !canAccessDispatcherFeatures() 
-                  ? 'Size atanmış rota bulunmuyor' 
+                {user?.isDriver && !canAccessDispatcherFeatures()
+                  ? 'Size atanmış rota bulunmuyor'
                   : 'Bugün için planlanmış rota bulunmuyor'}
               </p>
             </div>
