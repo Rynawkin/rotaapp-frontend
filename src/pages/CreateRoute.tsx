@@ -26,6 +26,9 @@ const CreateRoute: React.FC = () => {
         route = await routeService.create(formData);
       }
 
+      // LocalStorage'ı temizle
+      localStorage.removeItem('createRouteFormData');
+
       // Formu her durumda sıfırla
       setFormKey(prev => prev + 1);
 
