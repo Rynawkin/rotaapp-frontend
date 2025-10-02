@@ -164,6 +164,55 @@ export interface Vehicle {
   updatedAt?: Date;
 }
 
+// Vehicle Maintenance Types
+export interface VehicleMaintenance {
+  id: number;
+  vehicleId: number;
+  vehicle?: Vehicle;
+  type: 'routine' | 'repair' | 'inspection' | 'tire_change' | 'oil_change' | 'other';
+  title: string;
+  description?: string;
+  cost: number;
+  performedAt: Date;
+  nextMaintenanceDate?: Date;
+  nextMaintenanceKm?: number;
+  currentKm?: number;
+  workshop?: string;
+  parts?: string;
+  notes?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface MaintenanceReminder {
+  id: number;
+  vehicleId: number;
+  maintenanceId?: number;
+  reminderDays: number; // Kaç gün öncesinden hatırlatma gönderilsin
+  nextMaintenanceDate: Date;
+  isActive: boolean;
+  sentAt?: Date;
+  createdAt?: Date;
+}
+
+export interface CreateMaintenanceDto {
+  vehicleId: number;
+  type: 'routine' | 'repair' | 'inspection' | 'tire_change' | 'oil_change' | 'other';
+  title: string;
+  description?: string;
+  cost: number;
+  performedAt: Date;
+  nextMaintenanceDate?: Date;
+  nextMaintenanceKm?: number;
+  currentKm?: number;
+  workshop?: string;
+  parts?: string;
+  notes?: string;
+  reminderDays?: number; // Hatırlatma için kaç gün öncesinden
+}
+
+export interface UpdateMaintenanceDto extends Partial<CreateMaintenanceDto> {}
+
 // Route Types
 export interface Route {
   id: string;
