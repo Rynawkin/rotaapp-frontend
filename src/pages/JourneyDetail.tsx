@@ -28,7 +28,9 @@ import {
   ChevronLeft,
   ChevronRight,
   UserCheck,
-  Home
+  Home,
+  FileText,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Journey, JourneyStop, JourneyStatus } from '@/types';
 import { journeyService, CompleteStopDto } from '@/services/journey.service';
@@ -36,6 +38,9 @@ import { toast } from 'react-hot-toast';
 import signalRService from '@/services/signalr.service';
 import { useSignalR, useJourneyTracking } from '@/hooks/useSignalR';
 import { api } from '@/services/api';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 // Stop detayları için ayrı component
 const StopDetailsSection: React.FC<{
@@ -723,6 +728,231 @@ const JourneyDetail: React.FC = () => {
     }
   };
 
+  // PDF Export
+  const handleExportPDF = () => {
+    if (!journey) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+
+    // Başlık
+    doc.setFontSize(20);
+    doc.setTextColor(31, 41, 55); // gray-800
+    doc.text('Sefer Detay Raporu', pageWidth / 2, 20, { align: 'center' });
+
+    // Sefer Bilgileri
+    doc.setFontSize(12);
+    doc.setTextColor(107, 114, 128); // gray-500
+    doc.text(`Sefer: ${journey.name || journey.route?.name || `#${journey.id}`}`, 14, 35);
+    doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 42);
+
+    let yPos = 55;
+
+    // Genel Bilgiler Tablosu
+    doc.setFontSize(14);
+    doc.setTextColor(31, 41, 55);
+    doc.text('Genel Bilgiler', 14, yPos);
+    yPos += 5;
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Özellik', 'Değer']],
+      body: [
+        ['Sürücü', journey.driver?.fullName || journey.driver?.name || journey.route?.driver?.name || '-'],
+        ['Araç', `${journey.route?.vehicle?.plateNumber || journey.vehicle?.plateNumber || '-'}`],
+        ['Durum',
+          journey.status === 'preparing' ? 'Hazırlanıyor' :
+          journey.status === 'planned' ? 'Planlandı' :
+          journey.status === 'started' ? 'Başladı' :
+          journey.status === 'in_progress' ? 'Devam Ediyor' :
+          journey.status === 'completed' ? 'Tamamlandı' : 'İptal Edildi'
+        ],
+        ['Toplam Mesafe', `${journey.totalDistance?.toFixed(1) || 0} km`],
+        ['Toplam Süre', `${journey.totalDuration ? Math.round(journey.totalDuration / 60) : 0} saat`],
+        ['Başarılı Teslimat', `${normalStops.filter((s: JourneyStop) => s.status?.toLowerCase() === 'completed').length}`],
+        ['Başarısız Teslimat', `${normalStops.filter((s: JourneyStop) => s.status?.toLowerCase() === 'failed').length}`],
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
+      styles: { fontSize: 10, cellPadding: 3 },
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 15;
+
+    // Duraklar Tablosu
+    doc.setFontSize(14);
+    doc.setTextColor(31, 41, 55);
+    doc.text('Duraklar', 14, yPos);
+    yPos += 5;
+
+    const stopsData = normalStops.map((stop: JourneyStop, index: number) => {
+      const statusLower = stop.status?.toLowerCase() || 'pending';
+      const statusText =
+        statusLower === 'completed' ? 'Tamamlandı' :
+        statusLower === 'failed' ? 'Başarısız' :
+        statusLower === 'inprogress' || statusLower === 'in_progress' ? 'Devam Ediyor' :
+        'Bekliyor';
+
+      // Süre hesaplama
+      let duration = '-';
+      if (stop.checkInTime && stop.checkOutTime) {
+        const checkIn = new Date(stop.checkInTime);
+        const checkOut = new Date(stop.checkOutTime);
+        const durationMinutes = Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60));
+        duration = durationMinutes > 0 ? `${durationMinutes} dk` : '-';
+      }
+
+      return [
+        stop.order.toString(),
+        stop.routeStop?.customer?.name || stop.routeStop?.name || `Durak ${stop.order}`,
+        stop.endAddress || stop.routeStop?.address || stop.routeStop?.customer?.address || '-',
+        stop.estimatedArrivalTime ? formatTimeSpan(stop.estimatedArrivalTime) : '-',
+        stop.checkInTime ? formatTime(stop.checkInTime) : '-',
+        duration,
+        statusText
+      ];
+    });
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['#', 'Müşteri', 'Adres', 'Plan Varış', 'Gerç. Varış', 'Süre', 'Durum']],
+      body: stopsData,
+      theme: 'grid',
+      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
+      styles: { fontSize: 9, cellPadding: 2 },
+      columnStyles: {
+        0: { cellWidth: 10 },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 50 },
+        3: { cellWidth: 20 },
+        4: { cellWidth: 20 },
+        5: { cellWidth: 18 },
+        6: { cellWidth: 25 },
+      },
+    });
+
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(156, 163, 175);
+      doc.text(
+        `Sayfa ${i} / ${pageCount}`,
+        pageWidth / 2,
+        doc.internal.pageSize.height - 10,
+        { align: 'center' }
+      );
+    }
+
+    // Kaydet
+    const fileName = `sefer_${journey.id}_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+    toast.success('PDF indirildi');
+  };
+
+  // Excel Export
+  const handleExportExcel = () => {
+    if (!journey) return;
+
+    // Genel Bilgiler
+    const generalInfo = [
+      ['SEFER DETAY RAPORU'],
+      [],
+      ['Sefer', journey.name || journey.route?.name || `#${journey.id}`],
+      ['Tarih', new Date().toLocaleDateString('tr-TR')],
+      ['Sürücü', journey.driver?.fullName || journey.driver?.name || journey.route?.driver?.name || '-'],
+      ['Araç', `${journey.route?.vehicle?.plateNumber || journey.vehicle?.plateNumber || '-'}`],
+      ['Durum',
+        journey.status === 'preparing' ? 'Hazırlanıyor' :
+        journey.status === 'planned' ? 'Planlandı' :
+        journey.status === 'started' ? 'Başladı' :
+        journey.status === 'in_progress' ? 'Devam Ediyor' :
+        journey.status === 'completed' ? 'Tamamlandı' : 'İptal Edildi'
+      ],
+      ['Toplam Mesafe', `${journey.totalDistance?.toFixed(1) || 0} km`],
+      ['Toplam Süre', `${journey.totalDuration ? Math.round(journey.totalDuration / 60) : 0} saat`],
+      ['Başarılı Teslimat', `${normalStops.filter((s: JourneyStop) => s.status?.toLowerCase() === 'completed').length}`],
+      ['Başarısız Teslimat', `${normalStops.filter((s: JourneyStop) => s.status?.toLowerCase() === 'failed').length}`],
+      [],
+      ['DURAKLAR'],
+      ['Sıra', 'Müşteri', 'Adres', 'Telefon', 'Plan. Varış', 'Gerç. Varış', 'Plan. Tamamlanma', 'Gerç. Tamamlanma', 'Planlanan Süre', 'Gerçekleşen Süre', 'Durum']
+    ];
+
+    // Duraklar
+    const stopsData = normalStops.map((stop: JourneyStop) => {
+      const statusLower = stop.status?.toLowerCase() || 'pending';
+      const statusText =
+        statusLower === 'completed' ? 'Tamamlandı' :
+        statusLower === 'failed' ? 'Başarısız' :
+        statusLower === 'inprogress' || statusLower === 'in_progress' ? 'Devam Ediyor' :
+        'Bekliyor';
+
+      // Planlanan süre
+      let plannedDuration = '-';
+      if (stop.estimatedArrivalTime && stop.estimatedDepartureTime) {
+        const arrivalParts = stop.estimatedArrivalTime.split(':');
+        const departureParts = stop.estimatedDepartureTime.split(':');
+        const arrivalMinutes = parseInt(arrivalParts[0]) * 60 + parseInt(arrivalParts[1]);
+        const departureMinutes = parseInt(departureParts[0]) * 60 + parseInt(departureParts[1]);
+        const durationMinutes = departureMinutes - arrivalMinutes;
+        plannedDuration = durationMinutes > 0 ? `${durationMinutes} dk` : '-';
+      }
+
+      // Gerçekleşen süre
+      let actualDuration = '-';
+      if (stop.checkInTime && stop.checkOutTime) {
+        const checkIn = new Date(stop.checkInTime);
+        const checkOut = new Date(stop.checkOutTime);
+        const durationMinutes = Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60));
+        actualDuration = durationMinutes > 0 ? `${durationMinutes} dk` : '-';
+      }
+
+      return [
+        stop.order,
+        stop.routeStop?.customer?.name || stop.routeStop?.name || `Durak ${stop.order}`,
+        stop.endAddress || stop.routeStop?.address || stop.routeStop?.customer?.address || '-',
+        stop.routeStop?.customer?.phone || '-',
+        stop.estimatedArrivalTime ? formatTimeSpan(stop.estimatedArrivalTime) : '-',
+        stop.checkInTime ? formatTime(stop.checkInTime) : '-',
+        stop.estimatedDepartureTime ? formatTimeSpan(stop.estimatedDepartureTime) : '-',
+        stop.checkOutTime ? formatTime(stop.checkOutTime) : '-',
+        plannedDuration,
+        actualDuration,
+        statusText
+      ];
+    });
+
+    const allData = [...generalInfo, ...stopsData];
+
+    // Create worksheet
+    const ws = XLSX.utils.aoa_to_sheet(allData);
+
+    // Column widths
+    ws['!cols'] = [
+      { wch: 8 },  // Sıra
+      { wch: 30 }, // Müşteri
+      { wch: 40 }, // Adres
+      { wch: 15 }, // Telefon
+      { wch: 12 }, // Plan. Varış
+      { wch: 12 }, // Gerç. Varış
+      { wch: 15 }, // Plan. Tamamlanma
+      { wch: 15 }, // Gerç. Tamamlanma
+      { wch: 15 }, // Planlanan Süre
+      { wch: 15 }, // Gerçekleşen Süre
+      { wch: 15 }, // Durum
+    ];
+
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sefer Detay');
+
+    // Save
+    const fileName = `sefer_${journey.id}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    toast.success('Excel indirildi');
+  };
+
   // ✅ DÜZELTİLDİ: Case-insensitive status kontrolü
   const getStopStatusIcon = (status: string) => {
     const statusLower = status?.toLowerCase() || 'pending';
@@ -906,6 +1136,26 @@ const JourneyDetail: React.FC = () => {
               📱 Teslimat işlemleri mobil uygulama üzerinden yapılır
             </div>
           )}
+
+          {/* Export Butonları */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportPDF}
+              className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-sm"
+              title="PDF olarak indir"
+            >
+              <FileText className="w-4 h-4" />
+              PDF
+            </button>
+            <button
+              onClick={handleExportExcel}
+              className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm"
+              title="Excel olarak indir"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              Excel
+            </button>
+          </div>
 
           {/* Seferi Başlat Butonu */}
           {isJourneyPlanned && (
