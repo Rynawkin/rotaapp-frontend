@@ -13,6 +13,8 @@ import { Customer } from '@/types';
 // TÜM UYGULAMADA AYNI libraries KULLAN
 const libraries: ("places" | "drawing" | "geometry")[] = ['places', 'geometry'];
 
+export type MarkerStyle = 'pin' | 'bubble' | 'shield' | 'emoji';
+
 interface MapComponentProps {
   center?: LatLng;
   zoom?: number;
@@ -28,6 +30,7 @@ interface MapComponentProps {
   onMapLoad?: (map: google.maps.Map) => void;
   selectedCustomerId?: string;
   onCustomerSelect?: (customerId: string) => void;
+  markerStyle?: MarkerStyle;
 }
 
 // Ultra modern harita stili
@@ -143,7 +146,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
   onMarkerClick,
   onMapLoad,
   selectedCustomerId,
-  onCustomerSelect
+  onCustomerSelect,
+  markerStyle = 'pin'
 }) => {
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [selectedMarker, setSelectedMarker] = useState<MarkerData | null>(null);
@@ -251,7 +255,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const createPinIcon = (color: string, label?: string) => {
     if (typeof window === 'undefined' || !window.google || !window.google.maps) return undefined;
 
-    // Modern pin SVG path
+    // Modern pin SVG path (sharp, clean design)
     const pinPath = 'M12 0C7.589 0 4 3.589 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.411-3.589-8-8-8z';
 
     return {
@@ -259,11 +263,58 @@ const MapComponent: React.FC<MapComponentProps> = ({
       fillColor: color,
       fillOpacity: 1,
       strokeColor: 'white',
-      strokeWeight: 2,
-      scale: 2,
+      strokeWeight: 2.5,
+      scale: 2.2,
       anchor: new window.google.maps.Point(12, 24),
       labelOrigin: new window.google.maps.Point(12, 8)
     };
+  };
+
+  // Bubble/Circle marker - yuvarlak baloncuk (sosyal medya için şık)
+  const createBubbleIcon = (color: string) => {
+    if (typeof window === 'undefined' || !window.google || !window.google.maps) return undefined;
+
+    return {
+      path: window.google.maps.SymbolPath.CIRCLE,
+      fillColor: color,
+      fillOpacity: 0.95,
+      strokeColor: 'white',
+      strokeWeight: 3,
+      scale: 14,
+      anchor: new window.google.maps.Point(0, 0)
+    };
+  };
+
+  // Shield/Badge marker - kalkan şekli (premium görünüm)
+  const createShieldIcon = (color: string) => {
+    if (typeof window === 'undefined' || !window.google || !window.google.maps) return undefined;
+
+    // Shield SVG path
+    const shieldPath = 'M12 0L2 4v6c0 6.5 4.5 12 10 14 5.5-2 10-7.5 10-14V4L12 0z';
+
+    return {
+      path: shieldPath,
+      fillColor: color,
+      fillOpacity: 1,
+      strokeColor: 'white',
+      strokeWeight: 2,
+      scale: 1.5,
+      anchor: new window.google.maps.Point(12, 24),
+      labelOrigin: new window.google.maps.Point(12, 10)
+    };
+  };
+
+  // Ana marker icon oluşturucu - style'a göre
+  const createMarkerIcon = (color: string, style: MarkerStyle = 'pin', label?: string) => {
+    switch (style) {
+      case 'bubble':
+        return createBubbleIcon(color);
+      case 'shield':
+        return createShieldIcon(color);
+      case 'pin':
+      default:
+        return createPinIcon(color, label);
+    }
   };
 
   // Component mount/unmount'ta bounds kontrolünü reset et
@@ -386,13 +437,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
         <Marker
           key="depot-marker"
           position={depot}
-          icon={createPinIcon('#2563EB')}
+          icon={markerStyle === 'emoji' ? undefined : createMarkerIcon('#2563EB', markerStyle)}
           title="Ana Depo"
           zIndex={1000}
           label={{
-            text: '🏢',
+            text: markerStyle === 'emoji' ? '🏢' : '🏢',
             color: 'white',
-            fontSize: '16px',
+            fontSize: markerStyle === 'emoji' ? '32px' : '16px',
             fontWeight: 'bold'
           }}
         />
@@ -413,19 +464,26 @@ const MapComponent: React.FC<MapComponentProps> = ({
         // Eğer tek marker varsa ve depot yoksa (DepotDetail sayfası için)
         const isSingleMarker = markers.length === 1 && !depot;
 
+        // Marker rengi - gradient renkler (sosyal medya için daha çekici)
+        const markerColor = isSelected ? '#EF4444' : isSingleMarker ? '#2563EB' : '#10B981';
+
         markerElements.push(
           <Marker
             key={`marker-${marker.customerId || index}`}
             position={marker.position}
-            icon={createPinIcon(isSelected ? '#EF4444' : isSingleMarker ? '#2563EB' : '#10B981')}
+            icon={markerStyle === 'emoji' ? undefined : createMarkerIcon(markerColor, markerStyle)}
             title={marker.title || `Müşteri ${index + 1}`}
             zIndex={isSelected ? 2000 : 500 + index}
-            label={marker.label ? {
+            label={markerStyle === 'emoji' ? {
+              text: '📍',
+              fontSize: '32px',
+              fontWeight: 'bold'
+            } : (marker.label ? {
               text: orderNumber,
               color: 'white',
               fontSize: '14px',
               fontWeight: 'bold'
-            } : undefined}
+            } : undefined)}
             onClick={() => handleMarkerClick(marker)}
           />
         );

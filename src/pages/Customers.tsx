@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { Customer } from '@/types';
 import { customerService } from '@/services/customer.service';
-import MapComponent from '@/components/maps/MapComponent';
+import MapComponent, { MarkerStyle } from '@/components/maps/MapComponent';
 import { MarkerData } from '@/types/maps';
 
 type SortField = 'name' | 'code' | 'createdAt';
@@ -48,6 +48,7 @@ const Customers: React.FC = () => {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [quickFilter, setQuickFilter] = useState('all');
   const [selectedCustomers, setSelectedCustomers] = useState<Set<number>>(new Set());
+  const [markerStyle, setMarkerStyle] = useState<MarkerStyle>('bubble'); // Sosyal medya için bubble daha şık
   const [showImportHelp, setShowImportHelp] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -574,27 +575,48 @@ const Customers: React.FC = () => {
             </div>
 
             {/* View Mode Toggle */}
-            <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
               <button
                 onClick={() => setViewMode('table')}
-                className={`p-2 rounded ${viewMode === 'table' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
+                className={`px-3 py-2 rounded-md transition-all ${
+                  viewMode === 'table'
+                    ? 'bg-white shadow-md text-blue-600'
+                    : 'text-gray-600 hover:bg-gray-200'
+                }`}
                 title="Tablo Görünümü"
               >
-                <List className="w-4 h-4" />
+                <div className="flex items-center gap-2">
+                  <List className="w-5 h-5" />
+                  <span className="text-sm font-medium">Tablo</span>
+                </div>
               </button>
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-2 rounded ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
+                className={`px-3 py-2 rounded-md transition-all ${
+                  viewMode === 'grid'
+                    ? 'bg-white shadow-md text-blue-600'
+                    : 'text-gray-600 hover:bg-gray-200'
+                }`}
                 title="Kart Görünümü"
               >
-                <Grid className="w-4 h-4" />
+                <div className="flex items-center gap-2">
+                  <Grid className="w-5 h-5" />
+                  <span className="text-sm font-medium">Kartlar</span>
+                </div>
               </button>
               <button
                 onClick={() => setViewMode('map')}
-                className={`p-2 rounded ${viewMode === 'map' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
+                className={`px-3 py-2 rounded-md transition-all ${
+                  viewMode === 'map'
+                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg text-white'
+                    : 'text-gray-600 hover:bg-gray-200'
+                }`}
                 title="Harita Görünümü"
               >
-                <Map className="w-4 h-4" />
+                <div className="flex items-center gap-2">
+                  <Map className="w-5 h-5" />
+                  <span className="text-sm font-medium">Harita</span>
+                </div>
               </button>
             </div>
           </div>
@@ -676,7 +698,81 @@ const Customers: React.FC = () => {
 
       {/* Map View */}
       {viewMode === 'map' ? (
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-8">
+          {/* Marker Style Selector */}
+          <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-1">Harita Görünümü</h3>
+                <p className="text-xs text-gray-500">
+                  {sortedCustomers.filter(c => c.latitude && c.longitude).length} müşteri konumu
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-600 font-medium mr-2">Marker Stili:</span>
+                <div className="flex items-center bg-white rounded-lg shadow-sm p-1 gap-1">
+                  <button
+                    onClick={() => setMarkerStyle('bubble')}
+                    className={`px-3 py-2 rounded-md text-xs font-medium transition-all ${
+                      markerStyle === 'bubble'
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                    title="Yuvarlak baloncuk marker - Sosyal medya için ideal"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-current"></div>
+                      <span>Bubble</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setMarkerStyle('pin')}
+                    className={`px-3 py-2 rounded-md text-xs font-medium transition-all ${
+                      markerStyle === 'pin'
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                    title="Modern pin marker - Klasik stil"
+                  >
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-3 h-3" />
+                      <span>Pin</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setMarkerStyle('shield')}
+                    className={`px-3 py-2 rounded-md text-xs font-medium transition-all ${
+                      markerStyle === 'shield'
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                    title="Kalkan marker - Premium görünüm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-4 bg-current" style={{ clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }}></div>
+                      <span>Shield</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setMarkerStyle('emoji')}
+                    className={`px-3 py-2 rounded-md text-xs font-medium transition-all ${
+                      markerStyle === 'emoji'
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                    title="Emoji marker - Eğlenceli ve renkli"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span>📍</span>
+                      <span>Emoji</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <MapComponent
             height="600px"
             customers={sortedCustomers.filter(c => c.latitude && c.longitude)}
@@ -694,6 +790,7 @@ const Customers: React.FC = () => {
                 : undefined
             }
             zoom={11}
+            markerStyle={markerStyle}
           />
 
           {/* Koordinatsız müşteriler uyarısı */}
