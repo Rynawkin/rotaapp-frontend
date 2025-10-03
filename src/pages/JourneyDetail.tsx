@@ -877,14 +877,13 @@ const JourneyDetail: React.FC = () => {
       }
 
       // İkon - Fotoğraf ve İmza kontrolü
-      // stopId type mismatch'i önlemek için hem string hem number kontrolü yap
       const stopIdNum = parseInt(stop.id);
       const hasPhoto = journey?.statuses?.some(s =>
-        (s.stopId === stopIdNum || s.stopId === stop.id) &&
+        s.stopId == stopIdNum && // == ile hem string hem number eşitliği
         (s.photoUrl || s.photoBase64)
       );
       const hasSignature = journey?.statuses?.some(s =>
-        (s.stopId === stopIdNum || s.stopId === stop.id) &&
+        s.stopId == stopIdNum && // == ile hem string hem number eşitliği
         (s.signatureUrl || s.signatureBase64)
       );
 

@@ -324,7 +324,7 @@ export type JourneyStatusType =
 export interface JourneyStatus {
   id: string;
   journeyId: string;
-  stopId: string;
+  stopId: string | number; // ✅ Backend'den number olarak geliyor
   status: JourneyStatusType;
   notes?: string;
   latitude: number;
@@ -334,6 +334,8 @@ export interface JourneyStatus {
   failureReason?: string;
   signatureUrl?: string;
   photoUrl?: string;
+  signatureBase64?: string; // ✅ Base64 versiyonu da var
+  photoBase64?: string; // ✅ Base64 versiyonu da var
 }
 
 // Journey (Active Route) Types
