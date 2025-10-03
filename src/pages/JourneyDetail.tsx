@@ -1339,7 +1339,7 @@ const JourneyDetail: React.FC = () => {
                           )}
 
                           {/* Durakta Geçirilen Süre */}
-                          {(stop.estimatedArrivalTime && stop.estimatedDepartureTime) || (stop.checkInTime && stop.checkOutTime) && (
+                          {((stop.estimatedArrivalTime && stop.estimatedDepartureTime) || (stop.checkInTime && stop.checkOutTime)) && (
                             <div className="bg-white rounded-lg p-3 shadow-sm">
                               <div className="text-xs font-semibold text-gray-700 mb-2">Durakta Geçirilen Süre</div>
                               <div className="grid grid-cols-2 gap-3">
