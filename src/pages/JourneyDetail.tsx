@@ -1203,21 +1203,27 @@ const JourneyDetail: React.FC = () => {
                           </a>
                         )}
                         {stop.estimatedArrivalTime && (
-                          <span className="flex items-center">
+                          <span className="flex items-center text-gray-600">
                             <Clock className="w-3 h-3 mr-1" />
-                            Tahmini: {formatTimeSpan(stop.estimatedArrivalTime)}
+                            Tah. Varış: {formatTimeSpan(stop.estimatedArrivalTime)}
+                          </span>
+                        )}
+                        {stop.estimatedDepartureTime && (
+                          <span className="flex items-center text-gray-600">
+                            <Clock className="w-3 h-3 mr-1" />
+                            Tah. Tamamlanma: {formatTimeSpan(stop.estimatedDepartureTime)}
                           </span>
                         )}
                         {stop.checkInTime && (
                           <span className="flex items-center text-green-600">
                             <Clock className="w-3 h-3 mr-1" />
-                            Varış: {formatTime(stop.checkInTime)}
+                            Gerç. Varış: {formatTime(stop.checkInTime)}
                           </span>
                         )}
                         {stop.checkOutTime && (
                           <span className="flex items-center text-blue-600">
                             <Clock className="w-3 h-3 mr-1" />
-                            Tamamlanma: {formatTime(stop.checkOutTime)}
+                            Gerç. Tamamlanma: {formatTime(stop.checkOutTime)}
                           </span>
                         )}
                         {stop.distance > 0 && (

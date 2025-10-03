@@ -517,7 +517,7 @@ const StopsList: React.FC<StopsListProps> = ({
                                 <div className="flex items-center justify-between text-sm">
                                   <div className="flex items-center text-blue-700">
                                     <Calendar className="w-4 h-4 mr-1.5" />
-                                    <span className="font-medium">Tahmini Varış Saatleri:</span>
+                                    <span className="font-medium">Tahmini Saatler:</span>
                                   </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3 mt-2 text-sm">
@@ -531,7 +531,7 @@ const StopsList: React.FC<StopsListProps> = ({
                                   )}
                                   {stop.estimatedDepartureTime && (
                                     <div className="flex items-center">
-                                      <span className="text-gray-600">Ayrılış:</span>
+                                      <span className="text-gray-600">Tamamlanma:</span>
                                       <span className="ml-1.5 font-semibold text-blue-900">
                                         {formatETA(stop.estimatedDepartureTime)}
                                       </span>

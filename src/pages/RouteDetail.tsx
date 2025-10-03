@@ -901,7 +901,7 @@ const RouteDetail: React.FC = () => {
                         {route.optimized && (stop.estimatedArrivalTime || stop.estimatedDepartureTime) && (
                           <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
                             <div className="text-xs font-medium text-blue-700 mb-1">
-                              Tahmini Varış Saatleri
+                              Tahmini Saatler
                             </div>
                             <div className="space-y-1 text-xs">
                               {stop.estimatedArrivalTime && (
@@ -914,7 +914,7 @@ const RouteDetail: React.FC = () => {
                               )}
                               {stop.estimatedDepartureTime && (
                                 <div className="flex items-center justify-between">
-                                  <span className="text-gray-600">Ayrılış:</span>
+                                  <span className="text-gray-600">Tamamlanma:</span>
                                   <span className="font-semibold text-blue-900">
                                     {formatETA(stop.estimatedDepartureTime)}
                                   </span>
