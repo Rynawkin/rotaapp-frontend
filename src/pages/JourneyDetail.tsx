@@ -734,25 +734,49 @@ const JourneyDetail: React.FC = () => {
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
 
-    // Başlık
-    doc.setFontSize(20);
-    doc.setTextColor(31, 41, 55); // gray-800
-    doc.text('Sefer Detay Raporu', pageWidth / 2, 20, { align: 'center' });
+    // ============ HEADER SECTION ============
+    // Mavi gradient header arka plan
+    doc.setFillColor(37, 99, 235); // blue-600
+    doc.rect(0, 0, pageWidth, 45, 'F');
 
-    // Sefer Bilgileri
-    doc.setFontSize(12);
-    doc.setTextColor(107, 114, 128); // gray-500
-    doc.text(`Sefer: ${journey.name || journey.route?.name || `#${journey.id}`}`, 14, 35);
-    doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 42);
+    // Logo/Company alanı (sol üst)
+    doc.setFontSize(16);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text('YOLPILOT', 14, 15);
+
+    // Başlık (orta)
+    doc.setFontSize(22);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SEFER DETAY RAPORU', pageWidth / 2, 25, { align: 'center' });
+
+    // Tarih (sağ üst)
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'normal');
+    doc.text(new Date().toLocaleDateString('tr-TR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    }), pageWidth - 14, 15, { align: 'right' });
+
+    // Sefer adı (header altında)
+    doc.setFontSize(14);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text(journey.name || journey.route?.name || `Sefer #${journey.id}`, pageWidth / 2, 37, { align: 'center' });
 
     let yPos = 55;
 
-    // Genel Bilgiler Tablosu
-    doc.setFontSize(14);
-    doc.setTextColor(31, 41, 55);
+    // ============ GENEL BİLGİLER ============
+    doc.setFontSize(13);
+    doc.setTextColor(37, 99, 235);
+    doc.setFont('helvetica', 'bold');
     doc.text('Genel Bilgiler', 14, yPos);
-    yPos += 5;
+    yPos += 2;
 
     autoTable(doc, {
       startY: yPos,
@@ -772,20 +796,39 @@ const JourneyDetail: React.FC = () => {
         ['Başarılı Teslimat', `${normalStops.filter((s: JourneyStop) => s.status?.toLowerCase() === 'completed').length}`],
         ['Başarısız Teslimat', `${normalStops.filter((s: JourneyStop) => s.status?.toLowerCase() === 'failed').length}`],
       ],
-      theme: 'grid',
-      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
-      styles: { fontSize: 10, cellPadding: 3 },
+      theme: 'striped',
+      headStyles: {
+        fillColor: [37, 99, 235],
+        textColor: 255,
+        fontSize: 11,
+        fontStyle: 'bold',
+        halign: 'left',
+        cellPadding: 4
+      },
+      bodyStyles: {
+        fontSize: 10,
+        cellPadding: 4
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252] // gray-50
+      },
+      columnStyles: {
+        0: { cellWidth: 50, fontStyle: 'bold', textColor: [75, 85, 99] }, // gray-600
+        1: { cellWidth: 'auto' }
+      },
+      margin: { left: 14, right: 14 }
     });
 
-    yPos = (doc as any).lastAutoTable.finalY + 15;
+    yPos = (doc as any).lastAutoTable.finalY + 12;
 
-    // Duraklar Tablosu
-    doc.setFontSize(14);
-    doc.setTextColor(31, 41, 55);
-    doc.text('Duraklar', 14, yPos);
-    yPos += 5;
+    // ============ DURAKLAR ============
+    doc.setFontSize(13);
+    doc.setTextColor(37, 99, 235);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Teslimat Durakları', 14, yPos);
+    yPos += 2;
 
-    const stopsData = normalStops.map((stop: JourneyStop, index: number) => {
+    const stopsData = normalStops.map((stop: JourneyStop) => {
       const statusLower = stop.status?.toLowerCase() || 'pending';
       const statusText =
         statusLower === 'completed' ? 'Tamamlandı' :
@@ -799,7 +842,9 @@ const JourneyDetail: React.FC = () => {
         const checkIn = new Date(stop.checkInTime);
         const checkOut = new Date(stop.checkOutTime);
         const durationMinutes = Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60));
-        duration = durationMinutes > 0 ? `${durationMinutes} dk` : '-';
+        duration = durationMinutes > 0 ? `${durationMinutes} dk` : '0 dk';
+      } else if (stop.checkOutTime) {
+        duration = '0 dk';
       }
 
       return [
@@ -815,33 +860,88 @@ const JourneyDetail: React.FC = () => {
 
     autoTable(doc, {
       startY: yPos,
-      head: [['#', 'Müşteri', 'Adres', 'Plan Varış', 'Gerç. Varış', 'Süre', 'Durum']],
+      head: [['#', 'Müşteri', 'Adres', 'Plan.\nVarış', 'Gerç.\nVarış', 'Süre', 'Durum']],
       body: stopsData,
-      theme: 'grid',
-      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
-      styles: { fontSize: 9, cellPadding: 2 },
-      columnStyles: {
-        0: { cellWidth: 10 },
-        1: { cellWidth: 35 },
-        2: { cellWidth: 50 },
-        3: { cellWidth: 20 },
-        4: { cellWidth: 20 },
-        5: { cellWidth: 18 },
-        6: { cellWidth: 25 },
+      theme: 'striped',
+      headStyles: {
+        fillColor: [37, 99, 235],
+        textColor: 255,
+        fontSize: 9,
+        fontStyle: 'bold',
+        halign: 'center',
+        valign: 'middle',
+        cellPadding: 3
       },
+      bodyStyles: {
+        fontSize: 8,
+        cellPadding: 3,
+        valign: 'top'
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252] // gray-50
+      },
+      columnStyles: {
+        0: { cellWidth: 8, halign: 'center', fontStyle: 'bold' },
+        1: { cellWidth: 40, overflow: 'linebreak' },
+        2: { cellWidth: 55, overflow: 'linebreak', fontSize: 7 },
+        3: { cellWidth: 17, halign: 'center' },
+        4: { cellWidth: 17, halign: 'center' },
+        5: { cellWidth: 14, halign: 'center' },
+        6: {
+          cellWidth: 22,
+          halign: 'center',
+          fontStyle: 'bold'
+        }
+      },
+      didParseCell: (data) => {
+        // Durum sütunu renklendirme
+        if (data.column.index === 6 && data.section === 'body') {
+          const status = data.cell.text[0];
+          if (status === 'Tamamlandı') {
+            data.cell.styles.textColor = [22, 163, 74]; // green-600
+            data.cell.styles.fillColor = [220, 252, 231]; // green-100
+          } else if (status === 'Başarısız') {
+            data.cell.styles.textColor = [220, 38, 38]; // red-600
+            data.cell.styles.fillColor = [254, 226, 226]; // red-100
+          } else if (status === 'Devam Ediyor') {
+            data.cell.styles.textColor = [234, 179, 8]; // yellow-600
+            data.cell.styles.fillColor = [254, 249, 195]; // yellow-100
+          }
+        }
+      },
+      margin: { left: 14, right: 14 }
     });
 
-    // Footer
+    // ============ FOOTER ============
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
+
+      // Footer line
+      doc.setDrawColor(229, 231, 235); // gray-200
+      doc.setLineWidth(0.5);
+      doc.line(14, pageHeight - 20, pageWidth - 14, pageHeight - 20);
+
+      // Footer text
       doc.setFontSize(8);
-      doc.setTextColor(156, 163, 175);
+      doc.setTextColor(107, 114, 128); // gray-500
+      doc.setFont('helvetica', 'normal');
       doc.text(
         `Sayfa ${i} / ${pageCount}`,
         pageWidth / 2,
-        doc.internal.pageSize.height - 10,
+        pageHeight - 12,
         { align: 'center' }
+      );
+      doc.text(
+        'YolPilot - Akıllı Rota Optimizasyonu',
+        14,
+        pageHeight - 12
+      );
+      doc.text(
+        `Oluşturulma: ${new Date().toLocaleTimeString('tr-TR')}`,
+        pageWidth - 14,
+        pageHeight - 12,
+        { align: 'right' }
       );
     }
 
