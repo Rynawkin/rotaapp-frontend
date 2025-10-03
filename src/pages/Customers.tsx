@@ -25,20 +25,24 @@ import {
   X,
   FileDown,
   FileUp,
-  HelpCircle
+  HelpCircle,
+  Map
 } from 'lucide-react';
 import { Customer } from '@/types';
 import { customerService } from '@/services/customer.service';
+import MapComponent from '@/components/maps/MapComponent';
+import { MarkerData } from '@/types/maps';
 
 type SortField = 'name' | 'code' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
+type ViewMode = 'table' | 'grid' | 'map';
 
 const Customers: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [dropdownOpen, setDropdownOpen] = useState<number | null>(null);
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -574,14 +578,23 @@ const Customers: React.FC = () => {
               <button
                 onClick={() => setViewMode('table')}
                 className={`p-2 rounded ${viewMode === 'table' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
+                title="Tablo Görünümü"
               >
                 <List className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setViewMode('grid')}
                 className={`p-2 rounded ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
+                title="Kart Görünümü"
               >
                 <Grid className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('map')}
+                className={`p-2 rounded ${viewMode === 'map' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
+                title="Harita Görünümü"
+              >
+                <Map className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -661,8 +674,47 @@ const Customers: React.FC = () => {
         )}
       </div>
 
-      {/* Table View */}
-      {viewMode === 'table' ? (
+      {/* Map View */}
+      {viewMode === 'map' ? (
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <MapComponent
+            height="600px"
+            customers={sortedCustomers.filter(c => c.latitude && c.longitude)}
+            markers={sortedCustomers
+              .filter(c => c.latitude && c.longitude)
+              .map((customer, index) => ({
+                position: { lat: customer.latitude!, lng: customer.longitude! },
+                title: customer.name,
+                customerId: customer.id.toString(),
+                label: String(index + 1)
+              } as MarkerData))
+            }
+            center={
+              sortedCustomers.length > 0 && sortedCustomers[0].latitude && sortedCustomers[0].longitude
+                ? { lat: sortedCustomers[0].latitude, lng: sortedCustomers[0].longitude }
+                : undefined
+            }
+            zoom={11}
+          />
+
+          {/* Koordinatsız müşteriler uyarısı */}
+          {sortedCustomers.some(c => !c.latitude || !c.longitude) && (
+            <div className="p-4 bg-yellow-50 border-t border-yellow-200">
+              <div className="flex items-start">
+                <AlertCircle className="w-5 h-5 text-yellow-600 mr-2 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-yellow-800">
+                    {sortedCustomers.filter(c => !c.latitude || !c.longitude).length} müşterinin koordinat bilgisi eksik
+                  </p>
+                  <p className="text-xs text-yellow-700 mt-1">
+                    Bu müşteriler haritada gösterilemiyor. Düzenle butonuna tıklayarak konum ekleyebilirsiniz.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : viewMode === 'table' ? (
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
