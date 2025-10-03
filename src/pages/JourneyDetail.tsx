@@ -1589,7 +1589,7 @@ const JourneyDetail: React.FC = () => {
                           )}
 
                           {/* Durakta Geçirilen Süre */}
-                          {((stop.estimatedArrivalTime && stop.estimatedDepartureTime) || (stop.checkInTime && stop.checkOutTime)) && (
+                          {((stop.estimatedArrivalTime && stop.estimatedDepartureTime) || stop.checkOutTime) && (
                             <div className="bg-white rounded-lg p-2.5 shadow-sm">
                               <div className="text-xs font-semibold text-gray-700 mb-2 text-center">Durakta Geçirilen Süre</div>
                               <div className="space-y-2">
@@ -1614,7 +1614,7 @@ const JourneyDetail: React.FC = () => {
                                       const checkOut = new Date(stop.checkOutTime);
                                       const durationMinutes = Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60));
                                       return durationMinutes > 0 ? `${durationMinutes} dk` : '-';
-                                    })() : '-'}
+                                    })() : stop.checkOutTime ? '0 dk' : '-'}
                                   </div>
                                 </div>
                               </div>
