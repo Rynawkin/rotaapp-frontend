@@ -539,7 +539,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
             <div className="p-3 min-w-[280px]">
               <div className="flex items-start justify-between mb-2">
                 <h3 className="font-bold text-gray-900 text-lg">{selectedMarker.title}</h3>
-                {selectedMarker.customerId && customers.find(c => c.id === selectedMarker.customerId)?.priority === 'high' && (
+                {selectedMarker.customerId && customers.find(c => c.id.toString() === selectedMarker.customerId)?.priority === 'high' && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                     <Star className="w-3 h-3 mr-1" />
                     Yüksek
@@ -548,7 +548,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
               </div>
               
               {selectedMarker.customerId && customers.length > 0 && (() => {
-                const customer = customers.find(c => c.id === selectedMarker.customerId);
+                const customer = customers.find(c => c.id.toString() === selectedMarker.customerId);
                 if (!customer) return null;
                 
                 return (
