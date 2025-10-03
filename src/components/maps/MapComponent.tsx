@@ -171,7 +171,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     const baseOptions: any = {
       disableDefaultUI: false,
       zoomControl: true,
-      mapTypeControl: false,
+      mapTypeControl: true, // Harita türü seçimi aktif
       scaleControl: true,
       streetViewControl: false,
       rotateControl: false,
@@ -190,6 +190,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
       };
       baseOptions.fullscreenControlOptions = {
         position: window.google.maps.ControlPosition.TOP_RIGHT
+      };
+      baseOptions.mapTypeControlOptions = {
+        position: window.google.maps.ControlPosition.TOP_LEFT,
+        style: window.google.maps.MapTypeControlStyle.DROPDOWN_MENU, // Dropdown menü olarak göster
+        mapTypeIds: ['roadmap', 'satellite', 'hybrid', 'terrain'] // Tüm harita türleri
       };
     }
 
@@ -242,18 +247,22 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   };
 
-  // Basit marker icon oluştur
-  const createSimpleIcon = (color: string, label?: string) => {
+  // Modern pin-style marker icon oluştur
+  const createPinIcon = (color: string, label?: string) => {
     if (typeof window === 'undefined' || !window.google || !window.google.maps) return undefined;
-    
+
+    // Modern pin SVG path
+    const pinPath = 'M12 0C7.589 0 4 3.589 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.411-3.589-8-8-8z';
+
     return {
-      path: window.google.maps.SymbolPath.CIRCLE,
-      scale: 20,
+      path: pinPath,
       fillColor: color,
       fillOpacity: 1,
       strokeColor: 'white',
-      strokeWeight: 3,
-      labelOrigin: new window.google.maps.Point(0, 0)
+      strokeWeight: 2,
+      scale: 2,
+      anchor: new window.google.maps.Point(12, 24),
+      labelOrigin: new window.google.maps.Point(12, 8)
     };
   };
 
@@ -377,11 +386,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
         <Marker
           key="depot-marker"
           position={depot}
-          icon={createSimpleIcon('#3B82F6')}
+          icon={createPinIcon('#2563EB')}
           title="Ana Depo"
           zIndex={1000}
           label={{
-            text: 'D',
+            text: '🏢',
             color: 'white',
             fontSize: '16px',
             fontWeight: 'bold'
@@ -400,23 +409,23 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
         const orderNumber = marker.label || String(marker.order || index + 1);
         const isSelected = selectedCustomerId === marker.customerId;
-        
+
         // Eğer tek marker varsa ve depot yoksa (DepotDetail sayfası için)
         const isSingleMarker = markers.length === 1 && !depot;
-        
+
         markerElements.push(
           <Marker
-            key={`marker-${marker.customerId || index}-${orderNumber}`}
+            key={`marker-${marker.customerId || index}`}
             position={marker.position}
-            icon={createSimpleIcon(isSelected ? '#EF4444' : isSingleMarker ? '#3B82F6' : '#10B981')}
-            title={marker.title || `Durak ${orderNumber}`}
-            zIndex={isSelected ? 2000 : 500 + parseInt(orderNumber)}
-            label={{
-              text: isSingleMarker ? 'D' : orderNumber,
+            icon={createPinIcon(isSelected ? '#EF4444' : isSingleMarker ? '#2563EB' : '#10B981')}
+            title={marker.title || `Müşteri ${index + 1}`}
+            zIndex={isSelected ? 2000 : 500 + index}
+            label={marker.label ? {
+              text: orderNumber,
               color: 'white',
               fontSize: '14px',
               fontWeight: 'bold'
-            }}
+            } : undefined}
             onClick={() => handleMarkerClick(marker)}
           />
         );

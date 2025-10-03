@@ -685,8 +685,7 @@ const Customers: React.FC = () => {
               .map((customer, index) => ({
                 position: { lat: customer.latitude!, lng: customer.longitude! },
                 title: customer.name,
-                customerId: customer.id.toString(),
-                label: String(index + 1)
+                customerId: customer.id.toString()
               } as MarkerData))
             }
             center={
