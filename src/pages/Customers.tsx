@@ -117,7 +117,23 @@ const Customers: React.FC = () => {
       return customer.createdAt && new Date(customer.createdAt) >= sevenDaysAgo;
     })();
 
-    return matchesSearch && matchesTags && matchesTimeWindow && matchesRecent;
+    // Quick filter: son 1 ay içinde teslimat yapılanlar
+    const matchesLastMonth = quickFilter !== 'last_1_month' || (() => {
+      if (!customer.lastDeliveryDate) return false;
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      return new Date(customer.lastDeliveryDate) >= oneMonthAgo;
+    })();
+
+    // Quick filter: son 3 ay içinde teslimat yapılanlar
+    const matchesLast3Months = quickFilter !== 'last_3_months' || (() => {
+      if (!customer.lastDeliveryDate) return false;
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      return new Date(customer.lastDeliveryDate) >= threeMonthsAgo;
+    })();
+
+    return matchesSearch && matchesTags && matchesTimeWindow && matchesRecent && matchesLastMonth && matchesLast3Months;
   });
 
   // Sorting
@@ -554,6 +570,36 @@ const Customers: React.FC = () => {
             }`}
           >
             Son Eklenenler
+          </button>
+          <button
+            onClick={() => applyQuickFilter('last_1_month')}
+            className={`px-4 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+              quickFilter === 'last_1_month'
+                ? 'bg-orange-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Son 1 Ay Teslimat ({customers.filter(c => {
+              if (!c.lastDeliveryDate) return false;
+              const oneMonthAgo = new Date();
+              oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+              return new Date(c.lastDeliveryDate) >= oneMonthAgo;
+            }).length})
+          </button>
+          <button
+            onClick={() => applyQuickFilter('last_3_months')}
+            className={`px-4 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+              quickFilter === 'last_3_months'
+                ? 'bg-teal-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Son 3 Ay Teslimat ({customers.filter(c => {
+              if (!c.lastDeliveryDate) return false;
+              const threeMonthsAgo = new Date();
+              threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+              return new Date(c.lastDeliveryDate) >= threeMonthsAgo;
+            }).length})
           </button>
         </div>
       </div>

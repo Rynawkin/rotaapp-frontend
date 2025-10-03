@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
   GoogleMap,
   useJsApiLoader,
@@ -6,7 +7,7 @@ import {
   DirectionsRenderer,
   InfoWindow
 } from '@react-google-maps/api';
-import { MapPin, Navigation, Home, Loader2, Package, Clock, Phone, Star } from 'lucide-react';
+import { MapPin, Navigation, Home, Loader2, Package, Clock, Phone, Star, ExternalLink } from 'lucide-react';
 import { LatLng, MarkerData } from '@/types/maps';
 import { Customer } from '@/types';
 
@@ -583,6 +584,23 @@ const MapComponent: React.FC<MapComponentProps> = ({
                         </span>
                       </div>
                     )}
+
+                    {/* Customer Detail Link */}
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <Link
+                        to={`/customers/${customer.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm hover:shadow-md"
+                        onClick={(e) => {
+                          // InfoWindow'u kapatmadan yeni sekmede aç
+                          e.stopPropagation();
+                        }}
+                      >
+                        <span className="text-sm font-medium">Detayları Görüntüle</span>
+                        <ExternalLink className="w-4 h-4" />
+                      </Link>
+                    </div>
                   </div>
                 );
               })()}

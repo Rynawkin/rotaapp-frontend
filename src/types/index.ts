@@ -102,6 +102,7 @@ export interface Customer {
   estimatedServiceTime?: number;
   notes?: string;
   tags?: string[];
+  lastDeliveryDate?: Date; // Son teslimat tarihi - filtreleme için
   createdAt: Date;
   updatedAt: Date;
 }
