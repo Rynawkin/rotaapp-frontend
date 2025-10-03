@@ -876,36 +876,51 @@ const JourneyDetail: React.FC = () => {
         duration = '0 dk';
       }
 
+      // İkon - Fotoğraf ve İmza kontrolü
+      const hasPhoto = journey?.statuses?.some(s => s.stopId === stop.id && s.photoUrl);
+      const hasSignature = journey?.statuses?.some(s => s.stopId === stop.id && s.signatureUrl);
+
+      let icons = '';
+      if (hasPhoto && hasSignature) {
+        icons = 'F + I'; // Foto + İmza
+      } else if (hasPhoto) {
+        icons = 'F'; // Sadece Foto
+      } else if (hasSignature) {
+        icons = 'I'; // Sadece İmza
+      }
+
       return [
         stop.order.toString(),
         fixTurkish(stop.routeStop?.customer?.name || stop.routeStop?.name || `Durak ${stop.order}`),
-        fixTurkish(stop.endAddress || stop.routeStop?.address || stop.routeStop?.customer?.address || '-'),
         stop.estimatedArrivalTime ? formatTimeSpan(stop.estimatedArrivalTime) : '-',
         stop.checkInTime ? formatTime(stop.checkInTime) : '-',
+        stop.estimatedDepartureTime ? formatTimeSpan(stop.estimatedDepartureTime) : '-',
+        stop.checkOutTime ? formatTime(stop.checkOutTime) : '-',
         duration,
-        statusText
+        statusText,
+        icons
       ];
     });
 
     autoTable(doc, {
       startY: yPos,
-      head: [['#', 'Musteri', 'Adres', 'Plan.\nVaris', 'Gercek.\nVaris', 'Sure\n(dk)', 'Durum']],
+      head: [['#', 'Musteri', 'Plan.\nVaris', 'Gercek\nVaris', 'Plan.\nTamamla', 'Gercek\nTamamla', 'Sure', 'Durum', 'F/I']],
       body: stopsData,
       theme: 'plain',
       headStyles: {
         fillColor: [30, 58, 138], // blue-900
         textColor: [255, 255, 255],
-        fontSize: 9,
+        fontSize: 8,
         fontStyle: 'bold',
         halign: 'center',
         valign: 'middle',
-        cellPadding: 4,
+        cellPadding: 3,
         lineWidth: 0.1,
         lineColor: [255, 255, 255]
       },
       bodyStyles: {
-        fontSize: 9,
-        cellPadding: 4,
+        fontSize: 8,
+        cellPadding: 3,
         valign: 'middle',
         lineWidth: 0.1,
         lineColor: [229, 231, 235]
@@ -914,17 +929,19 @@ const JourneyDetail: React.FC = () => {
         fillColor: [248, 250, 252] // gray-50
       },
       columnStyles: {
-        0: { cellWidth: 10, halign: 'center', fontStyle: 'bold', fillColor: [241, 245, 249] },
-        1: { cellWidth: 45, overflow: 'linebreak' },
-        2: { cellWidth: 60, overflow: 'linebreak', fontSize: 8 },
-        3: { cellWidth: 18, halign: 'center', fontSize: 8 },
-        4: { cellWidth: 18, halign: 'center', fontSize: 8 },
-        5: { cellWidth: 15, halign: 'center' },
-        6: { cellWidth: 24, halign: 'center', fontStyle: 'bold' }
+        0: { cellWidth: 8, halign: 'center', fontStyle: 'bold', fillColor: [241, 245, 249] },
+        1: { cellWidth: 50, overflow: 'linebreak' },
+        2: { cellWidth: 18, halign: 'center', fontSize: 7 },
+        3: { cellWidth: 18, halign: 'center', fontSize: 7 },
+        4: { cellWidth: 18, halign: 'center', fontSize: 7 },
+        5: { cellWidth: 18, halign: 'center', fontSize: 7 },
+        6: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
+        7: { cellWidth: 24, halign: 'center', fontStyle: 'bold' },
+        8: { cellWidth: 12, halign: 'center', fontSize: 7, textColor: [59, 130, 246] } // blue-600
       },
       didParseCell: (data) => {
         // Durum sütunu renklendirme
-        if (data.column.index === 6 && data.section === 'body') {
+        if (data.column.index === 7 && data.section === 'body') {
           const status = data.cell.text[0];
           if (status === 'Tamamlandi') {
             data.cell.styles.textColor = [22, 163, 74]; // green-600
