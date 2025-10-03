@@ -1288,27 +1288,27 @@ const JourneyDetail: React.FC = () => {
 
                   {/* Sağ taraf - Zaman bilgileri */}
                   {(stop.estimatedArrivalTime || stop.estimatedDepartureTime || stop.checkInTime || stop.checkOutTime) && (
-                    <div className="w-96 flex-shrink-0">
-                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                    <div className="flex-shrink-0" style={{ width: '580px' }}>
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-200">
                         <div className="flex items-center gap-2 mb-3">
                           <Clock className="w-4 h-4 text-blue-600" />
                           <h5 className="text-xs font-semibold text-blue-900 uppercase">Zaman Takibi</h5>
                         </div>
 
-                        <div className="space-y-3">
+                        <div className="grid grid-cols-3 gap-2">
                           {/* Varış Saati */}
                           {(stop.estimatedArrivalTime || stop.checkInTime) && (
-                            <div className="bg-white rounded-lg p-3 shadow-sm">
-                              <div className="text-xs font-semibold text-gray-700 mb-2">Varış Saati</div>
-                              <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-white rounded-lg p-2.5 shadow-sm">
+                              <div className="text-xs font-semibold text-gray-700 mb-2 text-center">Varış Saati</div>
+                              <div className="space-y-2">
                                 <div>
-                                  <div className="text-xs text-gray-500 mb-1">Planlanan</div>
+                                  <div className="text-xs text-gray-500 mb-0.5">Planlanan</div>
                                   <div className="text-sm font-bold text-blue-700">
                                     {stop.estimatedArrivalTime ? formatTimeSpan(stop.estimatedArrivalTime) : '-'}
                                   </div>
                                 </div>
                                 <div>
-                                  <div className="text-xs text-gray-500 mb-1">Gerçekleşen</div>
+                                  <div className="text-xs text-gray-500 mb-0.5">Gerçekleşen</div>
                                   <div className="text-sm font-bold text-green-700">
                                     {stop.checkInTime ? formatTime(stop.checkInTime) : '-'}
                                   </div>
@@ -1319,17 +1319,17 @@ const JourneyDetail: React.FC = () => {
 
                           {/* Tamamlanma Saati */}
                           {(stop.estimatedDepartureTime || stop.checkOutTime) && (
-                            <div className="bg-white rounded-lg p-3 shadow-sm">
-                              <div className="text-xs font-semibold text-gray-700 mb-2">Tamamlanma Saati</div>
-                              <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-white rounded-lg p-2.5 shadow-sm">
+                              <div className="text-xs font-semibold text-gray-700 mb-2 text-center">Tamamlanma Saati</div>
+                              <div className="space-y-2">
                                 <div>
-                                  <div className="text-xs text-gray-500 mb-1">Planlanan</div>
+                                  <div className="text-xs text-gray-500 mb-0.5">Planlanan</div>
                                   <div className="text-sm font-bold text-blue-700">
                                     {stop.estimatedDepartureTime ? formatTimeSpan(stop.estimatedDepartureTime) : '-'}
                                   </div>
                                 </div>
                                 <div>
-                                  <div className="text-xs text-gray-500 mb-1">Gerçekleşen</div>
+                                  <div className="text-xs text-gray-500 mb-0.5">Gerçekleşen</div>
                                   <div className="text-sm font-bold text-green-700">
                                     {stop.checkOutTime ? formatTime(stop.checkOutTime) : '-'}
                                   </div>
@@ -1340,11 +1340,11 @@ const JourneyDetail: React.FC = () => {
 
                           {/* Durakta Geçirilen Süre */}
                           {((stop.estimatedArrivalTime && stop.estimatedDepartureTime) || (stop.checkInTime && stop.checkOutTime)) && (
-                            <div className="bg-white rounded-lg p-3 shadow-sm">
-                              <div className="text-xs font-semibold text-gray-700 mb-2">Durakta Geçirilen Süre</div>
-                              <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-white rounded-lg p-2.5 shadow-sm">
+                              <div className="text-xs font-semibold text-gray-700 mb-2 text-center">Durakta Geçirilen Süre</div>
+                              <div className="space-y-2">
                                 <div>
-                                  <div className="text-xs text-gray-500 mb-1">Planlanan</div>
+                                  <div className="text-xs text-gray-500 mb-0.5">Planlanan</div>
                                   <div className="text-sm font-bold text-blue-700">
                                     {stop.estimatedArrivalTime && stop.estimatedDepartureTime ? (() => {
                                       const arrivalParts = stop.estimatedArrivalTime.split(':');
@@ -1357,7 +1357,7 @@ const JourneyDetail: React.FC = () => {
                                   </div>
                                 </div>
                                 <div>
-                                  <div className="text-xs text-gray-500 mb-1">Gerçekleşen</div>
+                                  <div className="text-xs text-gray-500 mb-0.5">Gerçekleşen</div>
                                   <div className="text-sm font-bold text-green-700">
                                     {stop.checkInTime && stop.checkOutTime ? (() => {
                                       const checkIn = new Date(stop.checkInTime);
