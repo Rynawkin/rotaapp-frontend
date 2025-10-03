@@ -1288,91 +1288,89 @@ const JourneyDetail: React.FC = () => {
 
                   {/* Sağ taraf - Zaman bilgileri */}
                   {(stop.estimatedArrivalTime || stop.estimatedDepartureTime || stop.checkInTime || stop.checkOutTime) && (
-                    <div className="w-80 flex-shrink-0">
+                    <div className="w-96 flex-shrink-0">
                       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
-                        {/* Tahmini Saatler */}
-                        {(stop.estimatedArrivalTime || stop.estimatedDepartureTime) && (
-                          <div className="mb-3">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Clock className="w-4 h-4 text-blue-600" />
-                              <h5 className="text-xs font-semibold text-blue-900 uppercase">Tahmini Saatler</h5>
-                            </div>
-                            <div className="space-y-1.5 ml-6">
-                              {stop.estimatedArrivalTime && (
-                                <div className="flex justify-between items-center">
-                                  <span className="text-sm text-gray-600">Varış:</span>
-                                  <span className="text-sm font-semibold text-gray-900">
-                                    {formatTimeSpan(stop.estimatedArrivalTime)}
-                                  </span>
-                                </div>
-                              )}
-                              {stop.estimatedDepartureTime && (
-                                <div className="flex justify-between items-center">
-                                  <span className="text-sm text-gray-600">Tamamlanma:</span>
-                                  <span className="text-sm font-semibold text-gray-900">
-                                    {formatTimeSpan(stop.estimatedDepartureTime)}
-                                  </span>
-                                </div>
-                              )}
-                              {stop.estimatedArrivalTime && stop.estimatedDepartureTime && (() => {
-                                const arrivalParts = stop.estimatedArrivalTime.split(':');
-                                const departureParts = stop.estimatedDepartureTime.split(':');
-                                const arrivalMinutes = parseInt(arrivalParts[0]) * 60 + parseInt(arrivalParts[1]);
-                                const departureMinutes = parseInt(departureParts[0]) * 60 + parseInt(departureParts[1]);
-                                const durationMinutes = departureMinutes - arrivalMinutes;
-                                return durationMinutes > 0 ? (
-                                  <div className="flex justify-between items-center pt-1 border-t border-blue-200">
-                                    <span className="text-xs text-gray-500">Planlanan Süre:</span>
-                                    <span className="text-xs font-medium text-blue-700">
-                                      {durationMinutes} dk
-                                    </span>
-                                  </div>
-                                ) : null;
-                              })()}
-                            </div>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2 mb-3">
+                          <Clock className="w-4 h-4 text-blue-600" />
+                          <h5 className="text-xs font-semibold text-blue-900 uppercase">Zaman Takibi</h5>
+                        </div>
 
-                        {/* Gerçekleşen Saatler */}
-                        {(stop.checkInTime || stop.checkOutTime) && (
-                          <div className={stop.estimatedArrivalTime || stop.estimatedDepartureTime ? 'pt-3 border-t border-blue-200' : ''}>
-                            <div className="flex items-center gap-2 mb-2">
-                              <Activity className="w-4 h-4 text-green-600" />
-                              <h5 className="text-xs font-semibold text-green-900 uppercase">Gerçekleşen Saatler</h5>
-                            </div>
-                            <div className="space-y-1.5 ml-6">
-                              {stop.checkInTime && (
-                                <div className="flex justify-between items-center">
-                                  <span className="text-sm text-gray-600">Varış:</span>
-                                  <span className="text-sm font-semibold text-green-700">
-                                    {formatTime(stop.checkInTime)}
-                                  </span>
-                                </div>
-                              )}
-                              {stop.checkOutTime && (
-                                <div className="flex justify-between items-center">
-                                  <span className="text-sm text-gray-600">Tamamlanma:</span>
-                                  <span className="text-sm font-semibold text-green-700">
-                                    {formatTime(stop.checkOutTime)}
-                                  </span>
-                                </div>
-                              )}
-                              {stop.checkInTime && stop.checkOutTime && (() => {
-                                const checkIn = new Date(stop.checkInTime);
-                                const checkOut = new Date(stop.checkOutTime);
-                                const durationMinutes = Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60));
-                                return durationMinutes > 0 ? (
-                                  <div className="flex justify-between items-center pt-1 border-t border-green-200">
-                                    <span className="text-xs text-gray-500">Gerçekleşen Süre:</span>
-                                    <span className="text-xs font-medium text-green-700">
-                                      {durationMinutes} dk
-                                    </span>
+                        <div className="space-y-3">
+                          {/* Varış Saati */}
+                          {(stop.estimatedArrivalTime || stop.checkInTime) && (
+                            <div className="bg-white rounded-lg p-3 shadow-sm">
+                              <div className="text-xs font-semibold text-gray-700 mb-2">Varış Saati</div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1">Planlanan</div>
+                                  <div className="text-sm font-bold text-blue-700">
+                                    {stop.estimatedArrivalTime ? formatTimeSpan(stop.estimatedArrivalTime) : '-'}
                                   </div>
-                                ) : null;
-                              })()}
+                                </div>
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1">Gerçekleşen</div>
+                                  <div className="text-sm font-bold text-green-700">
+                                    {stop.checkInTime ? formatTime(stop.checkInTime) : '-'}
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
+
+                          {/* Tamamlanma Saati */}
+                          {(stop.estimatedDepartureTime || stop.checkOutTime) && (
+                            <div className="bg-white rounded-lg p-3 shadow-sm">
+                              <div className="text-xs font-semibold text-gray-700 mb-2">Tamamlanma Saati</div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1">Planlanan</div>
+                                  <div className="text-sm font-bold text-blue-700">
+                                    {stop.estimatedDepartureTime ? formatTimeSpan(stop.estimatedDepartureTime) : '-'}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1">Gerçekleşen</div>
+                                  <div className="text-sm font-bold text-green-700">
+                                    {stop.checkOutTime ? formatTime(stop.checkOutTime) : '-'}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Durakta Geçirilen Süre */}
+                          {(stop.estimatedArrivalTime && stop.estimatedDepartureTime) || (stop.checkInTime && stop.checkOutTime) && (
+                            <div className="bg-white rounded-lg p-3 shadow-sm">
+                              <div className="text-xs font-semibold text-gray-700 mb-2">Durakta Geçirilen Süre</div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1">Planlanan</div>
+                                  <div className="text-sm font-bold text-blue-700">
+                                    {stop.estimatedArrivalTime && stop.estimatedDepartureTime ? (() => {
+                                      const arrivalParts = stop.estimatedArrivalTime.split(':');
+                                      const departureParts = stop.estimatedDepartureTime.split(':');
+                                      const arrivalMinutes = parseInt(arrivalParts[0]) * 60 + parseInt(arrivalParts[1]);
+                                      const departureMinutes = parseInt(departureParts[0]) * 60 + parseInt(departureParts[1]);
+                                      const durationMinutes = departureMinutes - arrivalMinutes;
+                                      return durationMinutes > 0 ? `${durationMinutes} dk` : '-';
+                                    })() : '-'}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1">Gerçekleşen</div>
+                                  <div className="text-sm font-bold text-green-700">
+                                    {stop.checkInTime && stop.checkOutTime ? (() => {
+                                      const checkIn = new Date(stop.checkInTime);
+                                      const checkOut = new Date(stop.checkOutTime);
+                                      const durationMinutes = Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60));
+                                      return durationMinutes > 0 ? `${durationMinutes} dk` : '-';
+                                    })() : '-'}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
