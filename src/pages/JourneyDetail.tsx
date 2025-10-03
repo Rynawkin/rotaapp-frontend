@@ -732,109 +732,138 @@ const JourneyDetail: React.FC = () => {
   const handleExportPDF = () => {
     if (!journey) return;
 
-    const doc = new jsPDF();
+    const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.width;
     const pageHeight = doc.internal.pageSize.height;
 
-    // ============ HEADER SECTION ============
-    // Mavi gradient header arka plan
-    doc.setFillColor(37, 99, 235); // blue-600
-    doc.rect(0, 0, pageWidth, 45, 'F');
+    // Helper function to replace Turkish characters for PDF compatibility
+    const fixTurkish = (text: string) => {
+      if (!text) return '';
+      return text
+        .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
+        .replace(/ü/g, 'u').replace(/Ü/g, 'U')
+        .replace(/ş/g, 's').replace(/Ş/g, 'S')
+        .replace(/ı/g, 'i').replace(/İ/g, 'I')
+        .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+        .replace(/ç/g, 'c').replace(/Ç/g, 'C');
+    };
 
-    // Logo/Company alanı (sol üst)
-    doc.setFontSize(16);
+    // ============ MODERN HEADER ============
+    // Gradient background (dark blue)
+    doc.setFillColor(30, 58, 138); // blue-900
+    doc.rect(0, 0, pageWidth, 50, 'F');
+
+    // White accent bar
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 50, pageWidth, 2, 'F');
+
+    // Company Logo/Name
+    doc.setFontSize(24);
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.text('YOLPILOT', 14, 15);
+    doc.text('YOLPILOT', 15, 20);
 
-    // Başlık (orta)
-    doc.setFontSize(22);
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.text('SEFER DETAY RAPORU', pageWidth / 2, 25, { align: 'center' });
-
-    // Tarih (sağ üst)
-    doc.setFontSize(10);
-    doc.setTextColor(255, 255, 255);
+    // Subtitle
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text(new Date().toLocaleDateString('tr-TR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric'
-    }), pageWidth - 14, 15, { align: 'right' });
+    doc.setTextColor(191, 219, 254); // blue-200
+    doc.text('Akilli Rota Optimizasyonu', 15, 26);
 
-    // Sefer adı (header altında)
-    doc.setFontSize(14);
+    // Report Title
+    doc.setFontSize(18);
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.text(journey.name || journey.route?.name || `Sefer #${journey.id}`, pageWidth / 2, 37, { align: 'center' });
+    doc.text('SEFER DETAY RAPORU', pageWidth / 2, 20, { align: 'center' });
 
-    let yPos = 55;
+    // Journey Name
+    const journeyName = fixTurkish(journey.name || journey.route?.name || `Sefer #${journey.id}`);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(255, 255, 255);
+    doc.text(journeyName, pageWidth / 2, 28, { align: 'center' });
 
-    // ============ GENEL BİLGİLER ============
-    doc.setFontSize(13);
-    doc.setTextColor(37, 99, 235);
+    // Date box (top right)
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(pageWidth - 50, 12, 40, 16, 2, 2, 'F');
+    doc.setFontSize(8);
+    doc.setTextColor(30, 58, 138);
     doc.setFont('helvetica', 'bold');
-    doc.text('Genel Bilgiler', 14, yPos);
-    yPos += 2;
+    doc.text('TARIH', pageWidth - 30, 17, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const formattedDate = new Date().toLocaleDateString('tr-TR');
+    doc.text(fixTurkish(formattedDate), pageWidth - 30, 24, { align: 'center' });
 
-    autoTable(doc, {
-      startY: yPos,
-      head: [['Özellik', 'Değer']],
-      body: [
-        ['Sürücü', journey.driver?.fullName || journey.driver?.name || journey.route?.driver?.name || '-'],
-        ['Araç', `${journey.route?.vehicle?.plateNumber || journey.vehicle?.plateNumber || '-'}`],
-        ['Durum',
-          journey.status === 'preparing' ? 'Hazırlanıyor' :
-          journey.status === 'planned' ? 'Planlandı' :
-          journey.status === 'started' ? 'Başladı' :
-          journey.status === 'in_progress' ? 'Devam Ediyor' :
-          journey.status === 'completed' ? 'Tamamlandı' : 'İptal Edildi'
-        ],
-        ['Toplam Mesafe', `${journey.totalDistance?.toFixed(1) || 0} km`],
-        ['Toplam Süre', `${journey.totalDuration ? Math.round(journey.totalDuration / 60) : 0} saat`],
-        ['Başarılı Teslimat', `${normalStops.filter((s: JourneyStop) => s.status?.toLowerCase() === 'completed').length}`],
-        ['Başarısız Teslimat', `${normalStops.filter((s: JourneyStop) => s.status?.toLowerCase() === 'failed').length}`],
-      ],
-      theme: 'striped',
-      headStyles: {
-        fillColor: [37, 99, 235],
-        textColor: 255,
-        fontSize: 11,
-        fontStyle: 'bold',
-        halign: 'left',
-        cellPadding: 4
-      },
-      bodyStyles: {
-        fontSize: 10,
-        cellPadding: 4
-      },
-      alternateRowStyles: {
-        fillColor: [248, 250, 252] // gray-50
-      },
-      columnStyles: {
-        0: { cellWidth: 50, fontStyle: 'bold', textColor: [75, 85, 99] }, // gray-600
-        1: { cellWidth: 'auto' }
-      },
-      margin: { left: 14, right: 14 }
+    let yPos = 62;
+
+    // ============ GENEL BILGILER (INFO CARDS) ============
+    doc.setFontSize(11);
+    doc.setTextColor(30, 58, 138);
+    doc.setFont('helvetica', 'bold');
+    doc.text('GENEL BILGILER', 15, yPos);
+    yPos += 7;
+
+    // Info cards in 2x4 grid
+    const infoData = [
+      { label: 'Surucu', value: fixTurkish(journey.driver?.fullName || journey.driver?.name || journey.route?.driver?.name || '-') },
+      { label: 'Arac', value: fixTurkish(journey.route?.vehicle?.plateNumber || journey.vehicle?.plateNumber || '-') },
+      { label: 'Durum', value: fixTurkish(
+        journey.status === 'preparing' ? 'Hazirlaniyor' :
+        journey.status === 'planned' ? 'Planlandi' :
+        journey.status === 'started' ? 'Basladi' :
+        journey.status === 'in_progress' ? 'Devam Ediyor' :
+        journey.status === 'completed' ? 'Tamamlandi' : 'Iptal Edildi'
+      )},
+      { label: 'Toplam Mesafe', value: `${journey.totalDistance?.toFixed(1) || 0} km` },
+      { label: 'Toplam Sure', value: `${journey.totalDuration ? Math.round(journey.totalDuration / 60) : 0} saat` },
+      { label: 'Basarili', value: `${normalStops.filter((s: JourneyStop) => s.status?.toLowerCase() === 'completed').length}` },
+      { label: 'Basarisiz', value: `${normalStops.filter((s: JourneyStop) => s.status?.toLowerCase() === 'failed').length}` },
+      { label: 'Toplam Durak', value: `${normalStops.length}` },
+    ];
+
+    // Draw info cards
+    const cardWidth = (pageWidth - 40) / 4;
+    const cardHeight = 20;
+    infoData.forEach((info, index) => {
+      const col = index % 4;
+      const row = Math.floor(index / 4);
+      const x = 15 + (col * cardWidth) + (col * 2);
+      const y = yPos + (row * (cardHeight + 3));
+
+      // Card background
+      doc.setFillColor(248, 250, 252); // gray-50
+      doc.roundedRect(x, y, cardWidth - 2, cardHeight, 2, 2, 'F');
+
+      // Label
+      doc.setFontSize(8);
+      doc.setTextColor(107, 114, 128); // gray-500
+      doc.setFont('helvetica', 'normal');
+      doc.text(info.label, x + 3, y + 6);
+
+      // Value
+      doc.setFontSize(11);
+      doc.setTextColor(31, 41, 55); // gray-800
+      doc.setFont('helvetica', 'bold');
+      doc.text(info.value, x + 3, y + 14);
     });
 
-    yPos = (doc as any).lastAutoTable.finalY + 12;
+    yPos += (Math.ceil(infoData.length / 4) * (cardHeight + 3)) + 5;
 
     // ============ DURAKLAR ============
-    doc.setFontSize(13);
-    doc.setTextColor(37, 99, 235);
+    doc.setFontSize(11);
+    doc.setTextColor(30, 58, 138);
     doc.setFont('helvetica', 'bold');
-    doc.text('Teslimat Durakları', 14, yPos);
-    yPos += 2;
+    doc.text('TESLIMAT DURAKLARI', 15, yPos);
+    yPos += 3;
 
     const stopsData = normalStops.map((stop: JourneyStop) => {
       const statusLower = stop.status?.toLowerCase() || 'pending';
-      const statusText =
-        statusLower === 'completed' ? 'Tamamlandı' :
-        statusLower === 'failed' ? 'Başarısız' :
+      const statusText = fixTurkish(
+        statusLower === 'completed' ? 'Tamamlandi' :
+        statusLower === 'failed' ? 'Basarisiz' :
         statusLower === 'inprogress' || statusLower === 'in_progress' ? 'Devam Ediyor' :
-        'Bekliyor';
+        'Bekliyor'
+      );
 
       // Süre hesaplama
       let duration = '-';
@@ -849,8 +878,8 @@ const JourneyDetail: React.FC = () => {
 
       return [
         stop.order.toString(),
-        stop.routeStop?.customer?.name || stop.routeStop?.name || `Durak ${stop.order}`,
-        stop.endAddress || stop.routeStop?.address || stop.routeStop?.customer?.address || '-',
+        fixTurkish(stop.routeStop?.customer?.name || stop.routeStop?.name || `Durak ${stop.order}`),
+        fixTurkish(stop.endAddress || stop.routeStop?.address || stop.routeStop?.customer?.address || '-'),
         stop.estimatedArrivalTime ? formatTimeSpan(stop.estimatedArrivalTime) : '-',
         stop.checkInTime ? formatTime(stop.checkInTime) : '-',
         duration,
@@ -860,47 +889,47 @@ const JourneyDetail: React.FC = () => {
 
     autoTable(doc, {
       startY: yPos,
-      head: [['#', 'Müşteri', 'Adres', 'Plan.\nVarış', 'Gerç.\nVarış', 'Süre', 'Durum']],
+      head: [['#', 'Musteri', 'Adres', 'Plan.\nVaris', 'Gercek.\nVaris', 'Sure\n(dk)', 'Durum']],
       body: stopsData,
-      theme: 'striped',
+      theme: 'plain',
       headStyles: {
-        fillColor: [37, 99, 235],
-        textColor: 255,
+        fillColor: [30, 58, 138], // blue-900
+        textColor: [255, 255, 255],
         fontSize: 9,
         fontStyle: 'bold',
         halign: 'center',
         valign: 'middle',
-        cellPadding: 3
+        cellPadding: 4,
+        lineWidth: 0.1,
+        lineColor: [255, 255, 255]
       },
       bodyStyles: {
-        fontSize: 8,
-        cellPadding: 3,
-        valign: 'top'
+        fontSize: 9,
+        cellPadding: 4,
+        valign: 'middle',
+        lineWidth: 0.1,
+        lineColor: [229, 231, 235]
       },
       alternateRowStyles: {
         fillColor: [248, 250, 252] // gray-50
       },
       columnStyles: {
-        0: { cellWidth: 8, halign: 'center', fontStyle: 'bold' },
-        1: { cellWidth: 40, overflow: 'linebreak' },
-        2: { cellWidth: 55, overflow: 'linebreak', fontSize: 7 },
-        3: { cellWidth: 17, halign: 'center' },
-        4: { cellWidth: 17, halign: 'center' },
-        5: { cellWidth: 14, halign: 'center' },
-        6: {
-          cellWidth: 22,
-          halign: 'center',
-          fontStyle: 'bold'
-        }
+        0: { cellWidth: 10, halign: 'center', fontStyle: 'bold', fillColor: [241, 245, 249] },
+        1: { cellWidth: 45, overflow: 'linebreak' },
+        2: { cellWidth: 60, overflow: 'linebreak', fontSize: 8 },
+        3: { cellWidth: 18, halign: 'center', fontSize: 8 },
+        4: { cellWidth: 18, halign: 'center', fontSize: 8 },
+        5: { cellWidth: 15, halign: 'center' },
+        6: { cellWidth: 24, halign: 'center', fontStyle: 'bold' }
       },
       didParseCell: (data) => {
         // Durum sütunu renklendirme
         if (data.column.index === 6 && data.section === 'body') {
           const status = data.cell.text[0];
-          if (status === 'Tamamlandı') {
+          if (status === 'Tamamlandi') {
             data.cell.styles.textColor = [22, 163, 74]; // green-600
             data.cell.styles.fillColor = [220, 252, 231]; // green-100
-          } else if (status === 'Başarısız') {
+          } else if (status === 'Basarisiz') {
             data.cell.styles.textColor = [220, 38, 38]; // red-600
             data.cell.styles.fillColor = [254, 226, 226]; // red-100
           } else if (status === 'Devam Ediyor') {
@@ -909,40 +938,43 @@ const JourneyDetail: React.FC = () => {
           }
         }
       },
-      margin: { left: 14, right: 14 }
+      margin: { left: 15, right: 15 }
     });
 
-    // ============ FOOTER ============
+    // ============ MODERN FOOTER ============
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
 
-      // Footer line
-      doc.setDrawColor(229, 231, 235); // gray-200
-      doc.setLineWidth(0.5);
-      doc.line(14, pageHeight - 20, pageWidth - 14, pageHeight - 20);
+      // Footer background
+      doc.setFillColor(248, 250, 252); // gray-50
+      doc.rect(0, pageHeight - 15, pageWidth, 15, 'F');
 
-      // Footer text
-      doc.setFontSize(8);
+      // Footer top line
+      doc.setDrawColor(30, 58, 138); // blue-900
+      doc.setLineWidth(0.5);
+      doc.line(0, pageHeight - 15, pageWidth, pageHeight - 15);
+
+      // Footer content
+      doc.setFontSize(7);
       doc.setTextColor(107, 114, 128); // gray-500
       doc.setFont('helvetica', 'normal');
-      doc.text(
-        `Sayfa ${i} / ${pageCount}`,
-        pageWidth / 2,
-        pageHeight - 12,
-        { align: 'center' }
-      );
-      doc.text(
-        'YolPilot - Akıllı Rota Optimizasyonu',
-        14,
-        pageHeight - 12
-      );
-      doc.text(
-        `Oluşturulma: ${new Date().toLocaleTimeString('tr-TR')}`,
-        pageWidth - 14,
-        pageHeight - 12,
-        { align: 'right' }
-      );
+
+      // Left: Company info
+      doc.text('YolPilot - Akilli Rota Optimizasyonu', 15, pageHeight - 8);
+
+      // Center: Page number
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 58, 138);
+      doc.text(`Sayfa ${i} / ${pageCount}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
+
+      // Right: Creation time
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(107, 114, 128);
+      const creationTime = new Date().toLocaleString('tr-TR');
+      doc.text(fixTurkish(`Olusturulma: ${creationTime}`), pageWidth - 15, pageHeight - 8, { align: 'right' });
     }
 
     // Kaydet
