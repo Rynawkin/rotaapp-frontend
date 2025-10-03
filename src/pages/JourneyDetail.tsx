@@ -1151,17 +1151,18 @@ const JourneyDetail: React.FC = () => {
                 key={stop.id}
                 className={`p-4 hover:bg-gray-50 transition-colors ${index === currentStopIndex ? 'bg-blue-50' : ''}`}
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-4 flex-1">
-                    <div className="flex flex-col items-center">
+                <div className="flex items-start gap-6">
+                  {/* Sol taraf - Müşteri bilgileri */}
+                  <div className="flex items-start space-x-4 flex-1 min-w-0">
+                    <div className="flex flex-col items-center flex-shrink-0">
                       {getStopStatusIcon(stop.status)}
                       {index < normalStops.length - 1 && (
                         <div className="w-0.5 h-12 bg-gray-300 mt-2" />
                       )}
                     </div>
 
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-1">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-2 mb-1 flex-wrap">
                         <span className="text-xs text-gray-500">#{stop.order}</span>
                         <h4 className="font-medium text-gray-900">
                           {stop.routeStop?.customer?.name ||
@@ -1192,43 +1193,19 @@ const JourneyDetail: React.FC = () => {
                           'Adres bilgisi yok'}
                       </p>
 
-                      <div className="flex items-center space-x-4 text-xs text-gray-500">
+                      <div className="flex items-center gap-3 text-sm mb-2">
                         {stop.routeStop?.customer?.phone && (
                           <a
                             href={`tel:${stop.routeStop.customer.phone}`}
-                            className="flex items-center hover:text-blue-600"
+                            className="flex items-center text-blue-600 hover:text-blue-700"
                           >
-                            <Phone className="w-3 h-3 mr-1" />
+                            <Phone className="w-4 h-4 mr-1" />
                             {stop.routeStop.customer.phone}
                           </a>
                         )}
-                        {stop.estimatedArrivalTime && (
-                          <span className="flex items-center text-gray-600">
-                            <Clock className="w-3 h-3 mr-1" />
-                            Tah. Varış: {formatTimeSpan(stop.estimatedArrivalTime)}
-                          </span>
-                        )}
-                        {stop.estimatedDepartureTime && (
-                          <span className="flex items-center text-gray-600">
-                            <Clock className="w-3 h-3 mr-1" />
-                            Tah. Tamamlanma: {formatTimeSpan(stop.estimatedDepartureTime)}
-                          </span>
-                        )}
-                        {stop.checkInTime && (
-                          <span className="flex items-center text-green-600">
-                            <Clock className="w-3 h-3 mr-1" />
-                            Gerç. Varış: {formatTime(stop.checkInTime)}
-                          </span>
-                        )}
-                        {stop.checkOutTime && (
-                          <span className="flex items-center text-blue-600">
-                            <Clock className="w-3 h-3 mr-1" />
-                            Gerç. Tamamlanma: {formatTime(stop.checkOutTime)}
-                          </span>
-                        )}
                         {stop.distance > 0 && (
-                          <span className="flex items-center">
-                            <MapPin className="w-3 h-3 mr-1" />
+                          <span className="flex items-center text-gray-500">
+                            <MapPin className="w-4 h-4 mr-1" />
                             {stop.distance.toFixed(1)} km
                           </span>
                         )}
@@ -1252,61 +1229,152 @@ const JourneyDetail: React.FC = () => {
                           />
                         </div>
                       )}
+
+                      {/* Actions - Sadece sefer başlatıldıysa göster */}
+                      {isJourneyStarted && (
+                        <div className="mt-3">
+                          {stopStatusLower === 'pending' && index === currentStopIndex && (
+                            <button
+                              onClick={() => {
+                                setSelectedStop(stop);
+                                setShowCheckInModal(true);
+                              }}
+                              disabled={processingStopId === parseInt(stop.id)}
+                              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                            >
+                              {processingStopId === parseInt(stop.id) ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              ) : (
+                                <CheckSquare className="w-4 h-4 mr-2" />
+                              )}
+                              Check-in
+                            </button>
+                          )}
+
+                          {(stopStatusLower === 'inprogress' || stopStatusLower === 'in_progress') && (
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setSelectedStop(stop);
+                                  setShowCompleteModal(true);
+                                }}
+                                disabled={processingStopId === parseInt(stop.id)}
+                                className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                              >
+                                {processingStopId === parseInt(stop.id) ? (
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="w-4 h-4 mr-2" />
+                                )}
+                                Tamamla
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedStop(stop);
+                                  setShowFailModal(true);
+                                }}
+                                disabled={processingStopId === parseInt(stop.id)}
+                                className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                              >
+                                <XCircle className="w-4 h-4 mr-2" />
+                                Başarısız
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Actions - Sadece sefer başlatıldıysa göster */}
-                  {isJourneyStarted && (
-                    <>
-                      {stopStatusLower === 'pending' && index === currentStopIndex && (
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => {
-                              setSelectedStop(stop);
-                              setShowCheckInModal(true);
-                            }}
-                            disabled={processingStopId === parseInt(stop.id)}
-                            className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                          >
-                            {processingStopId === parseInt(stop.id) ? (
-                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                            ) : (
-                              <CheckSquare className="w-3 h-3 mr-1" />
-                            )}
-                            Check-in
-                          </button>
-                        </div>
-                      )}
+                  {/* Sağ taraf - Zaman bilgileri */}
+                  {(stop.estimatedArrivalTime || stop.estimatedDepartureTime || stop.checkInTime || stop.checkOutTime) && (
+                    <div className="w-80 flex-shrink-0">
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                        {/* Tahmini Saatler */}
+                        {(stop.estimatedArrivalTime || stop.estimatedDepartureTime) && (
+                          <div className="mb-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Clock className="w-4 h-4 text-blue-600" />
+                              <h5 className="text-xs font-semibold text-blue-900 uppercase">Tahmini Saatler</h5>
+                            </div>
+                            <div className="space-y-1.5 ml-6">
+                              {stop.estimatedArrivalTime && (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-gray-600">Varış:</span>
+                                  <span className="text-sm font-semibold text-gray-900">
+                                    {formatTimeSpan(stop.estimatedArrivalTime)}
+                                  </span>
+                                </div>
+                              )}
+                              {stop.estimatedDepartureTime && (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-gray-600">Tamamlanma:</span>
+                                  <span className="text-sm font-semibold text-gray-900">
+                                    {formatTimeSpan(stop.estimatedDepartureTime)}
+                                  </span>
+                                </div>
+                              )}
+                              {stop.estimatedArrivalTime && stop.estimatedDepartureTime && (() => {
+                                const arrivalParts = stop.estimatedArrivalTime.split(':');
+                                const departureParts = stop.estimatedDepartureTime.split(':');
+                                const arrivalMinutes = parseInt(arrivalParts[0]) * 60 + parseInt(arrivalParts[1]);
+                                const departureMinutes = parseInt(departureParts[0]) * 60 + parseInt(departureParts[1]);
+                                const durationMinutes = departureMinutes - arrivalMinutes;
+                                return durationMinutes > 0 ? (
+                                  <div className="flex justify-between items-center pt-1 border-t border-blue-200">
+                                    <span className="text-xs text-gray-500">Planlanan Süre:</span>
+                                    <span className="text-xs font-medium text-blue-700">
+                                      {durationMinutes} dk
+                                    </span>
+                                  </div>
+                                ) : null;
+                              })()}
+                            </div>
+                          </div>
+                        )}
 
-                      {(stopStatusLower === 'inprogress' || stopStatusLower === 'in_progress') && (
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => {
-                              setSelectedStop(stop);
-                              setShowCompleteModal(true);
-                            }}
-                            disabled={processingStopId === parseInt(stop.id)}
-                            className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {processingStopId === parseInt(stop.id) ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              'Tamamla'
-                            )}
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedStop(stop);
-                              setShowFailModal(true);
-                            }}
-                            disabled={processingStopId === parseInt(stop.id)}
-                            className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Başarısız
-                          </button>
-                        </div>
-                      )}
-                    </>
+                        {/* Gerçekleşen Saatler */}
+                        {(stop.checkInTime || stop.checkOutTime) && (
+                          <div className={stop.estimatedArrivalTime || stop.estimatedDepartureTime ? 'pt-3 border-t border-blue-200' : ''}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <Activity className="w-4 h-4 text-green-600" />
+                              <h5 className="text-xs font-semibold text-green-900 uppercase">Gerçekleşen Saatler</h5>
+                            </div>
+                            <div className="space-y-1.5 ml-6">
+                              {stop.checkInTime && (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-gray-600">Varış:</span>
+                                  <span className="text-sm font-semibold text-green-700">
+                                    {formatTime(stop.checkInTime)}
+                                  </span>
+                                </div>
+                              )}
+                              {stop.checkOutTime && (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-gray-600">Tamamlanma:</span>
+                                  <span className="text-sm font-semibold text-green-700">
+                                    {formatTime(stop.checkOutTime)}
+                                  </span>
+                                </div>
+                              )}
+                              {stop.checkInTime && stop.checkOutTime && (() => {
+                                const checkIn = new Date(stop.checkInTime);
+                                const checkOut = new Date(stop.checkOutTime);
+                                const durationMinutes = Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60));
+                                return durationMinutes > 0 ? (
+                                  <div className="flex justify-between items-center pt-1 border-t border-green-200">
+                                    <span className="text-xs text-gray-500">Gerçekleşen Süre:</span>
+                                    <span className="text-xs font-medium text-green-700">
+                                      {durationMinutes} dk
+                                    </span>
+                                  </div>
+                                ) : null;
+                              })()}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
