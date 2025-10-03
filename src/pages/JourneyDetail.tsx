@@ -877,8 +877,16 @@ const JourneyDetail: React.FC = () => {
       }
 
       // İkon - Fotoğraf ve İmza kontrolü
-      const hasPhoto = journey?.statuses?.some(s => s.stopId === stop.id && s.photoUrl);
-      const hasSignature = journey?.statuses?.some(s => s.stopId === stop.id && s.signatureUrl);
+      // stopId type mismatch'i önlemek için hem string hem number kontrolü yap
+      const stopIdNum = parseInt(stop.id);
+      const hasPhoto = journey?.statuses?.some(s =>
+        (s.stopId === stopIdNum || s.stopId === stop.id) &&
+        (s.photoUrl || s.photoBase64)
+      );
+      const hasSignature = journey?.statuses?.some(s =>
+        (s.stopId === stopIdNum || s.stopId === stop.id) &&
+        (s.signatureUrl || s.signatureBase64)
+      );
 
       let icons = '';
       if (hasPhoto && hasSignature) {
