@@ -289,11 +289,9 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
       newErrors.phone = 'Geçerli bir telefon numarası girin';
     }
 
-    // Email validation - zorunlu alan
+    // Email validation - zorunlu değil ama format kontrolü yap
     const emailValue = formData.email?.trim();
-    if (!emailValue) {
-      newErrors.email = 'Email adresi zorunludur';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+    if (emailValue && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
       newErrors.email = 'Geçerli bir email adresi girin';
     }
 
@@ -549,7 +547,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
             {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email <span className="text-red-500">*</span>
+                Email
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -560,7 +558,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300'
                     }`}
-                  placeholder="Örn: mehmet@example.com"
+                  placeholder="Örn: mehmet@example.com (opsiyonel)"
                 />
               </div>
               {errors.email && (

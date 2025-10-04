@@ -584,12 +584,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout }) => {
           <div className="flex items-center justify-between px-4 lg:px-6 py-4">
             <div className="flex items-center">
               <button
-                onClick={() => setMobileMenuOpen(true)}
-                className="p-2 rounded-lg hover:bg-gray-100 lg:hidden"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="p-2 rounded-lg hover:bg-gray-100"
+                title={sidebarOpen ? 'Menüyü Daralt' : 'Menüyü Genişlet'}
               >
                 <Menu className="w-5 h-5 text-gray-600" />
               </button>
-              <h1 className="text-xl font-semibold text-gray-800 ml-2 lg:ml-0">
+              <h1 className="text-xl font-semibold text-gray-800 ml-2">
                 {getCurrentPageTitle()}
               </h1>
             </div>
