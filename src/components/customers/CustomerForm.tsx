@@ -528,8 +528,8 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                     setFormData({
                       ...formData,
                       phone: phone,
-                      // Telefon değiştiğinde WhatsApp'ı da güncelle (eğer WhatsApp boşsa)
-                      whatsApp: formData.whatsApp || formatPhoneForWhatsApp(phone)
+                      // ✅ Telefon her değiştiğinde WhatsApp'ı da otomatik güncelle
+                      whatsApp: formatPhoneForWhatsApp(phone)
                     });
                   }}
                   name="phone"
@@ -794,15 +794,6 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                     // Sadece rakam girişine izin ver
                     const value = e.target.value.replace(/[^\d]/g, '');
                     setFormData({ ...formData, whatsApp: value });
-                  }}
-                  onBlur={(e) => {
-                    // Eğer boşsa ve telefon varsa, telefonu WhatsApp formatında ekle
-                    if (!e.target.value && formData.phone) {
-                      setFormData({
-                        ...formData,
-                        whatsApp: formatPhoneForWhatsApp(formData.phone)
-                      });
-                    }
                   }}
                   className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="5321112233"
