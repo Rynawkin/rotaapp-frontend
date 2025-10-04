@@ -411,7 +411,15 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form
+        onSubmit={handleSubmit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+            e.preventDefault();
+          }
+        }}
+        className="space-y-6"
+      >
         {/* Basic Information */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
