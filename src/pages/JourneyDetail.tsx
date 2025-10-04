@@ -889,11 +889,11 @@ const JourneyDetail: React.FC = () => {
 
       let icons = '';
       if (hasPhoto && hasSignature) {
-        icons = '\u25A3 \u270E'; // ▣ ✎ (Kare/Foto + Kalem/İmza)
+        icons = '[F] [I]'; // Foto + İmza
       } else if (hasPhoto) {
-        icons = '\u25A3'; // ▣ (Kare/Foto)
+        icons = '[F]'; // Foto
       } else if (hasSignature) {
-        icons = '\u270E'; // ✎ (Kalem/İmza)
+        icons = '[I]'; // İmza
       }
 
       return [
