@@ -24,7 +24,8 @@ const CreateVehicle: React.FC = () => {
         year: data.year || new Date().getFullYear(),
         capacity: data.capacity || 1000,
         status: data.status || 'active',
-        fuelType: data.fuelType || 'diesel'
+        fuelType: data.fuelType || 'diesel',
+        currentKm: data.currentKm // ✅ Başlangıç kilometresi
       };
 
       await vehicleService.create(createDto);

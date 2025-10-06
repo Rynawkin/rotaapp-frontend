@@ -10,6 +10,7 @@ export interface CreateVehicleDto {
   capacity: number;
   status?: 'active' | 'maintenance' | 'inactive';
   fuelType: 'gasoline' | 'diesel' | 'electric' | 'hybrid';
+  currentKm?: number; // ✅ Başlangıç kilometresi (opsiyonel)
 }
 
 export interface UpdateVehicleDto {
@@ -21,6 +22,7 @@ export interface UpdateVehicleDto {
   capacity?: number;
   status?: 'active' | 'maintenance' | 'inactive';
   fuelType?: 'gasoline' | 'diesel' | 'electric' | 'hybrid';
+  currentKm?: number; // ✅ Kilometre bilgisi
 }
 
 export interface UpdateVehicleStatusDto {

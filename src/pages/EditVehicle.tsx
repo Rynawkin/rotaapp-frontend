@@ -135,7 +135,8 @@ const EditVehicle: React.FC = () => {
         year: data.year,
         capacity: data.capacity,
         status: data.status,
-        fuelType: data.fuelType
+        fuelType: data.fuelType,
+        currentKm: data.currentKm // ✅ Kilometre bilgisi
       };
 
       await vehicleService.update(parseInt(id), updateDto);
