@@ -1438,13 +1438,13 @@ const JourneyDetail: React.FC = () => {
             <p className="text-2xl font-bold text-gray-900">
               {journey.totalDistance ? journey.totalDistance.toFixed(1) : '0.0'}
             </p>
-            <p className="text-sm text-gray-600">km</p>
+            <p className="text-sm text-gray-600">Toplam Mesafe (km)</p>
           </div>
           <div className="text-center">
             <p className="text-2xl font-bold text-gray-900">
               {journey.totalDuration ? Math.round(journey.totalDuration / 60) : 0}
             </p>
-            <p className="text-sm text-gray-600">saat</p>
+            <p className="text-sm text-gray-600">Süre (saat)</p>
           </div>
           <div className="text-center">
             <p className="text-2xl font-bold text-green-600">{completedStops}</p>
@@ -1455,6 +1455,36 @@ const JourneyDetail: React.FC = () => {
             <p className="text-sm text-gray-600">Başarısız</p>
           </div>
         </div>
+
+        {/* ✅ YENİ: Kilometre Bilgileri */}
+        {(journey.startKm !== undefined || journey.endKm !== undefined) && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-200">
+            {journey.startKm !== undefined && (
+              <div className="text-center bg-blue-50 rounded-lg p-3">
+                <p className="text-xl font-bold text-blue-900">
+                  {journey.startKm.toLocaleString('tr-TR')}
+                </p>
+                <p className="text-xs text-blue-600">Başlangıç Km</p>
+              </div>
+            )}
+            {journey.endKm !== undefined && (
+              <div className="text-center bg-green-50 rounded-lg p-3">
+                <p className="text-xl font-bold text-green-900">
+                  {journey.endKm.toLocaleString('tr-TR')}
+                </p>
+                <p className="text-xs text-green-600">Bitiş Km</p>
+              </div>
+            )}
+            {journey.startKm !== undefined && journey.endKm !== undefined && (
+              <div className="text-center bg-purple-50 rounded-lg p-3">
+                <p className="text-xl font-bold text-purple-900">
+                  {(journey.endKm - journey.startKm).toLocaleString('tr-TR')}
+                </p>
+                <p className="text-xs text-purple-600">Kat Edilen Km</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ✅ YENİ: Excluded Stops Section */}

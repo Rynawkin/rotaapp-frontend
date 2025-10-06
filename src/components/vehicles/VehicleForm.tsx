@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { 
+import {
   Car,
   Truck,
   AlertCircle,
@@ -13,7 +13,8 @@ import {
   CheckCircle,
   XCircle,
   Wrench,
-  Shield
+  Shield,
+  Gauge
 } from 'lucide-react';
 import { Vehicle } from '@/types';
 
@@ -39,7 +40,8 @@ const VehicleForm: React.FC<VehicleFormProps> = ({
     year: initialData?.year || new Date().getFullYear(),
     capacity: initialData?.capacity || 1000,
     status: initialData?.status || 'active',
-    fuelType: initialData?.fuelType || 'diesel'
+    fuelType: initialData?.fuelType || 'diesel',
+    currentKm: initialData?.currentKm || undefined
   });
 
   // Validation state
@@ -80,6 +82,10 @@ const VehicleForm: React.FC<VehicleFormProps> = ({
 
     if (!formData.capacity || formData.capacity < 0) {
       newErrors.capacity = 'Kapasite 0\'dan büyük olmalıdır';
+    }
+
+    if (formData.currentKm !== undefined && formData.currentKm < 0) {
+      newErrors.currentKm = 'Kilometre 0\'dan küçük olamaz';
     }
 
     setErrors(newErrors);
@@ -302,6 +308,35 @@ const VehicleForm: React.FC<VehicleFormProps> = ({
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Current Km - YENİ */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Güncel Kilometre
+            </label>
+            <div className="relative">
+              <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="number"
+                min="0"
+                value={formData.currentKm || ''}
+                onChange={(e) => setFormData({ ...formData, currentKm: e.target.value ? parseInt(e.target.value) : undefined })}
+                className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  errors.currentKm ? 'border-red-300' : 'border-gray-300'
+                }`}
+                placeholder="Örn: 50000"
+              />
+            </div>
+            {errors.currentKm && (
+              <p className="text-xs text-red-500 mt-1 flex items-center">
+                <AlertCircle className="w-3 h-3 mr-1" />
+                {errors.currentKm}
+              </p>
+            )}
+            <p className="text-xs text-gray-500 mt-1">
+              Aracın mevcut kilometre bilgisi (opsiyonel)
+            </p>
+          </div>
+
           {/* Fuel Type */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

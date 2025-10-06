@@ -310,11 +310,18 @@ const RouteDetail: React.FC = () => {
       return;
     }
 
+    // ✅ Kilometre kontrolü - Rota oluşturulurken girilmiş olmalı
+    if (!route.currentKm) {
+      alert('⚠️ Rotaya kilometre bilgisi girilmemiş! Lütfen rotayı düzenleyerek kilometre bilgisini ekleyin.');
+      navigate(`/routes/${route.id}/edit`);
+      return;
+    }
+
     setStartingJourney(true);
 
     try {
-      // Sefer başlat
-      const journey = await journeyService.startFromRoute(route.id);
+      // Sefer başlat (route'daki currentKm ile)
+      const journey = await journeyService.startFromRoute(route.id, undefined, undefined, route.currentKm);
 
       if (journey) {
         alert('✅ Sefer başarıyla başlatıldı! Sizi sefer detay sayfasına yönlendiriyoruz...');

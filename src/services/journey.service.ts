@@ -50,11 +50,12 @@ export interface JourneySummary {
   };
 }
 
-// ✅ GÜNCELLENDİ: name eklendi
+// ✅ GÜNCELLENDİ: name ve startKm eklendi
 export interface AssignRouteDto {
   routeId: number;
   driverId: number;
   name?: string; // ✅ YENİ EKLENEN
+  startKm: number; // ✅ YENİ EKLENEN - Başlangıç kilometresi (ZORUNLU)
 }
 
 // ✅ YENİ: Stop detayları interface
@@ -419,10 +420,10 @@ class JourneyService {
     }
   }
 
-  // ✅ GÜNCELLENDİ: name parametresi eklendi
-  async startFromRoute(routeId: string | number, driverId?: number, name?: string): Promise<Journey> {
+  // ✅ GÜNCELLENDİ: name ve startKm parametreleri eklendi
+  async startFromRoute(routeId: string | number, driverId?: number, name?: string, startKm?: number): Promise<Journey> {
     try {
-      console.log('Starting journey from route:', routeId, 'with driver:', driverId, 'name:', name);
+      console.log('Starting journey from route:', routeId, 'with driver:', driverId, 'name:', name, 'startKm:', startKm);
 
       const route = await api.get(`/workspace/routes/${routeId}`);
       console.log('Route data:', route.data);
@@ -435,10 +436,20 @@ class JourneyService {
         throw new Error('Sefer başlatmak için araç atamanız gerekiyor');
       }
 
+      // StartKm kontrolü - zorunlu
+      if (startKm === undefined || startKm === null) {
+        throw new Error('Başlangıç kilometresi girmeniz gerekiyor');
+      }
+
+      if (startKm < 0) {
+        throw new Error('Başlangıç kilometresi 0\'dan küçük olamaz');
+      }
+
       const assignDto: AssignRouteDto = {
         routeId: Number(routeId),
         driverId: Number(driverId || route.data.driverId),
-        name: name // ✅ YENİ EKLENEN
+        name: name, // ✅ YENİ EKLENEN
+        startKm: startKm // ✅ YENİ EKLENEN
       };
 
       console.log('Assigning route:', assignDto);

@@ -44,6 +44,7 @@ const Journeys: React.FC = () => {
   // ✅ YENİ: Sefer ismi modal state'leri
   const [showNameModal, setShowNameModal] = useState(false);
   const [journeyName, setJourneyName] = useState('');
+  const [startKm, setStartKm] = useState<number | undefined>(undefined);
   
   // Toplu işlem state'leri
   const [selectedJourneyIds, setSelectedJourneyIds] = useState<Set<number>>(new Set());
@@ -224,24 +225,40 @@ const Journeys: React.FC = () => {
     // İsim önerisi oluştur
     const dateStr = new Date().toLocaleDateString('tr-TR');
     setJourneyName(`${route.name} - ${dateStr}`);
+    // Kilometre önerisi - route'daki currentKm veya vehicle'ın currentKm'si
+    setStartKm(route.currentKm || route.vehicle?.currentKm || undefined);
     setShowStartModal(false);
     setShowNameModal(true);
   };
 
-  // ✅ YENİ: İsimle birlikte sefer başlat
+  // ✅ YENİ: İsimle ve kilometre ile birlikte sefer başlat
   const handleStartJourneyWithName = async () => {
     if (!selectedRoute || !journeyName.trim()) return;
-    
+
+    // Kilometre validasyonu
+    if (!startKm || startKm < 0) {
+      alert('❌ Geçerli bir kilometre değeri girmelisiniz!');
+      return;
+    }
+
+    const vehicleCurrentKm = selectedRoute.vehicle?.currentKm;
+    if (vehicleCurrentKm && startKm < vehicleCurrentKm) {
+      alert(`❌ Başlangıç kilometresi (${startKm.toLocaleString('tr-TR')} km) aracın mevcut kilometresinden (${vehicleCurrentKm.toLocaleString('tr-TR')} km) küçük olamaz!`);
+      return;
+    }
+
     try {
       const journey = await journeyService.startFromRoute(
-        selectedRoute.id, 
+        selectedRoute.id,
         selectedRoute.driverId,
-        journeyName
+        journeyName,
+        startKm
       );
       await loadData();
       setShowNameModal(false);
       setSelectedRoute(null);
       setJourneyName('');
+      setStartKm(undefined);
       navigate(`/journeys/${journey.id}`);
     } catch (error: any) {
       alert(error.message || 'Sefer başlatılamadı');
@@ -894,12 +911,33 @@ const Journeys: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">Yeni Sefer Oluştur</h2>
-            
+
             <div className="mb-4">
               <p className="text-sm text-gray-600 mb-3">
                 <strong>{selectedRoute.name}</strong> rotasından sefer oluşturulacak
               </p>
-              
+
+              {/* Araç ve Sürücü Bilgisi */}
+              <div className="bg-gray-50 rounded-lg p-3 mb-4 space-y-2">
+                <div className="flex items-center text-sm">
+                  <User className="w-4 h-4 mr-2 text-gray-500" />
+                  <span className="text-gray-600">Sürücü:</span>
+                  <span className="ml-2 font-medium">{selectedRoute.driver?.name}</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <Truck className="w-4 h-4 mr-2 text-gray-500" />
+                  <span className="text-gray-600">Araç:</span>
+                  <span className="ml-2 font-medium">{selectedRoute.vehicle?.plateNumber}</span>
+                </div>
+                {selectedRoute.vehicle?.currentKm && (
+                  <div className="flex items-center text-sm">
+                    <Activity className="w-4 h-4 mr-2 text-gray-500" />
+                    <span className="text-gray-600">Mevcut Km:</span>
+                    <span className="ml-2 font-medium">{selectedRoute.vehicle.currentKm.toLocaleString('tr-TR')} km</span>
+                  </div>
+                )}
+              </div>
+
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Sefer Adı
               </label>
@@ -907,21 +945,35 @@ const Journeys: React.FC = () => {
                 type="text"
                 value={journeyName}
                 onChange={(e) => setJourneyName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
                 placeholder="Örn: Sabah Teslimatı - 04.09.2025"
                 autoFocus
               />
+
+              {/* Kilometre Girişi */}
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Başlangıç Kilometresi <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={startKm || ''}
+                onChange={(e) => setStartKm(e.target.value ? parseInt(e.target.value) : undefined)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder={selectedRoute.vehicle?.currentKm ? selectedRoute.vehicle.currentKm.toString() : 'Örn: 50000'}
+              />
               <p className="text-xs text-gray-500 mt-1">
-                Seferi diğerlerinden ayırt edebilmek için açıklayıcı bir isim verin
+                Sefer başlatılırken aracın kilometre bilgisi
               </p>
             </div>
-            
+
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => {
                   setShowNameModal(false);
                   setSelectedRoute(null);
                   setJourneyName('');
+                  setStartKm(undefined);
                 }}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
@@ -929,7 +981,7 @@ const Journeys: React.FC = () => {
               </button>
               <button
                 onClick={handleStartJourneyWithName}
-                disabled={!journeyName.trim()}
+                disabled={!journeyName.trim() || !startKm}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Seferi Oluştur

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { 
+import {
   ArrowLeft,
   Edit,
   Trash2,
@@ -21,7 +21,8 @@ import {
   Hash,
   AlertTriangle,
   Settings,
-  Plus
+  Plus,
+  Gauge
 } from 'lucide-react';
 import { Vehicle } from '@/types';
 import { vehicleService } from '@/services/vehicle.service';
@@ -300,14 +301,16 @@ const VehicleDetail: React.FC = () => {
                 <p className="text-xs text-gray-600">Yakıt Tipi</p>
               </div>
               <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <Gauge className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                <p className="text-2xl font-bold text-gray-900">
+                  {vehicle.currentKm ? vehicle.currentKm.toLocaleString('tr-TR') : '-'}
+                </p>
+                <p className="text-xs text-gray-600">Güncel Kilometre</p>
+              </div>
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <Route className="w-8 h-8 text-green-500 mx-auto mb-2" />
                 <p className="text-2xl font-bold text-gray-900">{routes.length}</p>
                 <p className="text-xs text-gray-600">Toplam Rota</p>
-              </div>
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <TrendingUp className="w-8 h-8 text-orange-500 mx-auto mb-2" />
-                <p className="text-2xl font-bold text-gray-900">-</p>
-                <p className="text-xs text-gray-600">Kullanım Oranı</p>
               </div>
             </div>
           </div>

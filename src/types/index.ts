@@ -161,6 +161,7 @@ export interface Vehicle {
   capacity: number;
   status: 'active' | 'maintenance' | 'inactive';
   fuelType: 'gasoline' | 'diesel' | 'electric' | 'hybrid';
+  currentKm?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -347,6 +348,8 @@ export interface Journey {
   currentStopIndex: number;
   startedAt?: Date;
   completedAt?: Date;
+  startKm?: number; // ✅ YENİ - Sefer başlangıç kilometresi
+  endKm?: number; // ✅ YENİ - Sefer bitiş kilometresi
   totalDistance: number;
   totalDuration: number;
   stops?: JourneyStop[];
