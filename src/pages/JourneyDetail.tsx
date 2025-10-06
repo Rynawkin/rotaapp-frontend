@@ -30,7 +30,8 @@ import {
   UserCheck,
   Home,
   FileText,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Plus
 } from 'lucide-react';
 import { Journey, JourneyStop, JourneyStatus } from '@/types';
 import { journeyService, CompleteStopDto } from '@/services/journey.service';
@@ -38,6 +39,7 @@ import { toast } from 'react-hot-toast';
 import signalRService from '@/services/signalr.service';
 import { useSignalR, useJourneyTracking } from '@/hooks/useSignalR';
 import { api } from '@/services/api';
+import { AddStopModal } from '@/components/journey/AddStopModal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -254,6 +256,9 @@ const JourneyDetail: React.FC = () => {
   // ✅ YENİ: Çoklu fotoğraf galerisi için
   const [journeyPhotos, setJourneyPhotos] = useState<any[]>([]);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+
+  // ✅ YENİ: Add Stop Modal
+  const [showAddStopModal, setShowAddStopModal] = useState(false);
   const [showPhotoGallery, setShowPhotoGallery] = useState(false);
 
   // Canvas ve file input ref'leri
@@ -1293,6 +1298,18 @@ const JourneyDetail: React.FC = () => {
             </div>
           )}
 
+          {/* Add Stop Button - Only for active journeys */}
+          {isJourneyStarted && (
+            <button
+              onClick={() => setShowAddStopModal(true)}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+              title="Yeni durak ekle"
+            >
+              <Plus className="w-4 h-4" />
+              Durak Ekle
+            </button>
+          )}
+
           {/* Export Butonları */}
           <div className="flex items-center gap-2">
             <button
@@ -1336,6 +1353,24 @@ const JourneyDetail: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* ✅ YENİ: Reoptimization Banner */}
+      {journey.needsReoptimization && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <AlertTriangle className="w-6 h-6 text-yellow-600 flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold text-yellow-900">Optimizasyon Gerekiyor</h3>
+              <p className="text-sm text-yellow-700 mt-1">
+                Yeni durak eklendi. Şoför mobil uygulamadan rotayı optimize etmelidir.
+              </p>
+            </div>
+          </div>
+          <div className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-lg text-sm font-medium">
+            📱 Mobil Uygulama
+          </div>
+        </div>
+      )}
 
       {/* Journey Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2386,6 +2421,17 @@ const JourneyDetail: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ✅ YENİ: Add Stop Modal */}
+      <AddStopModal
+        isOpen={showAddStopModal}
+        onClose={() => setShowAddStopModal(false)}
+        journeyId={journey?.id ? Number(journey.id) : 0}
+        onStopAdded={() => {
+          loadJourney(); // Reload journey data
+          toast.success('Durak eklendi! Mobil uygulamada optimize edilmesi gerekiyor.');
+        }}
+      />
     </div>
   );
 };

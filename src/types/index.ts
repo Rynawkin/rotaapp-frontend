@@ -350,6 +350,7 @@ export interface Journey {
   completedAt?: Date;
   startKm?: number; // ✅ YENİ - Sefer başlangıç kilometresi
   endKm?: number; // ✅ YENİ - Sefer bitiş kilometresi
+  needsReoptimization?: boolean; // ✅ YENİ - Optimizasyon gerekiyor mu?
   totalDistance: number;
   totalDuration: number;
   stops?: JourneyStop[];

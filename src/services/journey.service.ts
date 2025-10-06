@@ -727,6 +727,54 @@ class JourneyService {
 
     return new File([blob], filename, { type: 'image/png' });
   }
+
+  // ✅ YENİ: Aktif sefere durak ekle
+  async addStopToActiveJourney(
+    journeyId: number,
+    customerId: number,
+    address: string,
+    latitude: number,
+    longitude: number,
+    serviceTimeMinutes?: number,
+    notes?: string
+  ): Promise<Journey> {
+    try {
+      console.log('Adding stop to active journey:', journeyId);
+      const response = await api.post(`${this.baseUrl}/${journeyId}/stops`, {
+        customerId,
+        address,
+        latitude,
+        longitude,
+        serviceTimeMinutes,
+        notes
+      });
+      console.log('Stop added:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error adding stop to journey:', error);
+      throw new Error(error.response?.data?.message || 'Durak eklenemedi');
+    }
+  }
+
+  // ✅ YENİ: Aktif seferi yeniden optimize et
+  async reoptimizeActiveJourney(
+    journeyId: number,
+    currentLatitude: number,
+    currentLongitude: number
+  ): Promise<Journey> {
+    try {
+      console.log('Reoptimizing active journey:', journeyId);
+      const response = await api.post(`${this.baseUrl}/${journeyId}/reoptimize`, {
+        currentLatitude,
+        currentLongitude
+      });
+      console.log('Journey reoptimized:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error reoptimizing journey:', error);
+      throw new Error(error.response?.data?.message || 'Optimizasyon başarısız');
+    }
+  }
 }
 
 export const journeyService = new JourneyService();
