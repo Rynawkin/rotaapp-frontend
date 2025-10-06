@@ -1835,10 +1835,36 @@ const JourneyDetail: React.FC = () => {
                             <div className="bg-white rounded-lg p-2.5 shadow-sm">
                               <div className="text-xs font-semibold text-gray-700 mb-2 text-center">Varış Saati</div>
                               <div className="space-y-2">
+                                {stop.originalEstimatedArrivalTime && stop.originalEstimatedArrivalTime !== stop.estimatedArrivalTime && (
+                                  <div>
+                                    <div className="text-xs text-gray-400 mb-0.5">Orijinal Plan</div>
+                                    <div className="text-xs font-semibold text-gray-500 line-through">
+                                      {formatTimeSpan(stop.originalEstimatedArrivalTime)}
+                                    </div>
+                                  </div>
+                                )}
                                 <div>
-                                  <div className="text-xs text-gray-500 mb-0.5">Planlanan</div>
-                                  <div className="text-sm font-bold text-blue-700">
+                                  <div className="text-xs text-gray-500 mb-0.5">
+                                    {stop.originalEstimatedArrivalTime && stop.originalEstimatedArrivalTime !== stop.estimatedArrivalTime ? 'Güncel Plan' : 'Planlanan'}
+                                  </div>
+                                  <div className={`text-sm font-bold ${
+                                    stop.originalEstimatedArrivalTime && stop.originalEstimatedArrivalTime !== stop.estimatedArrivalTime
+                                      ? 'text-orange-600'
+                                      : 'text-blue-700'
+                                  }`}>
                                     {stop.estimatedArrivalTime ? formatTimeSpan(stop.estimatedArrivalTime) : '-'}
+                                    {stop.originalEstimatedArrivalTime && stop.originalEstimatedArrivalTime !== stop.estimatedArrivalTime && (() => {
+                                      const originalParts = stop.originalEstimatedArrivalTime.split(':');
+                                      const currentParts = stop.estimatedArrivalTime.split(':');
+                                      const originalMinutes = parseInt(originalParts[0]) * 60 + parseInt(originalParts[1]);
+                                      const currentMinutes = parseInt(currentParts[0]) * 60 + parseInt(currentParts[1]);
+                                      const delayMinutes = currentMinutes - originalMinutes;
+                                      return delayMinutes > 0
+                                        ? <span className="ml-1 text-xs text-red-600">(+{delayMinutes}dk)</span>
+                                        : delayMinutes < 0
+                                        ? <span className="ml-1 text-xs text-green-600">({delayMinutes}dk)</span>
+                                        : null;
+                                    })()}
                                   </div>
                                 </div>
                                 <div>
@@ -1856,10 +1882,36 @@ const JourneyDetail: React.FC = () => {
                             <div className="bg-white rounded-lg p-2.5 shadow-sm">
                               <div className="text-xs font-semibold text-gray-700 mb-2 text-center">Tamamlanma Saati</div>
                               <div className="space-y-2">
+                                {stop.originalEstimatedDepartureTime && stop.originalEstimatedDepartureTime !== stop.estimatedDepartureTime && (
+                                  <div>
+                                    <div className="text-xs text-gray-400 mb-0.5">Orijinal Plan</div>
+                                    <div className="text-xs font-semibold text-gray-500 line-through">
+                                      {formatTimeSpan(stop.originalEstimatedDepartureTime)}
+                                    </div>
+                                  </div>
+                                )}
                                 <div>
-                                  <div className="text-xs text-gray-500 mb-0.5">Planlanan</div>
-                                  <div className="text-sm font-bold text-blue-700">
+                                  <div className="text-xs text-gray-500 mb-0.5">
+                                    {stop.originalEstimatedDepartureTime && stop.originalEstimatedDepartureTime !== stop.estimatedDepartureTime ? 'Güncel Plan' : 'Planlanan'}
+                                  </div>
+                                  <div className={`text-sm font-bold ${
+                                    stop.originalEstimatedDepartureTime && stop.originalEstimatedDepartureTime !== stop.estimatedDepartureTime
+                                      ? 'text-orange-600'
+                                      : 'text-blue-700'
+                                  }`}>
                                     {stop.estimatedDepartureTime ? formatTimeSpan(stop.estimatedDepartureTime) : '-'}
+                                    {stop.originalEstimatedDepartureTime && stop.originalEstimatedDepartureTime !== stop.estimatedDepartureTime && stop.estimatedDepartureTime && (() => {
+                                      const originalParts = stop.originalEstimatedDepartureTime.split(':');
+                                      const currentParts = stop.estimatedDepartureTime.split(':');
+                                      const originalMinutes = parseInt(originalParts[0]) * 60 + parseInt(originalParts[1]);
+                                      const currentMinutes = parseInt(currentParts[0]) * 60 + parseInt(currentParts[1]);
+                                      const delayMinutes = currentMinutes - originalMinutes;
+                                      return delayMinutes > 0
+                                        ? <span className="ml-1 text-xs text-red-600">(+{delayMinutes}dk)</span>
+                                        : delayMinutes < 0
+                                        ? <span className="ml-1 text-xs text-green-600">({delayMinutes}dk)</span>
+                                        : null;
+                                    })()}
                                   </div>
                                 </div>
                                 <div>

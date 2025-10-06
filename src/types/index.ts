@@ -300,9 +300,14 @@ export interface JourneyStop {
   // Time Windows
   estimatedArrivalTime: string;
   estimatedDepartureTime?: string;
+
+  // ✅ YENİ - Original ETA'lar (planlanan zamanlar - dispatcher analizi için)
+  originalEstimatedArrivalTime?: string;
+  originalEstimatedDepartureTime?: string;
+
   arriveBetweenStart?: string;
   arriveBetweenEnd?: string;
-  
+
   // Backend'den gelen field'lar
   checkInTime?: string;  // ISO string format
   checkOutTime?: string; // ISO string format
