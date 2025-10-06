@@ -441,6 +441,45 @@ const JourneyDetail: React.FC = () => {
     }
   };
 
+  // ✅ YENİ: Durak silme fonksiyonu
+  const handleRemoveStop = async (stop: JourneyStop) => {
+    if (!journey) return;
+
+    if (window.confirm(`"${stop.routeStop?.customer?.name || stop.routeStop?.address}" durağını silmek istediğinizden emin misiniz?`)) {
+      try {
+        await journeyService.removeStopFromJourney(Number(journey.id), Number(stop.id));
+        toast.success('Durak silindi. Optimizasyon gerekiyor.');
+        loadJourney();
+      } catch (error: any) {
+        console.error('Error removing stop:', error);
+        const errorMessage = error.message || 'Durak silinemedi';
+        toast.error(errorMessage);
+      }
+    }
+  };
+
+  // ✅ YENİ: Planned sefer için web'den optimize et
+  const handleOptimizeJourney = async () => {
+    if (!journey) return;
+
+    if (window.confirm('Rota optimize edilecek. Devam etmek istiyor musunuz?')) {
+      try {
+        // Planned seferlerde şoför henüz yola çıkmadığı için depo konumunu kullan
+        await journeyService.reoptimizeActiveJourney(
+          Number(journey.id),
+          journey.startDetails?.latitude || 0,
+          journey.startDetails?.longitude || 0
+        );
+        toast.success('Rota başarıyla optimize edildi');
+        loadJourney();
+      } catch (error: any) {
+        console.error('Error optimizing journey:', error);
+        const errorMessage = error.message || 'Optimizasyon başarısız';
+        toast.error(errorMessage);
+      }
+    }
+  };
+
   // İmza fonksiyonları...
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     setIsDrawing(true);
@@ -1298,8 +1337,8 @@ const JourneyDetail: React.FC = () => {
             </div>
           )}
 
-          {/* Add Stop Button - Only for active journeys */}
-          {isJourneyStarted && (
+          {/* Add Stop Button - For active and planned journeys */}
+          {(isJourneyStarted || isJourneyPlanned) && (
             <button
               onClick={() => setShowAddStopModal(true)}
               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
@@ -1362,13 +1401,25 @@ const JourneyDetail: React.FC = () => {
             <div>
               <h3 className="font-semibold text-yellow-900">Optimizasyon Gerekiyor</h3>
               <p className="text-sm text-yellow-700 mt-1">
-                Yeni durak eklendi. Şoför mobil uygulamadan rotayı optimize etmelidir.
+                {isJourneyStarted
+                  ? 'Yeni durak eklendi. Şoför mobil uygulamadan rotayı optimize etmelidir.'
+                  : 'Durak değişikliği yapıldı. Rotayı yeniden optimize edin.'}
               </p>
             </div>
           </div>
-          <div className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-lg text-sm font-medium">
-            📱 Mobil Uygulama
-          </div>
+          {isJourneyStarted ? (
+            <div className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-lg text-sm font-medium">
+              📱 Mobil Uygulama
+            </div>
+          ) : (
+            <button
+              onClick={handleOptimizeJourney}
+              className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors flex items-center gap-2"
+            >
+              <Navigation className="w-4 h-4" />
+              Optimize Et
+            </button>
+          )}
         </div>
       )}
 
@@ -1633,27 +1684,39 @@ const JourneyDetail: React.FC = () => {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2 mb-1 flex-wrap">
-                        <span className="text-xs text-gray-500">#{stop.order}</span>
-                        <h4 className="font-medium text-gray-900">
-                          {stop.routeStop?.customer?.name ||
-                            stop.routeStop?.name ||
-                            `Durak ${stop.order}`}
-                        </h4>
-                        {index === currentStopIndex && isJourneyStarted && (
-                          <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">
-                            Mevcut
-                          </span>
-                        )}
-                        {stopStatusLower === 'completed' && (
-                          <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
-                            Tamamlandı
-                          </span>
-                        )}
-                        {stopStatusLower === 'failed' && (
-                          <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded-full">
-                            Başarısız
-                          </span>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center space-x-2 flex-wrap">
+                          <span className="text-xs text-gray-500">#{stop.order}</span>
+                          <h4 className="font-medium text-gray-900">
+                            {stop.routeStop?.customer?.name ||
+                              stop.routeStop?.name ||
+                              `Durak ${stop.order}`}
+                          </h4>
+                          {index === currentStopIndex && isJourneyStarted && (
+                            <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">
+                              Mevcut
+                            </span>
+                          )}
+                          {stopStatusLower === 'completed' && (
+                            <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
+                              Tamamlandı
+                            </span>
+                          )}
+                          {stopStatusLower === 'failed' && (
+                            <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded-full">
+                              Başarısız
+                            </span>
+                          )}
+                        </div>
+                        {/* ✅ YENİ: Durak silme butonu (sadece pending ve son durak değilse) */}
+                        {stopStatusLower === 'pending' && index !== normalStops.length - 1 && !journey.completedAt && !journey.cancelledAt && (
+                          <button
+                            onClick={() => handleRemoveStop(stop)}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Durağı sil"
+                          >
+                            <XCircle className="w-5 h-5" />
+                          </button>
                         )}
                       </div>
 

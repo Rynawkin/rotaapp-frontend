@@ -775,6 +775,19 @@ class JourneyService {
       throw new Error(error.response?.data?.message || 'Optimizasyon başarısız');
     }
   }
+
+  // ✅ YENİ: Seferden durak sil
+  async removeStopFromJourney(journeyId: number, stopId: number): Promise<Journey> {
+    try {
+      console.log('Removing stop from journey:', journeyId, stopId);
+      const response = await api.delete(`${this.baseUrl}/${journeyId}/stops/${stopId}`);
+      console.log('Stop removed:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error removing stop:', error);
+      throw new Error(error.response?.data?.message || 'Durak silinemedi');
+    }
+  }
 }
 
 export const journeyService = new JourneyService();
