@@ -22,7 +22,8 @@
       "Bash(sed:*)",
       "Bash(dir:*)",
       "Bash(Select-String -Pattern \"error|warning|succeeded|failed\")",
-      "Bash(Select-Object -Last 20)"
+      "Bash(Select-Object -Last 20)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

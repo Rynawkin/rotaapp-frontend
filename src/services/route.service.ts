@@ -168,11 +168,12 @@ class RouteService {
   async getAll(): Promise<Route[]> {
     try {
       const response = await api.get(this.baseUrl);
-      
+
       const customers = await this.loadCustomersSafely();
-      
+
       const routes = response.data.map((route: any) => ({
         ...route,
+        currentKm: route.currentKm,
         stops: route.stops?.map((stop: any) => {
           const customer = customers.find(c => c.id.toString() === stop.customerId.toString());
           return {
@@ -204,9 +205,10 @@ class RouteService {
       
       const route = {
         ...response.data,
+        currentKm: response.data.currentKm,
         stops: response.data.stops?.map((stop: any) => {
           const customer = customers.find(c => c.id.toString() === stop.customerId.toString());
-          
+
           return {
             ...stop,
             serviceTime: this.timeSpanToMinutes(stop.serviceTime),
@@ -240,6 +242,7 @@ class RouteService {
         DepotId: data.depotId ? Number(data.depotId) : 0,
         DriverId: data.driverId ? Number(data.driverId) : undefined,
         VehicleId: data.vehicleId ? Number(data.vehicleId) : undefined,
+        CurrentKm: data.currentKm !== undefined ? Number(data.currentKm) : undefined,
         Optimized: data.optimized || false,
         AvoidTolls: false, // Default to false for new routes
         TotalDistance: data.totalDistance || 0,
@@ -334,6 +337,7 @@ class RouteService {
       
       const createdRoute = {
         ...response.data,
+        currentKm: response.data.currentKm || data.currentKm,
         stops: response.data.stops?.map((stop: any, index: number) => ({
           ...stop,
           serviceTime: this.timeSpanToMinutes(stop.serviceTime),
@@ -368,6 +372,7 @@ class RouteService {
         DepotId: data.depotId ? Number(data.depotId) : undefined,
         DriverId: data.driverId ? Number(data.driverId) : undefined,
         VehicleId: data.vehicleId ? Number(data.vehicleId) : undefined,
+        CurrentKm: data.currentKm !== undefined ? Number(data.currentKm) : undefined,
         Optimized: data.optimized,
         TotalDistance: data.totalDistance,
         TotalDuration: data.totalDuration,
@@ -437,6 +442,7 @@ class RouteService {
       
       const updatedRoute = {
         ...response.data,
+        currentKm: response.data.currentKm || data.currentKm,
         stops: response.data.stops?.map((stop: any, index: number) => ({
           ...stop,
           serviceTime: this.timeSpanToMinutes(stop.serviceTime),
