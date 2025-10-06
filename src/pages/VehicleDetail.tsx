@@ -27,6 +27,7 @@ import {
 import { Vehicle } from '@/types';
 import { vehicleService } from '@/services/vehicle.service';
 import { routeService } from '@/services/route.service';
+import { journeyService } from '@/services/journey.service';
 
 const VehicleDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +37,10 @@ const VehicleDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
   const [maintenanceNote, setMaintenanceNote] = useState('');
+  const [kmStats, setKmStats] = useState<{
+    oneMonth: number;
+    threeMonths: number;
+  }>({ oneMonth: 0, threeMonths: 0 });
 
   useEffect(() => {
     loadVehicleData();
@@ -43,7 +48,7 @@ const VehicleDetail: React.FC = () => {
 
   const loadVehicleData = async () => {
     if (!id) return;
-    
+
     setLoading(true);
     try {
       // Load vehicle
@@ -51,10 +56,13 @@ const VehicleDetail: React.FC = () => {
       const vehicleData = await vehicleService.getById(vehicleId);
       if (vehicleData) {
         setVehicle(vehicleData);
-        
+
         // Load vehicle's routes using real API
         const vehicleRoutes = await routeService.getByVehicleId(id);
         setRoutes(vehicleRoutes);
+
+        // Load km statistics
+        await loadKmStatistics(vehicleId);
       } else {
         alert('Araç bulunamadı');
         navigate('/vehicles');
@@ -65,6 +73,48 @@ const VehicleDetail: React.FC = () => {
       navigate('/vehicles');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadKmStatistics = async (vehicleId: number) => {
+    try {
+      // Get journeys from last 3 months
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+      const journeys = await journeyService.getAll(threeMonthsAgo);
+
+      // Filter journeys for this vehicle
+      const vehicleJourneys = journeys.filter(j => j.vehicleId === vehicleId);
+
+      // Calculate km change for last 1 month
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+      const oneMonthJourneys = vehicleJourneys.filter(j =>
+        j.startedAt && new Date(j.startedAt) >= oneMonthAgo && j.startKm && j.endKm
+      );
+
+      const threeMonthJourneys = vehicleJourneys.filter(j =>
+        j.startKm && j.endKm
+      );
+
+      // Calculate total km traveled
+      const oneMonthKm = oneMonthJourneys.reduce((sum, j) =>
+        sum + (j.endKm! - j.startKm!), 0
+      );
+
+      const threeMonthKm = threeMonthJourneys.reduce((sum, j) =>
+        sum + (j.endKm! - j.startKm!), 0
+      );
+
+      setKmStats({
+        oneMonth: oneMonthKm,
+        threeMonths: threeMonthKm
+      });
+    } catch (error) {
+      console.error('Error loading km statistics:', error);
+      // Don't show error to user, just log it
     }
   };
 
@@ -431,28 +481,41 @@ const VehicleDetail: React.FC = () => {
 
           {/* Usage Statistics */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Kullanım İstatistikleri</h2>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Bu Ay</span>
-                <span className="text-sm font-medium text-gray-900">-</span>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <TrendingUp className="w-5 h-5 mr-2 text-blue-600" />
+              Kilometre İstatistikleri
+            </h2>
+            <div className="space-y-3">
+              <div className="p-3 bg-blue-50 rounded-lg">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-gray-600">Son 1 Ay</span>
+                  {kmStats.oneMonth > 0 && (
+                    <TrendingUp className="w-4 h-4 text-blue-600" />
+                  )}
+                </div>
+                <p className="text-2xl font-bold text-blue-900">
+                  {kmStats.oneMonth > 0 ? `+${kmStats.oneMonth.toLocaleString('tr-TR')}` : '-'}
+                </p>
+                <p className="text-xs text-gray-600 mt-1">km artış</p>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Ortalama Günlük</span>
-                <span className="text-sm font-medium text-gray-900">-</span>
+              <div className="p-3 bg-green-50 rounded-lg">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-gray-600">Son 3 Ay</span>
+                  {kmStats.threeMonths > 0 && (
+                    <TrendingUp className="w-4 h-4 text-green-600" />
+                  )}
+                </div>
+                <p className="text-2xl font-bold text-green-900">
+                  {kmStats.threeMonths > 0 ? `+${kmStats.threeMonths.toLocaleString('tr-TR')}` : '-'}
+                </p>
+                <p className="text-xs text-gray-600 mt-1">km artış</p>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Toplam Mesafe</span>
-                <span className="text-sm font-medium text-gray-900">-</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Yakıt Tüketimi</span>
-                <span className="text-sm font-medium text-gray-900">-</span>
-              </div>
+              {kmStats.oneMonth === 0 && kmStats.threeMonths === 0 && (
+                <p className="text-xs text-gray-500 text-center py-2">
+                  Henüz tamamlanmış sefer bulunmuyor
+                </p>
+              )}
             </div>
-            <p className="text-xs text-gray-500 mt-3">
-              İstatistikler rotalar entegre edildiğinde aktif olacak
-            </p>
           </div>
         </div>
       </div>

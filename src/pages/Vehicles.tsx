@@ -27,13 +27,14 @@ import {
   ArrowDown,
   HelpCircle,
   X,
-  FileDown
+  FileDown,
+  Gauge
 } from 'lucide-react';
 import { Vehicle } from '@/types';
 import { vehicleService } from '@/services/vehicle.service';
 import MaintenanceList from '@/components/vehicles/MaintenanceList';
 
-type SortField = 'plateNumber' | 'brand' | 'capacity' | 'year' | 'createdAt';
+type SortField = 'plateNumber' | 'brand' | 'capacity' | 'year' | 'createdAt' | 'currentKm';
 type SortDirection = 'asc' | 'desc';
 
 const Vehicles: React.FC = () => {
@@ -121,6 +122,9 @@ const Vehicles: React.FC = () => {
         break;
       case 'createdAt':
         comparison = new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+        break;
+      case 'currentKm':
+        comparison = (a.currentKm || 0) - (b.currentKm || 0);
         break;
     }
 
@@ -750,6 +754,15 @@ const Vehicles: React.FC = () => {
                       {getSortIcon('capacity')}
                     </div>
                   </th>
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('currentKm')}
+                  >
+                    <div className="flex items-center">
+                      Kilometre
+                      {getSortIcon('currentKm')}
+                    </div>
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Yakıt
                   </th>
@@ -764,7 +777,7 @@ const Vehicles: React.FC = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {sortedVehicles.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
                       <Car className="w-12 h-12 mx-auto text-gray-300 mb-3" />
                       <p>Araç bulunamadı</p>
                       <p className="text-sm mt-1">Filtrelerinizi değiştirmeyi deneyin</p>
@@ -806,6 +819,12 @@ const Vehicles: React.FC = () => {
                         <div className="flex items-center text-sm text-gray-600">
                           <Package className="w-4 h-4 mr-1" />
                           {vehicle.capacity} kg
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center text-sm text-gray-600">
+                          <Gauge className="w-4 h-4 mr-1" />
+                          {vehicle.currentKm ? vehicle.currentKm.toLocaleString('tr-TR') : '-'}
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -1004,6 +1023,12 @@ const Vehicles: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Kapasite:</span>
                     <span className="font-medium text-gray-900">{vehicle.capacity} kg</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Kilometre:</span>
+                    <span className="font-medium text-gray-900">
+                      {vehicle.currentKm ? vehicle.currentKm.toLocaleString('tr-TR') : '-'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Yakıt:</span>
