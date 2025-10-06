@@ -587,14 +587,14 @@ const Dashboard: React.FC = () => {
           {canAccessDispatcherFeatures() && (
             <>
               <Link
-                to="/routes/create"
+                to="/routes/new"
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center text-sm"
               >
                 <Route className="w-4 h-4 mr-2" />
                 Yeni Rota
               </Link>
               <Link
-                to="/customers/create"
+                to="/customers/new"
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center text-sm"
               >
                 <Users className="w-4 h-4 mr-2" />
