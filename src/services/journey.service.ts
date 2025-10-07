@@ -736,7 +736,9 @@ class JourneyService {
     latitude: number,
     longitude: number,
     serviceTimeMinutes?: number,
-    notes?: string
+    notes?: string,
+    arriveBetweenStart?: string, // ✅ YENİ - "HH:mm" format
+    arriveBetweenEnd?: string    // ✅ YENİ - "HH:mm" format
   ): Promise<Journey> {
     try {
       console.log('Adding stop to active journey:', journeyId);
@@ -746,7 +748,9 @@ class JourneyService {
         latitude,
         longitude,
         serviceTimeMinutes,
-        notes
+        notes,
+        arriveBetweenStart,
+        arriveBetweenEnd
       });
       console.log('Stop added:', response.data);
       return response.data;

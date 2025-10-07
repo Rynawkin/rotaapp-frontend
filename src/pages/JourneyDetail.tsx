@@ -2552,6 +2552,12 @@ const JourneyDetail: React.FC = () => {
           loadJourney(); // Reload journey data
           toast.success('Durak eklendi! Mobil uygulamada optimize edilmesi gerekiyor.');
         }}
+        activeStopCustomerIds={
+          journey?.stops
+            ?.filter(stop => stop.status === 'pending' || stop.status === 'in_progress')
+            .map(stop => stop.routeStop?.customer?.id || stop.routeStop?.customerId)
+            .filter((id): id is number => id !== undefined) || []
+        }
       />
     </div>
   );

@@ -10,6 +10,7 @@ interface AddStopModalProps {
   onClose: () => void;
   journeyId: number;
   onStopAdded: () => void;
+  activeStopCustomerIds?: number[]; // ✅ Seferdeki aktif durakların müşteri ID'leri
 }
 
 interface Customer {
@@ -20,13 +21,15 @@ interface Customer {
   longitude?: number;
   phone?: string;
   email?: string;
+  serviceTime?: string; // ✅ Müşterinin varsayılan servis süresi
 }
 
 export const AddStopModal: React.FC<AddStopModalProps> = ({
   isOpen,
   onClose,
   journeyId,
-  onStopAdded
+  onStopAdded,
+  activeStopCustomerIds = []
 }) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
@@ -38,6 +41,10 @@ export const AddStopModal: React.FC<AddStopModalProps> = ({
   const [longitude, setLongitude] = useState<number | ''>('');
   const [serviceTimeMinutes, setServiceTimeMinutes] = useState<number | ''>('');
   const [notes, setNotes] = useState('');
+
+  // ✅ Zaman aralığı (arrive between)
+  const [arriveBetweenStart, setArriveBetweenStart] = useState('');
+  const [arriveBetweenEnd, setArriveBetweenEnd] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -52,6 +59,17 @@ export const AddStopModal: React.FC<AddStopModalProps> = ({
         setAddress(customer.address || '');
         setLatitude(customer.latitude || '');
         setLongitude(customer.longitude || '');
+
+        // ✅ Müşteri servis süresini otomatik doldur (eğer varsa)
+        if (customer.serviceTime) {
+          // serviceTime "hh:mm:ss" formatında, dakikaya çevir
+          const parts = customer.serviceTime.split(':');
+          if (parts.length >= 2) {
+            const hours = parseInt(parts[0], 10);
+            const minutes = parseInt(parts[1], 10);
+            setServiceTimeMinutes(hours * 60 + minutes);
+          }
+        }
       }
     }
   }, [selectedCustomerId, customers]);
@@ -97,7 +115,9 @@ export const AddStopModal: React.FC<AddStopModalProps> = ({
         Number(latitude),
         Number(longitude),
         serviceTimeMinutes ? Number(serviceTimeMinutes) : undefined,
-        notes.trim() || undefined
+        notes.trim() || undefined,
+        arriveBetweenStart || undefined,
+        arriveBetweenEnd || undefined
       );
 
       toast.success('Durak başarıyla eklendi! Optimizasyon gerekiyor.');
@@ -118,6 +138,8 @@ export const AddStopModal: React.FC<AddStopModalProps> = ({
     setLongitude('');
     setServiceTimeMinutes('');
     setNotes('');
+    setArriveBetweenStart('');
+    setArriveBetweenEnd('');
     onClose();
   };
 
@@ -166,11 +188,18 @@ export const AddStopModal: React.FC<AddStopModalProps> = ({
                 disabled={submitting}
               >
                 <option value="">Müşteri seçin...</option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.name}
-                  </option>
-                ))}
+                {customers.map((customer) => {
+                  const isActiveInJourney = activeStopCustomerIds.includes(customer.id);
+                  return (
+                    <option
+                      key={customer.id}
+                      value={customer.id}
+                      disabled={isActiveInJourney}
+                    >
+                      {customer.name} {isActiveInJourney ? '(Seferde aktif)' : ''}
+                    </option>
+                  );
+                })}
               </select>
             )}
           </div>
@@ -239,6 +268,38 @@ export const AddStopModal: React.FC<AddStopModalProps> = ({
               placeholder="Varsayılan süre kullanılacak"
               disabled={submitting}
             />
+          </div>
+
+          {/* ✅ YENİ: Zaman Aralığı (Arrive Between) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Varış Zaman Aralığı (İsteğe Bağlı)
+            </label>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Başlangıç Saati</label>
+                <input
+                  type="time"
+                  value={arriveBetweenStart}
+                  onChange={(e) => setArriveBetweenStart(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={submitting}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Bitiş Saati</label>
+                <input
+                  type="time"
+                  value={arriveBetweenEnd}
+                  onChange={(e) => setArriveBetweenEnd(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={submitting}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Örnek: 09:00 - 12:00 arası teslimat
+            </p>
           </div>
 
           {/* Notes */}
