@@ -465,16 +465,22 @@ const JourneyDetail: React.FC = () => {
     if (window.confirm('Rota optimize edilecek. Devam etmek istiyor musunuz?')) {
       try {
         // Planned seferlerde şoför henüz yola çıkmadığı için depo konumunu kullan
+        // Route'dan veya StartDetails'dan konumu al
+        const lat = journey.startDetails?.latitude || journey.route?.startDetails?.latitude || 0;
+        const lng = journey.startDetails?.longitude || journey.route?.startDetails?.longitude || 0;
+
+        console.log('Optimizing with coordinates:', { lat, lng });
+
         await journeyService.reoptimizeActiveJourney(
           Number(journey.id),
-          journey.startDetails?.latitude || 0,
-          journey.startDetails?.longitude || 0
+          lat,
+          lng
         );
         toast.success('Rota başarıyla optimize edildi');
         loadJourney();
       } catch (error: any) {
         console.error('Error optimizing journey:', error);
-        const errorMessage = error.message || 'Optimizasyon başarısız';
+        const errorMessage = error.response?.data?.message || error.message || 'Optimizasyon başarısız';
         toast.error(errorMessage);
       }
     }
