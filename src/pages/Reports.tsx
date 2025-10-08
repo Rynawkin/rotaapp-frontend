@@ -18,11 +18,9 @@ import {
   Printer,
   Navigation,
   Star, // Star import'u eklendi
-  ClockAlert, // ✅ NEW - For delays tab
   Target, // ✅ NEW - For SLA tab
   TrendingDown, // ✅ NEW - For customer performance
-  MapPin, // ✅ NEW - For critical stops
-  BarChart2 // ✅ NEW - For comparison tabs
+  MapPin // ✅ NEW - For critical stops
 } from 'lucide-react';
 import {
   LineChart,
@@ -908,7 +906,7 @@ const Reports: React.FC = () => {
             { id: 'drivers', label: 'Sürücüler', icon: Users },
             { id: 'vehicles', label: 'Araçlar', icon: Truck },
             { id: 'customers', label: 'Müşteriler', icon: Users },
-            { id: 'delays', label: 'Gecikme Analizi', icon: ClockAlert },
+            { id: 'delays', label: 'Gecikme Analizi', icon: Clock },
             { id: 'sla', label: 'SLA / Zamanında Teslimat', icon: Target },
             { id: 'customer-performance', label: 'Müşteri Performans', icon: TrendingDown },
             { id: 'critical-stops', label: 'Kritik Duraklar', icon: MapPin },
@@ -1332,7 +1330,7 @@ const Reports: React.FC = () => {
             <div className="bg-white rounded-xl shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="p-2 rounded-lg bg-red-100">
-                  <ClockAlert className="w-5 h-5 text-red-600" />
+                  <AlertCircle className="w-5 h-5 text-red-600" />
                 </div>
               </div>
               <p className="text-xs text-gray-600 mb-1">Toplam Gecikme</p>
