@@ -40,6 +40,7 @@ import signalRService from '@/services/signalr.service';
 import { useSignalR, useJourneyTracking } from '@/hooks/useSignalR';
 import { api } from '@/services/api';
 import { AddStopModal } from '@/components/journey/AddStopModal';
+import { InfoTooltip, TOOLTIP_TEXTS } from '@/components/common/InfoTooltip';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -1604,7 +1605,13 @@ const JourneyDetail: React.FC = () => {
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
                 <CheckCircle className="w-6 h-6" />
-                <h3 className="text-lg font-bold">SLA Uyumluluğu</h3>
+                <h3 className="text-lg font-bold inline-flex items-center">
+                  SLA Uyumluluğu
+                  <InfoTooltip
+                    title={TOOLTIP_TEXTS.SLA.title}
+                    content={TOOLTIP_TEXTS.SLA.content}
+                  />
+                </h3>
               </div>
               <div className="text-4xl font-bold mb-2">
                 {normalStops.length > 0
