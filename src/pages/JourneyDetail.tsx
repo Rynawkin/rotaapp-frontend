@@ -33,7 +33,7 @@ import {
   FileSpreadsheet,
   Plus
 } from 'lucide-react';
-import { Journey, JourneyStop, JourneyStatus } from '@/types';
+import { Journey, JourneyStop, JourneyStatus, getDelayReasonLabel } from '@/types';
 import { journeyService, CompleteStopDto } from '@/services/journey.service';
 import { toast } from 'react-hot-toast';
 import signalRService from '@/services/signalr.service';
@@ -1094,7 +1094,7 @@ const JourneyDetail: React.FC = () => {
       ['En Gecikmeli Durak', maxDelay > 0 ? `Durak #${maxDelayStop?.order} (+${maxDelay} dk)` : 'Yok'],
       [],
       ['DURAKLAR'],
-      ['Sıra', 'Müşteri', 'Adres', 'Telefon', 'Orijinal Plan', 'Güncel Plan', 'Gerç. Varış', 'Sapma (dk)', 'Plan. Tamamlanma', 'Gerç. Tamamlanma', 'Planlanan Süre', 'Gerçekleşen Süre', 'Durum']
+      ['Sıra', 'Müşteri', 'Adres', 'Telefon', 'Orijinal Plan', 'Güncel Plan', 'Gerç. Varış', 'Sapma (dk)', 'Gecikme Sebebi', 'Açıklama', 'Plan. Tamamlanma', 'Gerç. Tamamlanma', 'Planlanan Süre', 'Gerçekleşen Süre', 'Durum']
     ];
 
     // Duraklar
@@ -1130,6 +1130,14 @@ const JourneyDetail: React.FC = () => {
       const delay = calculateActualDelay(stop);
       const delayText = delay === 0 ? 'Zamanında' : delay > 0 ? `+${delay}` : `${delay}`;
 
+      // Gecikme sebebi
+      const delayReasonText = delay > 0 && stop.delayReasonCategory
+        ? getDelayReasonLabel(stop.delayReasonCategory)
+        : '-';
+      const delayReasonDescription = delay > 0 && stop.delayReason
+        ? stop.delayReason
+        : '-';
+
       return [
         stop.order,
         stop.routeStop?.customer?.name || stop.routeStop?.name || `Durak ${stop.order}`,
@@ -1139,6 +1147,8 @@ const JourneyDetail: React.FC = () => {
         stop.estimatedArrivalTime ? formatTimeSpan(stop.estimatedArrivalTime) : '-',
         stop.checkInTime ? formatTime(stop.checkInTime) : '-',
         delayText,
+        delayReasonText,
+        delayReasonDescription,
         stop.estimatedDepartureTime ? formatTimeSpan(stop.estimatedDepartureTime) : '-',
         stop.checkOutTime ? formatTime(stop.checkOutTime) : '-',
         plannedDuration,
@@ -1158,8 +1168,12 @@ const JourneyDetail: React.FC = () => {
       { wch: 30 }, // Müşteri
       { wch: 40 }, // Adres
       { wch: 15 }, // Telefon
-      { wch: 12 }, // Plan. Varış
+      { wch: 12 }, // Orijinal Plan
+      { wch: 12 }, // Güncel Plan
       { wch: 12 }, // Gerç. Varış
+      { wch: 12 }, // Sapma (dk)
+      { wch: 20 }, // Gecikme Sebebi
+      { wch: 40 }, // Açıklama
       { wch: 15 }, // Plan. Tamamlanma
       { wch: 15 }, // Gerç. Tamamlanma
       { wch: 15 }, // Planlanan Süre
@@ -2025,6 +2039,9 @@ const JourneyDetail: React.FC = () => {
                     Sapma
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Gecikme Sebebi
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Durum
                   </th>
                 </tr>
@@ -2070,6 +2087,22 @@ const JourneyDetail: React.FC = () => {
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
                             Zamanında
                           </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {delay > 0 && stop.delayReasonCategory ? (
+                          <div>
+                            <div className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                              {getDelayReasonLabel(stop.delayReasonCategory)}
+                            </div>
+                            {stop.delayReason && (
+                              <div className="text-xs text-gray-500 mt-1 italic">
+                                {stop.delayReason}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm">
@@ -2338,10 +2371,28 @@ const JourneyDetail: React.FC = () => {
                                   {(() => {
                                     const delay = calculateActualDelay(stop);
                                     return delay !== 0 && (
-                                      <div className={`text-center px-2 py-1 rounded ${delay > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
-                                        <span className={`text-xs font-bold ${delay > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                          {delay > 0 ? '+' : ''}{delay} dakika {stop.checkInTime ? '' : '(tahmini)'}
-                                        </span>
+                                      <div>
+                                        <div className={`text-center px-2 py-1 rounded ${delay > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+                                          <span className={`text-xs font-bold ${delay > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                            {delay > 0 ? '+' : ''}{delay} dakika {stop.checkInTime ? '' : '(tahmini)'}
+                                          </span>
+                                        </div>
+                                        {/* Gecikme Sebebi */}
+                                        {delay > 0 && stop.delayReasonCategory && (
+                                          <div className="mt-2 pt-2 border-t border-red-100">
+                                            <div className="text-xs text-gray-600 mb-1 text-center font-semibold">Gecikme Sebebi:</div>
+                                            <div className="text-center">
+                                              <div className="inline-block px-2 py-1 bg-amber-100 rounded text-xs font-medium text-amber-800">
+                                                {getDelayReasonLabel(stop.delayReasonCategory)}
+                                              </div>
+                                            </div>
+                                            {stop.delayReason && (
+                                              <div className="mt-1 text-xs text-gray-600 text-center italic">
+                                                {stop.delayReason}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })()}

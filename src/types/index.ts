@@ -311,7 +311,13 @@ export interface JourneyStop {
   // Backend'den gelen field'lar
   checkInTime?: string;  // ISO string format
   checkOutTime?: string; // ISO string format
-  
+
+  // ✅ YENİ - Delay tracking fields
+  delayReasonCategory?: string;
+  delayReason?: string;
+  newDelay?: number;
+  cumulativeDelay?: number;
+
   // Relations
   routeStop?: RouteStop;
 }
@@ -539,3 +545,31 @@ export interface StopData {
   estimatedArrivalTime?: string;
   estimatedDepartureTime?: string;
 }
+
+// ✅ YENİ - Delay Reason Helper Functions
+export const getDelayReasonLabel = (category?: string): string => {
+  if (!category) return '';
+
+  switch (category) {
+    case 'Traffic':
+      return 'Trafik Yoğunluğu';
+    case 'CustomerNotReady':
+      return 'Müşteri Hazır Değil';
+    case 'VehicleIssue':
+      return 'Araç Arızası';
+    case 'Weather':
+      return 'Hava Koşulları';
+    case 'UnloadingDelay':
+      return 'Yükleme/Boşaltma Gecikmesi';
+    case 'RouteChange':
+      return 'Rota Değişikliği';
+    case 'AccidentArea':
+      return 'Kaza Bölgesi';
+    case 'BreakTime':
+      return 'Yemek Molası';
+    case 'Other':
+      return 'Diğer';
+    default:
+      return category;
+  }
+};
