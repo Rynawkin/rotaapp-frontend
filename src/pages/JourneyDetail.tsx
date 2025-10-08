@@ -1,6 +1,6 @@
 // src/pages/JourneyDetail.tsx
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -1274,7 +1274,7 @@ const JourneyDetail: React.FC = () => {
   const maxDelay = maxDelayStop ? calculateStopDelay(maxDelayStop) : 0;
 
   // ✅ Filtre ve Sıralama Mantığı
-  const filteredAndSortedStops = React.useMemo(() => {
+  const getFilteredAndSortedStops = () => {
     let filtered = [...normalStops];
 
     // Filtre uygula
@@ -1301,7 +1301,9 @@ const JourneyDetail: React.FC = () => {
     }
 
     return filtered;
-  }, [normalStops, filterStatus, sortBy]);
+  };
+
+  const filteredAndSortedStops = getFilteredAndSortedStops();
 
   // Progress hesaplaması - sadece normal stops için
   const completedStops = normalStops.filter((s: JourneyStop) =>
