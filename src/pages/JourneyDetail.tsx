@@ -1126,7 +1126,7 @@ const JourneyDetail: React.FC = () => {
       }
 
       // Gecikme hesapla
-      const delay = calculateStopDelay(stop);
+      const delay = calculateActualDelay(stop);
       const delayText = delay === 0 ? 'Zamanında' : delay > 0 ? `+${delay}` : `${delay}`;
 
       return [
@@ -1253,7 +1253,9 @@ const JourneyDetail: React.FC = () => {
   const currentStop = normalStops[currentStopIndex];
 
   // ✅ Gecikme Analizi için Helper Functions
-  const calculateStopDelay = (stop: JourneyStop): number => {
+
+  // Plan değişikliği gecikmesi (Orijinal plan vs Güncel plan) - Tahmin için
+  const calculatePlanDelay = (stop: JourneyStop): number => {
     if (!stop.originalEstimatedArrivalTime || !stop.estimatedArrivalTime) return 0;
     const originalParts = stop.originalEstimatedArrivalTime.split(':');
     const currentParts = stop.estimatedArrivalTime.split(':');
@@ -1262,16 +1264,57 @@ const JourneyDetail: React.FC = () => {
     return currentMinutes - originalMinutes;
   };
 
-  const delayedStops = normalStops.filter((s: JourneyStop) => calculateStopDelay(s) > 0);
-  const earlyStops = normalStops.filter((s: JourneyStop) => calculateStopDelay(s) < 0);
-  const totalDelay = normalStops.reduce((sum, s) => sum + Math.max(0, calculateStopDelay(s)), 0);
+  // Gerçek gecikme (Planlanan vs Gerçekleşen) - Asıl gecikme
+  const calculateActualDelay = (stop: JourneyStop): number => {
+    // Eğer gerçekleşen varış saati varsa, orijinal planla karşılaştır
+    if (stop.checkInTime && stop.originalEstimatedArrivalTime) {
+      const checkInDate = new Date(stop.checkInTime);
+      const checkInMinutes = checkInDate.getHours() * 60 + checkInDate.getMinutes();
+
+      const originalParts = stop.originalEstimatedArrivalTime.split(':');
+      const originalMinutes = parseInt(originalParts[0]) * 60 + parseInt(originalParts[1]);
+
+      return checkInMinutes - originalMinutes;
+    }
+
+    // Henüz gerçekleşen yoksa, tahmin gecikmesini göster (güncel plan vs orijinal plan)
+    return calculatePlanDelay(stop);
+  };
+
+  // Tamamlanma gecikmesi (Departure için)
+  const calculateDepartureDelay = (stop: JourneyStop): number => {
+    if (stop.checkOutTime && stop.originalEstimatedDepartureTime) {
+      const checkOutDate = new Date(stop.checkOutTime);
+      const checkOutMinutes = checkOutDate.getHours() * 60 + checkOutDate.getMinutes();
+
+      const originalParts = stop.originalEstimatedDepartureTime.split(':');
+      const originalMinutes = parseInt(originalParts[0]) * 60 + parseInt(originalParts[1]);
+
+      return checkOutMinutes - originalMinutes;
+    }
+
+    // Henüz gerçekleşen yoksa ve güncel plan varsa
+    if (stop.originalEstimatedDepartureTime && stop.estimatedDepartureTime) {
+      const originalParts = stop.originalEstimatedDepartureTime.split(':');
+      const currentParts = stop.estimatedDepartureTime.split(':');
+      const originalMinutes = parseInt(originalParts[0]) * 60 + parseInt(originalParts[1]);
+      const currentMinutes = parseInt(currentParts[0]) * 60 + parseInt(currentParts[1]);
+      return currentMinutes - originalMinutes;
+    }
+
+    return 0;
+  };
+
+  const delayedStops = normalStops.filter((s: JourneyStop) => calculateActualDelay(s) > 0);
+  const earlyStops = normalStops.filter((s: JourneyStop) => calculateActualDelay(s) < 0);
+  const totalDelay = normalStops.reduce((sum, s) => sum + Math.max(0, calculateActualDelay(s)), 0);
   const averageDelay = normalStops.length > 0 ? totalDelay / normalStops.length : 0;
   const maxDelayStop = normalStops.reduce((max, s) => {
-    const delay = calculateStopDelay(s);
-    const maxDelay = calculateStopDelay(max);
+    const delay = calculateActualDelay(s);
+    const maxDelay = calculateActualDelay(max);
     return delay > maxDelay ? s : max;
   }, normalStops[0]);
-  const maxDelay = maxDelayStop ? calculateStopDelay(maxDelayStop) : 0;
+  const maxDelay = maxDelayStop ? calculateActualDelay(maxDelayStop) : 0;
 
   // ✅ Filtre ve Sıralama Mantığı
   const getFilteredAndSortedStops = () => {
@@ -1279,16 +1322,16 @@ const JourneyDetail: React.FC = () => {
 
     // Filtre uygula
     if (filterStatus === 'delayed') {
-      filtered = filtered.filter((s: JourneyStop) => calculateStopDelay(s) > 0);
+      filtered = filtered.filter((s: JourneyStop) => calculateActualDelay(s) > 0);
     } else if (filterStatus === 'early') {
-      filtered = filtered.filter((s: JourneyStop) => calculateStopDelay(s) < 0);
+      filtered = filtered.filter((s: JourneyStop) => calculateActualDelay(s) < 0);
     } else if (filterStatus === 'ontime') {
-      filtered = filtered.filter((s: JourneyStop) => calculateStopDelay(s) === 0);
+      filtered = filtered.filter((s: JourneyStop) => calculateActualDelay(s) === 0);
     }
 
     // Sıralama uygula
     if (sortBy === 'delay') {
-      filtered.sort((a, b) => calculateStopDelay(b) - calculateStopDelay(a));
+      filtered.sort((a, b) => calculateActualDelay(b) - calculateActualDelay(a));
     } else if (sortBy === 'customer') {
       filtered.sort((a, b) => {
         const nameA = a.routeStop?.customer?.name || a.routeStop?.name || '';
@@ -1861,8 +1904,8 @@ const JourneyDetail: React.FC = () => {
           </h3>
           <div className="space-y-2">
             {normalStops.map((stop: JourneyStop, index: number) => {
-              const delay = calculateStopDelay(stop);
-              const maxAbsDelay = Math.max(...normalStops.map((s: JourneyStop) => Math.abs(calculateStopDelay(s))));
+              const delay = calculateActualDelay(stop);
+              const maxAbsDelay = Math.max(...normalStops.map((s: JourneyStop) => Math.abs(calculateActualDelay(s))));
               const barWidth = maxAbsDelay > 0 ? (Math.abs(delay) / maxAbsDelay) * 100 : 0;
 
               return (
@@ -1981,7 +2024,7 @@ const JourneyDetail: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {filteredAndSortedStops.map((stop: JourneyStop) => {
-                  const delay = calculateStopDelay(stop);
+                  const delay = calculateActualDelay(stop);
                   const stopStatusLower = stop.status?.toLowerCase() || 'pending';
 
                   return (
@@ -2265,8 +2308,8 @@ const JourneyDetail: React.FC = () => {
                           {(stop.estimatedArrivalTime || stop.checkInTime) && (
                             <div className="bg-white rounded-lg p-2.5 shadow-sm">
                               <div className="text-xs font-semibold text-gray-700 mb-2 text-center">Varış Saati</div>
-                              {stop.originalEstimatedArrivalTime && stop.originalEstimatedArrivalTime !== stop.estimatedArrivalTime ? (
-                                /* Timeline gösterimi - Gecikme varsa */
+                              {stop.originalEstimatedArrivalTime && (stop.checkInTime || stop.originalEstimatedArrivalTime !== stop.estimatedArrivalTime) ? (
+                                /* Timeline gösterimi - Gecikme varsa veya gerçekleşen saat varsa */
                                 <div className="space-y-2">
                                   <div className="flex items-center gap-2">
                                     <div className="flex-1 text-center">
@@ -2277,32 +2320,32 @@ const JourneyDetail: React.FC = () => {
                                     </div>
                                     <div className="flex-shrink-0 w-6 h-0.5 bg-gradient-to-r from-gray-400 to-orange-400"></div>
                                     <div className="flex-1 text-center">
-                                      <div className="text-xs text-orange-600 mb-1">Güncel</div>
-                                      <div className="px-2 py-1 bg-orange-50 rounded text-xs font-bold text-orange-700 border-l-2 border-orange-500">
-                                        {formatTimeSpan(stop.estimatedArrivalTime)}
+                                      <div className="text-xs text-orange-600 mb-1">{stop.checkInTime ? 'Gerçekleşen' : 'Güncel'}</div>
+                                      <div className={`px-2 py-1 rounded text-xs font-bold border-l-2 ${
+                                        stop.checkInTime ? 'bg-green-50 text-green-700 border-green-500' : 'bg-orange-50 text-orange-700 border-orange-500'
+                                      }`}>
+                                        {stop.checkInTime ? formatTime(stop.checkInTime) : formatTimeSpan(stop.estimatedArrivalTime)}
                                       </div>
                                     </div>
                                   </div>
                                   {(() => {
-                                    const originalParts = stop.originalEstimatedArrivalTime.split(':');
-                                    const currentParts = stop.estimatedArrivalTime.split(':');
-                                    const originalMinutes = parseInt(originalParts[0]) * 60 + parseInt(originalParts[1]);
-                                    const currentMinutes = parseInt(currentParts[0]) * 60 + parseInt(currentParts[1]);
-                                    const delayMinutes = currentMinutes - originalMinutes;
-                                    return delayMinutes !== 0 && (
-                                      <div className={`text-center px-2 py-1 rounded ${delayMinutes > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
-                                        <span className={`text-xs font-bold ${delayMinutes > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                          {delayMinutes > 0 ? '+' : ''}{delayMinutes} dakika
+                                    const delay = calculateActualDelay(stop);
+                                    return delay !== 0 && (
+                                      <div className={`text-center px-2 py-1 rounded ${delay > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+                                        <span className={`text-xs font-bold ${delay > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                          {delay > 0 ? '+' : ''}{delay} dakika {stop.checkInTime ? '' : '(tahmini)'}
                                         </span>
                                       </div>
                                     );
                                   })()}
-                                  <div className="pt-2 border-t border-gray-100">
-                                    <div className="text-xs text-gray-500 mb-1 text-center">Gerçekleşen</div>
-                                    <div className="text-center text-sm font-bold text-green-700">
-                                      {stop.checkInTime ? formatTime(stop.checkInTime) : '-'}
+                                  {!stop.checkInTime && (
+                                    <div className="pt-2 border-t border-gray-100">
+                                      <div className="text-xs text-gray-500 mb-1 text-center">Gerçekleşen</div>
+                                      <div className="text-center text-sm font-bold text-gray-400">
+                                        Henüz varış yapılmadı
+                                      </div>
                                     </div>
-                                  </div>
+                                  )}
                                 </div>
                               ) : (
                                 /* Normal gösterim - Gecikme yoksa */
@@ -2328,8 +2371,8 @@ const JourneyDetail: React.FC = () => {
                           {(stop.estimatedDepartureTime || stop.checkOutTime) && (
                             <div className="bg-white rounded-lg p-2.5 shadow-sm">
                               <div className="text-xs font-semibold text-gray-700 mb-2 text-center">Tamamlanma Saati</div>
-                              {stop.originalEstimatedDepartureTime && stop.originalEstimatedDepartureTime !== stop.estimatedDepartureTime && stop.estimatedDepartureTime ? (
-                                /* Timeline gösterimi - Gecikme varsa */
+                              {stop.originalEstimatedDepartureTime && (stop.checkOutTime || (stop.originalEstimatedDepartureTime !== stop.estimatedDepartureTime && stop.estimatedDepartureTime)) ? (
+                                /* Timeline gösterimi - Gecikme varsa veya gerçekleşen saat varsa */
                                 <div className="space-y-2">
                                   <div className="flex items-center gap-2">
                                     <div className="flex-1 text-center">
@@ -2340,32 +2383,32 @@ const JourneyDetail: React.FC = () => {
                                     </div>
                                     <div className="flex-shrink-0 w-6 h-0.5 bg-gradient-to-r from-gray-400 to-orange-400"></div>
                                     <div className="flex-1 text-center">
-                                      <div className="text-xs text-orange-600 mb-1">Güncel</div>
-                                      <div className="px-2 py-1 bg-orange-50 rounded text-xs font-bold text-orange-700 border-l-2 border-orange-500">
-                                        {formatTimeSpan(stop.estimatedDepartureTime)}
+                                      <div className="text-xs text-orange-600 mb-1">{stop.checkOutTime ? 'Gerçekleşen' : 'Güncel'}</div>
+                                      <div className={`px-2 py-1 rounded text-xs font-bold border-l-2 ${
+                                        stop.checkOutTime ? 'bg-green-50 text-green-700 border-green-500' : 'bg-orange-50 text-orange-700 border-orange-500'
+                                      }`}>
+                                        {stop.checkOutTime ? formatTime(stop.checkOutTime) : formatTimeSpan(stop.estimatedDepartureTime)}
                                       </div>
                                     </div>
                                   </div>
                                   {(() => {
-                                    const originalParts = stop.originalEstimatedDepartureTime.split(':');
-                                    const currentParts = stop.estimatedDepartureTime.split(':');
-                                    const originalMinutes = parseInt(originalParts[0]) * 60 + parseInt(originalParts[1]);
-                                    const currentMinutes = parseInt(currentParts[0]) * 60 + parseInt(currentParts[1]);
-                                    const delayMinutes = currentMinutes - originalMinutes;
-                                    return delayMinutes !== 0 && (
-                                      <div className={`text-center px-2 py-1 rounded ${delayMinutes > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
-                                        <span className={`text-xs font-bold ${delayMinutes > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                          {delayMinutes > 0 ? '+' : ''}{delayMinutes} dakika
+                                    const delay = calculateDepartureDelay(stop);
+                                    return delay !== 0 && (
+                                      <div className={`text-center px-2 py-1 rounded ${delay > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+                                        <span className={`text-xs font-bold ${delay > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                          {delay > 0 ? '+' : ''}{delay} dakika {stop.checkOutTime ? '' : '(tahmini)'}
                                         </span>
                                       </div>
                                     );
                                   })()}
-                                  <div className="pt-2 border-t border-gray-100">
-                                    <div className="text-xs text-gray-500 mb-1 text-center">Gerçekleşen</div>
-                                    <div className="text-center text-sm font-bold text-green-700">
-                                      {stop.checkOutTime ? formatTime(stop.checkOutTime) : '-'}
+                                  {!stop.checkOutTime && (
+                                    <div className="pt-2 border-t border-gray-100">
+                                      <div className="text-xs text-gray-500 mb-1 text-center">Gerçekleşen</div>
+                                      <div className="text-center text-sm font-bold text-gray-400">
+                                        Henüz tamamlanmadı
+                                      </div>
                                     </div>
-                                  </div>
+                                  )}
                                 </div>
                               ) : (
                                 /* Normal gösterim - Gecikme yoksa */
