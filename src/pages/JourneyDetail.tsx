@@ -261,6 +261,10 @@ const JourneyDetail: React.FC = () => {
   const [showAddStopModal, setShowAddStopModal] = useState(false);
   const [showPhotoGallery, setShowPhotoGallery] = useState(false);
 
+  // ✅ YENİ: Filtre ve Sıralama State'leri
+  const [filterStatus, setFilterStatus] = useState<string>('all'); // all, delayed, early, ontime
+  const [sortBy, setSortBy] = useState<string>('order'); // order, delay, customer
+
   // Canvas ve file input ref'leri
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1081,8 +1085,15 @@ const JourneyDetail: React.FC = () => {
       ['Başarılı Teslimat', `${normalStops.filter((s: JourneyStop) => s.status?.toLowerCase() === 'completed').length}`],
       ['Başarısız Teslimat', `${normalStops.filter((s: JourneyStop) => s.status?.toLowerCase() === 'failed').length}`],
       [],
+      ['PERFORMANS ANALİZİ'],
+      ['Toplam Gecikme', `${totalDelay} dakika`],
+      ['Ortalama Gecikme', `${averageDelay.toFixed(1)} dakika`],
+      ['Gecikmeli Durak Sayısı', `${delayedStops.length} / ${normalStops.length}`],
+      ['Zamanında Teslimat Oranı', `${normalStops.length > 0 ? Math.round(((normalStops.length - delayedStops.length) / normalStops.length) * 100) : 0}%`],
+      ['En Gecikmeli Durak', maxDelay > 0 ? `Durak #${maxDelayStop?.order} (+${maxDelay} dk)` : 'Yok'],
+      [],
       ['DURAKLAR'],
-      ['Sıra', 'Müşteri', 'Adres', 'Telefon', 'Plan. Varış', 'Gerç. Varış', 'Plan. Tamamlanma', 'Gerç. Tamamlanma', 'Planlanan Süre', 'Gerçekleşen Süre', 'Durum']
+      ['Sıra', 'Müşteri', 'Adres', 'Telefon', 'Orijinal Plan', 'Güncel Plan', 'Gerç. Varış', 'Sapma (dk)', 'Plan. Tamamlanma', 'Gerç. Tamamlanma', 'Planlanan Süre', 'Gerçekleşen Süre', 'Durum']
     ];
 
     // Duraklar
@@ -1114,13 +1125,19 @@ const JourneyDetail: React.FC = () => {
         actualDuration = durationMinutes > 0 ? `${durationMinutes} dk` : '-';
       }
 
+      // Gecikme hesapla
+      const delay = calculateStopDelay(stop);
+      const delayText = delay === 0 ? 'Zamanında' : delay > 0 ? `+${delay}` : `${delay}`;
+
       return [
         stop.order,
         stop.routeStop?.customer?.name || stop.routeStop?.name || `Durak ${stop.order}`,
         stop.endAddress || stop.routeStop?.address || stop.routeStop?.customer?.address || '-',
         stop.routeStop?.customer?.phone || '-',
+        stop.originalEstimatedArrivalTime ? formatTimeSpan(stop.originalEstimatedArrivalTime) : '-',
         stop.estimatedArrivalTime ? formatTimeSpan(stop.estimatedArrivalTime) : '-',
         stop.checkInTime ? formatTime(stop.checkInTime) : '-',
+        delayText,
         stop.estimatedDepartureTime ? formatTimeSpan(stop.estimatedDepartureTime) : '-',
         stop.checkOutTime ? formatTime(stop.checkOutTime) : '-',
         plannedDuration,
@@ -1234,6 +1251,57 @@ const JourneyDetail: React.FC = () => {
 
   const currentStopIndex = journey.currentStopIndex || 0;
   const currentStop = normalStops[currentStopIndex];
+
+  // ✅ Gecikme Analizi için Helper Functions
+  const calculateStopDelay = (stop: JourneyStop): number => {
+    if (!stop.originalEstimatedArrivalTime || !stop.estimatedArrivalTime) return 0;
+    const originalParts = stop.originalEstimatedArrivalTime.split(':');
+    const currentParts = stop.estimatedArrivalTime.split(':');
+    const originalMinutes = parseInt(originalParts[0]) * 60 + parseInt(originalParts[1]);
+    const currentMinutes = parseInt(currentParts[0]) * 60 + parseInt(currentParts[1]);
+    return currentMinutes - originalMinutes;
+  };
+
+  const delayedStops = normalStops.filter((s: JourneyStop) => calculateStopDelay(s) > 0);
+  const earlyStops = normalStops.filter((s: JourneyStop) => calculateStopDelay(s) < 0);
+  const totalDelay = normalStops.reduce((sum, s) => sum + Math.max(0, calculateStopDelay(s)), 0);
+  const averageDelay = normalStops.length > 0 ? totalDelay / normalStops.length : 0;
+  const maxDelayStop = normalStops.reduce((max, s) => {
+    const delay = calculateStopDelay(s);
+    const maxDelay = calculateStopDelay(max);
+    return delay > maxDelay ? s : max;
+  }, normalStops[0]);
+  const maxDelay = maxDelayStop ? calculateStopDelay(maxDelayStop) : 0;
+
+  // ✅ Filtre ve Sıralama Mantığı
+  const filteredAndSortedStops = React.useMemo(() => {
+    let filtered = [...normalStops];
+
+    // Filtre uygula
+    if (filterStatus === 'delayed') {
+      filtered = filtered.filter((s: JourneyStop) => calculateStopDelay(s) > 0);
+    } else if (filterStatus === 'early') {
+      filtered = filtered.filter((s: JourneyStop) => calculateStopDelay(s) < 0);
+    } else if (filterStatus === 'ontime') {
+      filtered = filtered.filter((s: JourneyStop) => calculateStopDelay(s) === 0);
+    }
+
+    // Sıralama uygula
+    if (sortBy === 'delay') {
+      filtered.sort((a, b) => calculateStopDelay(b) - calculateStopDelay(a));
+    } else if (sortBy === 'customer') {
+      filtered.sort((a, b) => {
+        const nameA = a.routeStop?.customer?.name || a.routeStop?.name || '';
+        const nameB = b.routeStop?.customer?.name || b.routeStop?.name || '';
+        return nameA.localeCompare(nameB);
+      });
+    } else {
+      // Default: order
+      filtered.sort((a, b) => a.order - b.order);
+    }
+
+    return filtered;
+  }, [normalStops, filterStatus, sortBy]);
 
   // Progress hesaplaması - sadece normal stops için
   const completedStops = normalStops.filter((s: JourneyStop) =>
@@ -1426,6 +1494,160 @@ const JourneyDetail: React.FC = () => {
               Optimize Et
             </button>
           )}
+        </div>
+      )}
+
+      {/* ✅ YENİ: Gecikme Analizi Özet Kartı */}
+      {normalStops.some((s: JourneyStop) => s.originalEstimatedArrivalTime) && (
+        <div className="bg-gradient-to-br from-blue-600 to-purple-700 rounded-lg shadow-lg p-6 text-white">
+          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Activity className="w-5 h-5" />
+            Sefer Performans Özeti
+          </h3>
+          <div className="grid grid-cols-4 gap-4">
+            {/* Toplam Gecikme */}
+            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
+              <div className="text-sm opacity-90 mb-1">Toplam Gecikme</div>
+              <div className="text-3xl font-bold">
+                {totalDelay > 0 ? `+${totalDelay}` : totalDelay}dk
+              </div>
+              <div className="text-xs opacity-75 mt-1">
+                {delayedStops.length} / {normalStops.length} durakta
+              </div>
+            </div>
+
+            {/* Ortalama Gecikme */}
+            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
+              <div className="text-sm opacity-90 mb-1">Ortalama Gecikme</div>
+              <div className="text-3xl font-bold">
+                {averageDelay > 0 ? '+' : ''}{averageDelay.toFixed(1)}dk
+              </div>
+              <div className="text-xs opacity-75 mt-1">Durak başına</div>
+            </div>
+
+            {/* Zamanında Teslimat */}
+            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
+              <div className="text-sm opacity-90 mb-1">Zamanında Teslimat</div>
+              <div className="text-3xl font-bold">
+                {normalStops.length > 0
+                  ? Math.round(((normalStops.length - delayedStops.length) / normalStops.length) * 100)
+                  : 0}%
+              </div>
+              <div className="text-xs opacity-75 mt-1">
+                {normalStops.length - delayedStops.length} / {normalStops.length} durak
+              </div>
+            </div>
+
+            {/* En Gecikmeli Durak */}
+            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
+              <div className="text-sm opacity-90 mb-1">En Gecikmeli</div>
+              <div className="text-xl font-bold">
+                {maxDelay > 0 ? `Durak #${maxDelayStop?.order}` : 'Yok'}
+              </div>
+              <div className="text-xs opacity-75 mt-1">
+                {maxDelay > 0 ? `+${maxDelay}dk gecikme` : 'Gecikme yok'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ YENİ: SLA Uyumluluk Göstergesi */}
+      {normalStops.some((s: JourneyStop) => s.originalEstimatedArrivalTime) && (
+        <div className="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-lg shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle className="w-6 h-6" />
+                <h3 className="text-lg font-bold">SLA Uyumluluğu</h3>
+              </div>
+              <div className="text-4xl font-bold mb-2">
+                {normalStops.length > 0
+                  ? Math.round(((normalStops.length - delayedStops.length) / normalStops.length) * 100)
+                  : 0}%
+              </div>
+              <div className="text-sm opacity-90 mb-4">
+                {normalStops.length - delayedStops.length} / {normalStops.length} durak zamanında tamamlandı
+              </div>
+
+              {/* Progress Bar */}
+              <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
+                <div
+                  className="bg-white h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${normalStops.length > 0
+                      ? ((normalStops.length - delayedStops.length) / normalStops.length) * 100
+                      : 0}%`
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Circular Progress */}
+            <div className="ml-8 relative">
+              <svg className="w-32 h-32 transform -rotate-90">
+                <circle
+                  cx="64"
+                  cy="64"
+                  r="56"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  fill="none"
+                  className="text-white/20"
+                />
+                <circle
+                  cx="64"
+                  cy="64"
+                  r="56"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  fill="none"
+                  strokeDasharray={`${2 * Math.PI * 56}`}
+                  strokeDashoffset={`${2 * Math.PI * 56 * (1 - (normalStops.length > 0
+                    ? ((normalStops.length - delayedStops.length) / normalStops.length)
+                    : 0))}`}
+                  className="text-white transition-all duration-500"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="text-3xl font-bold">
+                    {normalStops.length > 0
+                      ? Math.round(((normalStops.length - delayedStops.length) / normalStops.length) * 100)
+                      : 0}
+                  </div>
+                  <div className="text-xs opacity-75">SLA</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Status Badge */}
+          <div className="mt-4 flex items-center gap-2">
+            {normalStops.length > 0 && ((normalStops.length - delayedStops.length) / normalStops.length) >= 0.9 ? (
+              <>
+                <div className="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-bold">
+                  ✓ Mükemmel Performans
+                </div>
+                <span className="text-xs opacity-75">SLA hedefi aşıldı!</span>
+              </>
+            ) : normalStops.length > 0 && ((normalStops.length - delayedStops.length) / normalStops.length) >= 0.7 ? (
+              <>
+                <div className="px-3 py-1 bg-yellow-500 text-white rounded-full text-xs font-bold">
+                  ⚠ İyi Performans
+                </div>
+                <span className="text-xs opacity-75">SLA hedefine yakın</span>
+              </>
+            ) : (
+              <>
+                <div className="px-3 py-1 bg-red-500 text-white rounded-full text-xs font-bold">
+                  ✗ Dikkat Gerekli
+                </div>
+                <span className="text-xs opacity-75">SLA hedefinin altında</span>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -1624,6 +1846,207 @@ const JourneyDetail: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ✅ YENİ: Gecikme Analiz Grafiği */}
+      {normalStops.some((s: JourneyStop) => s.originalEstimatedArrivalTime) && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-blue-600" />
+            Durak Bazlı Gecikme Analizi
+          </h3>
+          <div className="space-y-2">
+            {normalStops.map((stop: JourneyStop, index: number) => {
+              const delay = calculateStopDelay(stop);
+              const maxAbsDelay = Math.max(...normalStops.map((s: JourneyStop) => Math.abs(calculateStopDelay(s))));
+              const barWidth = maxAbsDelay > 0 ? (Math.abs(delay) / maxAbsDelay) * 100 : 0;
+
+              return (
+                <div key={stop.id} className="flex items-center gap-3">
+                  <div className="w-24 text-sm text-gray-700 font-medium flex-shrink-0">
+                    Durak #{stop.order}
+                  </div>
+                  <div className="flex-1 relative h-10">
+                    <div className="absolute inset-0 bg-gray-100 rounded-lg overflow-hidden">
+                      {delay !== 0 && (
+                        <div
+                          className={`h-full ${
+                            delay > 0
+                              ? 'bg-gradient-to-r from-red-400 to-red-500'
+                              : 'bg-gradient-to-r from-green-400 to-green-500'
+                          } transition-all duration-500`}
+                          style={{ width: `${barWidth}%` }}
+                        />
+                      )}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className={`text-sm font-bold ${
+                          delay === 0 ? 'text-gray-500' : 'text-white'
+                        }`}>
+                          {delay > 0 ? '+' : ''}{delay} dk
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="w-32 text-xs text-gray-500 flex-shrink-0">
+                    {stop.routeStop?.customer?.name || stop.routeStop?.name || 'Müşteri'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Grafik Açıklaması */}
+          <div className="mt-4 pt-4 border-t flex items-center justify-center gap-6 text-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-red-500 rounded"></div>
+              <span className="text-gray-600">Gecikme</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-green-500 rounded"></div>
+              <span className="text-gray-600">Erken Varış</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-gray-200 rounded"></div>
+              <span className="text-gray-600">Zamanında</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ YENİ: Detaylı Rapor Tablosu */}
+      {normalStops.some((s: JourneyStop) => s.originalEstimatedArrivalTime) && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-6 border-b bg-gray-50">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-600" />
+                Detaylı Performans Raporu
+              </h3>
+
+              {/* Filtre ve Sıralama Kontrolleri */}
+              <div className="flex items-center gap-3">
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">Tüm Duraklar ({normalStops.length})</option>
+                  <option value="delayed">Sadece Gecikmeli ({delayedStops.length})</option>
+                  <option value="early">Sadece Erken ({earlyStops.length})</option>
+                  <option value="ontime">Zamanında ({normalStops.length - delayedStops.length - earlyStops.length})</option>
+                </select>
+
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="order">Sırala: Durak Numarası</option>
+                  <option value="delay">Sırala: En Çok Gecikme</option>
+                  <option value="customer">Sırala: Müşteri Adı</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Durak
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Müşteri
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Planlanan
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Güncel Plan
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Gerçekleşen
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Sapma
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Durum
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredAndSortedStops.map((stop: JourneyStop) => {
+                  const delay = calculateStopDelay(stop);
+                  const stopStatusLower = stop.status?.toLowerCase() || 'pending';
+
+                  return (
+                    <tr key={stop.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                        Durak #{stop.order}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {stop.routeStop?.customer?.name || stop.routeStop?.name || 'Müşteri'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500">
+                        {stop.originalEstimatedArrivalTime
+                          ? formatTimeSpan(stop.originalEstimatedArrivalTime)
+                          : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className={`font-semibold ${
+                          delay > 0 ? 'text-orange-600' : delay < 0 ? 'text-blue-600' : 'text-gray-700'
+                        }`}>
+                          {stop.estimatedArrivalTime ? formatTimeSpan(stop.estimatedArrivalTime) : '-'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-bold text-green-700">
+                        {stop.checkInTime ? formatTime(stop.checkInTime) : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {delay !== 0 ? (
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            delay > 0
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {delay > 0 ? '+' : ''}{delay} dk
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                            Zamanında
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {stopStatusLower === 'completed' && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            ✓ Tamamlandı
+                          </span>
+                        )}
+                        {stopStatusLower === 'failed' && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            ✗ Başarısız
+                          </span>
+                        )}
+                        {stopStatusLower === 'inprogress' || stopStatusLower === 'in_progress' ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            ⟳ Devam Ediyor
+                          </span>
+                        ) : null}
+                        {stopStatusLower === 'pending' && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                            ○ Bekliyor
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -1840,46 +2263,62 @@ const JourneyDetail: React.FC = () => {
                           {(stop.estimatedArrivalTime || stop.checkInTime) && (
                             <div className="bg-white rounded-lg p-2.5 shadow-sm">
                               <div className="text-xs font-semibold text-gray-700 mb-2 text-center">Varış Saati</div>
-                              <div className="space-y-2">
-                                {stop.originalEstimatedArrivalTime && stop.originalEstimatedArrivalTime !== stop.estimatedArrivalTime && (
-                                  <div>
-                                    <div className="text-xs text-gray-400 mb-0.5">Orijinal Plan</div>
-                                    <div className="text-xs font-semibold text-gray-500 line-through">
-                                      {formatTimeSpan(stop.originalEstimatedArrivalTime)}
+                              {stop.originalEstimatedArrivalTime && stop.originalEstimatedArrivalTime !== stop.estimatedArrivalTime ? (
+                                /* Timeline gösterimi - Gecikme varsa */
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex-1 text-center">
+                                      <div className="text-xs text-gray-400 mb-1">Plan</div>
+                                      <div className="px-2 py-1 bg-gray-100 rounded text-xs font-medium text-gray-600 border-l-2 border-gray-400">
+                                        {formatTimeSpan(stop.originalEstimatedArrivalTime)}
+                                      </div>
+                                    </div>
+                                    <div className="flex-shrink-0 w-6 h-0.5 bg-gradient-to-r from-gray-400 to-orange-400"></div>
+                                    <div className="flex-1 text-center">
+                                      <div className="text-xs text-orange-600 mb-1">Güncel</div>
+                                      <div className="px-2 py-1 bg-orange-50 rounded text-xs font-bold text-orange-700 border-l-2 border-orange-500">
+                                        {formatTimeSpan(stop.estimatedArrivalTime)}
+                                      </div>
                                     </div>
                                   </div>
-                                )}
-                                <div>
-                                  <div className="text-xs text-gray-500 mb-0.5">
-                                    {stop.originalEstimatedArrivalTime && stop.originalEstimatedArrivalTime !== stop.estimatedArrivalTime ? 'Güncel Plan' : 'Planlanan'}
-                                  </div>
-                                  <div className={`text-sm font-bold ${
-                                    stop.originalEstimatedArrivalTime && stop.originalEstimatedArrivalTime !== stop.estimatedArrivalTime
-                                      ? 'text-orange-600'
-                                      : 'text-blue-700'
-                                  }`}>
-                                    {stop.estimatedArrivalTime ? formatTimeSpan(stop.estimatedArrivalTime) : '-'}
-                                    {stop.originalEstimatedArrivalTime && stop.originalEstimatedArrivalTime !== stop.estimatedArrivalTime && (() => {
-                                      const originalParts = stop.originalEstimatedArrivalTime.split(':');
-                                      const currentParts = stop.estimatedArrivalTime.split(':');
-                                      const originalMinutes = parseInt(originalParts[0]) * 60 + parseInt(originalParts[1]);
-                                      const currentMinutes = parseInt(currentParts[0]) * 60 + parseInt(currentParts[1]);
-                                      const delayMinutes = currentMinutes - originalMinutes;
-                                      return delayMinutes > 0
-                                        ? <span className="ml-1 text-xs text-red-600">(+{delayMinutes}dk)</span>
-                                        : delayMinutes < 0
-                                        ? <span className="ml-1 text-xs text-green-600">({delayMinutes}dk)</span>
-                                        : null;
-                                    })()}
+                                  {(() => {
+                                    const originalParts = stop.originalEstimatedArrivalTime.split(':');
+                                    const currentParts = stop.estimatedArrivalTime.split(':');
+                                    const originalMinutes = parseInt(originalParts[0]) * 60 + parseInt(originalParts[1]);
+                                    const currentMinutes = parseInt(currentParts[0]) * 60 + parseInt(currentParts[1]);
+                                    const delayMinutes = currentMinutes - originalMinutes;
+                                    return delayMinutes !== 0 && (
+                                      <div className={`text-center px-2 py-1 rounded ${delayMinutes > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+                                        <span className={`text-xs font-bold ${delayMinutes > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                          {delayMinutes > 0 ? '+' : ''}{delayMinutes} dakika
+                                        </span>
+                                      </div>
+                                    );
+                                  })()}
+                                  <div className="pt-2 border-t border-gray-100">
+                                    <div className="text-xs text-gray-500 mb-1 text-center">Gerçekleşen</div>
+                                    <div className="text-center text-sm font-bold text-green-700">
+                                      {stop.checkInTime ? formatTime(stop.checkInTime) : '-'}
+                                    </div>
                                   </div>
                                 </div>
-                                <div>
-                                  <div className="text-xs text-gray-500 mb-0.5">Gerçekleşen</div>
-                                  <div className="text-sm font-bold text-green-700">
-                                    {stop.checkInTime ? formatTime(stop.checkInTime) : '-'}
+                              ) : (
+                                /* Normal gösterim - Gecikme yoksa */
+                                <div className="space-y-2">
+                                  <div>
+                                    <div className="text-xs text-gray-500 mb-1 text-center">Planlanan</div>
+                                    <div className="text-center text-sm font-bold text-blue-700">
+                                      {stop.estimatedArrivalTime ? formatTimeSpan(stop.estimatedArrivalTime) : '-'}
+                                    </div>
+                                  </div>
+                                  <div className="pt-2 border-t border-gray-100">
+                                    <div className="text-xs text-gray-500 mb-1 text-center">Gerçekleşen</div>
+                                    <div className="text-center text-sm font-bold text-green-700">
+                                      {stop.checkInTime ? formatTime(stop.checkInTime) : '-'}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
+                              )}
                             </div>
                           )}
 
@@ -1887,46 +2326,62 @@ const JourneyDetail: React.FC = () => {
                           {(stop.estimatedDepartureTime || stop.checkOutTime) && (
                             <div className="bg-white rounded-lg p-2.5 shadow-sm">
                               <div className="text-xs font-semibold text-gray-700 mb-2 text-center">Tamamlanma Saati</div>
-                              <div className="space-y-2">
-                                {stop.originalEstimatedDepartureTime && stop.originalEstimatedDepartureTime !== stop.estimatedDepartureTime && (
-                                  <div>
-                                    <div className="text-xs text-gray-400 mb-0.5">Orijinal Plan</div>
-                                    <div className="text-xs font-semibold text-gray-500 line-through">
-                                      {formatTimeSpan(stop.originalEstimatedDepartureTime)}
+                              {stop.originalEstimatedDepartureTime && stop.originalEstimatedDepartureTime !== stop.estimatedDepartureTime && stop.estimatedDepartureTime ? (
+                                /* Timeline gösterimi - Gecikme varsa */
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex-1 text-center">
+                                      <div className="text-xs text-gray-400 mb-1">Plan</div>
+                                      <div className="px-2 py-1 bg-gray-100 rounded text-xs font-medium text-gray-600 border-l-2 border-gray-400">
+                                        {formatTimeSpan(stop.originalEstimatedDepartureTime)}
+                                      </div>
+                                    </div>
+                                    <div className="flex-shrink-0 w-6 h-0.5 bg-gradient-to-r from-gray-400 to-orange-400"></div>
+                                    <div className="flex-1 text-center">
+                                      <div className="text-xs text-orange-600 mb-1">Güncel</div>
+                                      <div className="px-2 py-1 bg-orange-50 rounded text-xs font-bold text-orange-700 border-l-2 border-orange-500">
+                                        {formatTimeSpan(stop.estimatedDepartureTime)}
+                                      </div>
                                     </div>
                                   </div>
-                                )}
-                                <div>
-                                  <div className="text-xs text-gray-500 mb-0.5">
-                                    {stop.originalEstimatedDepartureTime && stop.originalEstimatedDepartureTime !== stop.estimatedDepartureTime ? 'Güncel Plan' : 'Planlanan'}
-                                  </div>
-                                  <div className={`text-sm font-bold ${
-                                    stop.originalEstimatedDepartureTime && stop.originalEstimatedDepartureTime !== stop.estimatedDepartureTime
-                                      ? 'text-orange-600'
-                                      : 'text-blue-700'
-                                  }`}>
-                                    {stop.estimatedDepartureTime ? formatTimeSpan(stop.estimatedDepartureTime) : '-'}
-                                    {stop.originalEstimatedDepartureTime && stop.originalEstimatedDepartureTime !== stop.estimatedDepartureTime && stop.estimatedDepartureTime && (() => {
-                                      const originalParts = stop.originalEstimatedDepartureTime.split(':');
-                                      const currentParts = stop.estimatedDepartureTime.split(':');
-                                      const originalMinutes = parseInt(originalParts[0]) * 60 + parseInt(originalParts[1]);
-                                      const currentMinutes = parseInt(currentParts[0]) * 60 + parseInt(currentParts[1]);
-                                      const delayMinutes = currentMinutes - originalMinutes;
-                                      return delayMinutes > 0
-                                        ? <span className="ml-1 text-xs text-red-600">(+{delayMinutes}dk)</span>
-                                        : delayMinutes < 0
-                                        ? <span className="ml-1 text-xs text-green-600">({delayMinutes}dk)</span>
-                                        : null;
-                                    })()}
+                                  {(() => {
+                                    const originalParts = stop.originalEstimatedDepartureTime.split(':');
+                                    const currentParts = stop.estimatedDepartureTime.split(':');
+                                    const originalMinutes = parseInt(originalParts[0]) * 60 + parseInt(originalParts[1]);
+                                    const currentMinutes = parseInt(currentParts[0]) * 60 + parseInt(currentParts[1]);
+                                    const delayMinutes = currentMinutes - originalMinutes;
+                                    return delayMinutes !== 0 && (
+                                      <div className={`text-center px-2 py-1 rounded ${delayMinutes > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+                                        <span className={`text-xs font-bold ${delayMinutes > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                          {delayMinutes > 0 ? '+' : ''}{delayMinutes} dakika
+                                        </span>
+                                      </div>
+                                    );
+                                  })()}
+                                  <div className="pt-2 border-t border-gray-100">
+                                    <div className="text-xs text-gray-500 mb-1 text-center">Gerçekleşen</div>
+                                    <div className="text-center text-sm font-bold text-green-700">
+                                      {stop.checkOutTime ? formatTime(stop.checkOutTime) : '-'}
+                                    </div>
                                   </div>
                                 </div>
-                                <div>
-                                  <div className="text-xs text-gray-500 mb-0.5">Gerçekleşen</div>
-                                  <div className="text-sm font-bold text-green-700">
-                                    {stop.checkOutTime ? formatTime(stop.checkOutTime) : '-'}
+                              ) : (
+                                /* Normal gösterim - Gecikme yoksa */
+                                <div className="space-y-2">
+                                  <div>
+                                    <div className="text-xs text-gray-500 mb-1 text-center">Planlanan</div>
+                                    <div className="text-center text-sm font-bold text-blue-700">
+                                      {stop.estimatedDepartureTime ? formatTimeSpan(stop.estimatedDepartureTime) : '-'}
+                                    </div>
+                                  </div>
+                                  <div className="pt-2 border-t border-gray-100">
+                                    <div className="text-xs text-gray-500 mb-1 text-center">Gerçekleşen</div>
+                                    <div className="text-center text-sm font-bold text-green-700">
+                                      {stop.checkOutTime ? formatTime(stop.checkOutTime) : '-'}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
+                              )}
                             </div>
                           )}
 
