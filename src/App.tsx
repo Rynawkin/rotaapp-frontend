@@ -2,6 +2,10 @@ import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, ProtectedRoute, useAuth } from '@/contexts/AuthContext';
 import MainLayout from '@/layouts/MainLayout';
+// BUGFIX S5.1: Disable console logs in production
+import '@/utils/logger';
+// BUGFIX S5.2: Error boundary to prevent white screen crashes
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 // Loading component
 const LoadingSpinner = () => (
@@ -303,11 +307,13 @@ const AppRoutes: React.FC = () => {
 
 function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 
