@@ -210,7 +210,7 @@ api.interceptors.response.use(
     console.log('API Response:', response.status, response.config.url, response.data);
     return response;
   },
-  (error) => {
+  async (error) => {
     console.error('API Error:', error.response?.status, error.response?.data || error.message);
     
     // Backend'den gelen mesajı kullanıcı dostu hale getir

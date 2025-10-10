@@ -301,6 +301,17 @@ export const authService = {
     return localStorage.getItem('refreshToken');
   },
 
+  // Get current user from backend (for token validation)
+  async me(): Promise<MeUserModel> {
+    try {
+      const response = await api.get<MeUserModel>('/me');
+      return response.data;
+    } catch (error: any) {
+      console.error('Failed to fetch current user:', error);
+      throw error;
+    }
+  },
+
   // Debug helper
   debugAuth() {
     console.log('=== Auth Debug Info ===');
