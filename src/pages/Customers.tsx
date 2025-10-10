@@ -252,64 +252,119 @@ const Customers: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // BUGFIX S5.4: File validation
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    const MAX_ROWS = 1000;
+
+    // 1. File type check
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      alert('❌ Sadece CSV dosyaları yüklenebilir!');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    // 2. File size check
+    if (file.size > MAX_FILE_SIZE) {
+      alert(`❌ Dosya boyutu çok büyük!\nMaksimum dosya boyutu: 5MB\nSeçilen dosya: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = async (e) => {
-      const text = e.target?.result as string;
-      const lines = text.split('\n');
-      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      try {
+        const text = e.target?.result as string;
 
-      const newCustomers: Partial<Customer>[] = [];
-      const warnings: string[] = [];
+        // 3. Malicious content check - script tags, executable code patterns
+        const dangerousPatterns = [
+          /<script/i,
+          /javascript:/i,
+          /on\w+\s*=/i, // onclick, onerror, etc.
+          /eval\(/i,
+          /expression\(/i,
+          /<iframe/i,
+          /<object/i,
+          /<embed/i
+        ];
 
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-
-        // CSV satırını parse et (tırnak işaretlerini dikkate al)
-        const values = line.match(/(".*?"|[^,]+)/g)?.map(v => v.replace(/"/g, '').trim()) || [];
-
-        if (values.length >= 4) { // En az kod, isim, adres, telefon olmalı
-          const [timeStart, timeEnd] = values[5] ? values[5].split('-') : ['', ''];
-          const tags = values[6] ? values[6].split(',').map(t => t.trim()) : [];
-
-          newCustomers.push({
-            code: values[0],
-            name: values[1],
-            address: values[2],
-            phone: values[3],
-            email: values[4] || undefined,
-            timeWindow: timeStart && timeEnd ? { start: timeStart.trim(), end: timeEnd.trim() } : undefined,
-            tags: tags.length > 0 ? tags : undefined,
-            notes: values[7] || undefined,
-            // ⚠️ UYARI: Koordinat bilgisi yok - manuel girilmeli
-            latitude: undefined,
-            longitude: undefined
-          });
-
-          warnings.push(`⚠️ ${values[1]}: Koordinat bilgisi yok - manuel girilmeli`);
+        if (dangerousPatterns.some(pattern => pattern.test(text))) {
+          alert('❌ Güvenlik: Dosya zararlı içerik içeriyor!');
+          if (fileInputRef.current) fileInputRef.current.value = '';
+          return;
         }
-      }
 
-      if (newCustomers.length > 0) {
-        const confirmMessage = `✅ ${newCustomers.length} müşteri içe aktarılacak.\n\n` +
-          `⚠️ ÖNEMLİ: Koordinat bilgileri eksik!\n` +
-          `İçe aktarılan müşterilerin koordinatlarını manuel olarak girmeniz gerekecek.\n\n` +
-          `Devam etmek istiyor musunuz?`;
+        const lines = text.split('\n');
 
-        if (window.confirm(confirmMessage)) {
-          try {
-            await customerService.bulkImport(newCustomers);
-            alert(`✅ ${newCustomers.length} müşteri başarıyla içe aktarıldı!\n\n⚠️ Koordinatları düzenlemeyi unutmayın!`);
-            loadCustomers();
-          } catch (error: any) {
-            const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'İçe aktarma sırasında bir hata oluştu';
-            alert(`❌ ${errorMessage}`);
-            console.error('Import error:', error);
+        // 4. Row count check
+        if (lines.length > MAX_ROWS + 1) { // +1 for header
+          alert(`❌ Çok fazla satır!\nMaksimum ${MAX_ROWS} müşteri yüklenebilir.\nDosyanızdaki satır sayısı: ${lines.length - 1}`);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+          return;
+        }
+
+        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+
+        const newCustomers: Partial<Customer>[] = [];
+        const warnings: string[] = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          // CSV satırını parse et (tırnak işaretlerini dikkate al)
+          const values = line.match(/(".*?"|[^,]+)/g)?.map(v => v.replace(/"/g, '').trim()) || [];
+
+          if (values.length >= 4) { // En az kod, isim, adres, telefon olmalı
+            const [timeStart, timeEnd] = values[5] ? values[5].split('-') : ['', ''];
+            const tags = values[6] ? values[6].split(',').map(t => t.trim()) : [];
+
+            newCustomers.push({
+              code: values[0],
+              name: values[1],
+              address: values[2],
+              phone: values[3],
+              email: values[4] || undefined,
+              timeWindow: timeStart && timeEnd ? { start: timeStart.trim(), end: timeEnd.trim() } : undefined,
+              tags: tags.length > 0 ? tags : undefined,
+              notes: values[7] || undefined,
+              // ⚠️ UYARI: Koordinat bilgisi yok - manuel girilmeli
+              latitude: undefined,
+              longitude: undefined
+            });
+
+            warnings.push(`⚠️ ${values[1]}: Koordinat bilgisi yok - manuel girilmeli`);
           }
         }
-      } else {
-        alert('⚠️ İçe aktarılacak geçerli müşteri bulunamadı.');
+
+        if (newCustomers.length > 0) {
+          const confirmMessage = `✅ ${newCustomers.length} müşteri içe aktarılacak.\n\n` +
+            `⚠️ ÖNEMLİ: Koordinat bilgileri eksik!\n` +
+            `İçe aktarılan müşterilerin koordinatlarını manuel olarak girmeniz gerekecek.\n\n` +
+            `Devam etmek istiyor musunuz?`;
+
+          if (window.confirm(confirmMessage)) {
+            try {
+              await customerService.bulkImport(newCustomers);
+              alert(`✅ ${newCustomers.length} müşteri başarıyla içe aktarıldı!\n\n⚠️ Koordinatları düzenlemeyi unutmayın!`);
+              loadCustomers();
+            } catch (error: any) {
+              const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'İçe aktarma sırasında bir hata oluştu';
+              alert(`❌ ${errorMessage}`);
+              console.error('Import error:', error);
+            }
+          }
+        } else {
+          alert('⚠️ İçe aktarılacak geçerli müşteri bulunamadı.');
+        }
+      } catch (error) {
+        console.error('File processing error:', error);
+        alert('❌ Dosya işlenirken hata oluştu. Lütfen geçerli bir CSV dosyası yükleyin.');
       }
+    };
+
+    reader.onerror = () => {
+      alert('❌ Dosya okuma hatası!');
+      if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
     reader.readAsText(file, 'UTF-8');

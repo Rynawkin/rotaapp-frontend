@@ -290,10 +290,35 @@ api.interceptors.response.use(
     
     // 401 Unauthorized - token geçersiz veya süresi dolmuş
     if (error.response?.status === 401) {
+      // BUGFIX S5.5: Try to refresh token before logging out
+      const refreshToken = localStorage.getItem('refreshToken');
+      const originalRequest = error.config;
+
+      // Prevent infinite refresh loop
+      if (!originalRequest._retry && refreshToken && !originalRequest.url?.includes('/refresh-token')) {
+        originalRequest._retry = true;
+        console.log('Token expired, attempting to refresh...');
+
+        try {
+          // Import authService dynamically to avoid circular dependency
+          const { authService } = await import('./auth.service');
+          const refreshSuccess = await authService.refreshToken();
+
+          if (refreshSuccess) {
+            // Retry the original request with new token
+            console.log('Token refreshed, retrying original request...');
+            return api(originalRequest);
+          }
+        } catch (refreshError) {
+          console.error('Token refresh failed:', refreshError);
+        }
+      }
+
+      // If refresh failed or not available, logout
       console.log('Unauthorized - clearing auth data');
       localStorage.clear();
       delete api.defaults.headers.common['Authorization'];
-      
+
       if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login';
       }

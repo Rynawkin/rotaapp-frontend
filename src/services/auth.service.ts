@@ -46,7 +46,12 @@ export const authService = {
       localStorage.setItem('token', response.data.bearerToken);
       localStorage.setItem('user', JSON.stringify(response.data.me));
       localStorage.setItem('isAuthenticated', 'true');
-      
+
+      // BUGFIX S5.5: Save refresh token
+      if (response.data.refreshToken) {
+        localStorage.setItem('refreshToken', response.data.refreshToken);
+      }
+
       // WorkspaceId'yi ayrıca sakla
       if (response.data.me.workspaceId) {
         localStorage.setItem('workspaceId', response.data.me.workspaceId.toString());
@@ -99,7 +104,12 @@ export const authService = {
       localStorage.setItem('token', response.data.bearerToken);
       localStorage.setItem('user', JSON.stringify(response.data.me));
       localStorage.setItem('isAuthenticated', 'true');
-      
+
+      // BUGFIX S5.5: Save refresh token
+      if (response.data.refreshToken) {
+        localStorage.setItem('refreshToken', response.data.refreshToken);
+      }
+
       // WorkspaceId'yi ayrıca sakla
       if (response.data.me.workspaceId) {
         localStorage.setItem('workspaceId', response.data.me.workspaceId.toString());
@@ -178,16 +188,17 @@ export const authService = {
 
   logout() {
     console.log('Logging out...');
-    
+
     // LocalStorage'ı temizle
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken'); // BUGFIX S5.5
     localStorage.removeItem('user');
     localStorage.removeItem('isAuthenticated');
     localStorage.removeItem('workspaceId');
-    
+
     // Axios header'ı temizle
     delete api.defaults.headers.common['Authorization'];
-    
+
     // Ana sayfaya yönlendir
     window.location.href = '/login';
   },
@@ -246,6 +257,48 @@ export const authService = {
   isDriver(): boolean {
     const user = this.getUser();
     return user?.isDriver === true;
+  },
+
+  // BUGFIX S5.5: Refresh token mechanism
+  async refreshToken(): Promise<boolean> {
+    try {
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (!refreshToken) {
+        console.log('No refresh token available');
+        return false;
+      }
+
+      console.log('Attempting to refresh token...');
+      const response = await api.post<TokenResponse>('/me/refresh-token', {
+        RefreshToken: refreshToken
+      });
+
+      if (!response.data || !response.data.bearerToken || !response.data.me) {
+        throw new Error('Invalid refresh response');
+      }
+
+      // Update tokens
+      localStorage.setItem('token', response.data.bearerToken);
+      localStorage.setItem('user', JSON.stringify(response.data.me));
+      if (response.data.refreshToken) {
+        localStorage.setItem('refreshToken', response.data.refreshToken);
+      }
+
+      // Update axios header
+      api.defaults.headers.common['Authorization'] = `Bearer ${response.data.bearerToken}`;
+
+      console.log('Token refreshed successfully');
+      return true;
+    } catch (error: any) {
+      console.error('Token refresh failed:', error);
+      // Clear auth data on refresh failure
+      this.logout();
+      return false;
+    }
+  },
+
+  getRefreshToken(): string | null {
+    return localStorage.getItem('refreshToken');
   },
 
   // Debug helper
