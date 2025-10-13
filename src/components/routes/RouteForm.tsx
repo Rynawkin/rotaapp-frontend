@@ -166,6 +166,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
     return '08:00';
   });
 
+  // BUGFIX: Separate local state for currentKm to prevent form updates on every keystroke
+  const [currentKmInput, setCurrentKmInput] = useState<string>(() => {
+    const km = savedData?.currentKm || initialData?.currentKm;
+    return km ? String(km) : '';
+  });
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -264,6 +270,13 @@ const RouteForm: React.FC<RouteFormProps> = ({
   useEffect(() => {
     loadLists();
   }, []);
+
+  // Sync currentKmInput when formData.currentKm changes externally
+  useEffect(() => {
+    if (formData.currentKm !== undefined) {
+      setCurrentKmInput(String(formData.currentKm));
+    }
+  }, [formData.currentKm]);
 
   useEffect(() => {
     if (initialStopsLoadedRef.current || !initialData?.stops || initialData.stops.length === 0) {
@@ -1426,15 +1439,13 @@ const RouteForm: React.FC<RouteFormProps> = ({
                   </label>
                   <input
                     type="number"
-                    value={formData.currentKm || ''}
+                    value={currentKmInput}
                     onChange={(e) => {
-                      // BUGFIX: Use local state for immediate UI update, debounce formData update
-                      const value = e.target.value ? parseInt(e.target.value) : undefined;
-                      // Update formData immediately but without triggering side effects
-                      setFormData(prev => ({ ...prev, currentKm: value }));
+                      // BUGFIX: Only update local input state, don't touch formData
+                      setCurrentKmInput(e.target.value);
                     }}
                     onBlur={(e) => {
-                      // Only trigger full update (with side effects) when input loses focus
+                      // Only update formData when input loses focus
                       const value = e.target.value ? parseInt(e.target.value) : undefined;
                       updateFormData({ currentKm: value });
                     }}
