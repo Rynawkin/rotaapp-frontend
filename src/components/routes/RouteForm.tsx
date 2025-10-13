@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Calendar,
   Clock,
@@ -121,7 +121,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
   loading = false,
   isEdit = false
 }) => {
-  const loadSavedData = useCallback(() => {
+  // BUGFIX: Use useMemo to prevent re-reading localStorage on every render
+  const savedData = useMemo(() => {
     if (!isEdit && !initialData) {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
@@ -140,8 +141,6 @@ const RouteForm: React.FC<RouteFormProps> = ({
     }
     return null;
   }, [isEdit, initialData]);
-
-  const savedData = loadSavedData();
   const [formData, setFormData] = useState<Partial<Route>>({
     name: savedData?.name || initialData?.name || '',
     date: savedData?.date || initialData?.date || new Date(),
@@ -1276,7 +1275,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
     }
   };
 
-  const getDepotLocation = (): LatLng | undefined => {
+  // BUGFIX: Memoize depot location to prevent MapComponent re-render
+  const depotLocation = useMemo((): LatLng | undefined => {
     const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
     if (selectedDepot) {
       console.log('Selected depot for map:', selectedDepot);
@@ -1287,13 +1287,14 @@ const RouteForm: React.FC<RouteFormProps> = ({
     }
     console.log('No depot selected, depotId:', formData.depotId);
     return undefined;
-  };
+  }, [depots, formData.depotId]);
 
   const handleMapLoad = (map: google.maps.Map) => {
     googleMapsService.initializeServices(map);
   };
 
-  const getMapMarkers = (): MarkerData[] => {
+  // BUGFIX: Memoize map markers to prevent MapComponent re-render on every parent render
+  const mapMarkers = useMemo((): MarkerData[] => {
     return stopsData.map((stop, index) => ({
       position: {
         lat: stop.customer.latitude,
@@ -1304,7 +1305,10 @@ const RouteForm: React.FC<RouteFormProps> = ({
       type: 'customer' as const,
       customerId: stop.customer.id.toString()
     }));
-  };
+  }, [stopsData]);
+
+  // BUGFIX: Memoize customers array to prevent MapComponent re-render
+  const customersForMap = useMemo(() => stopsData.map(s => s.customer), [stopsData]);
 
   if (loadingLists) {
     return (
@@ -1578,10 +1582,10 @@ const RouteForm: React.FC<RouteFormProps> = ({
             <MapComponent
               center={mapCenter}
               height="600px"
-              markers={getMapMarkers()}
-              depot={getDepotLocation()}
+              markers={mapMarkers}
+              depot={depotLocation}
               directions={mapDirections}
-              customers={stopsData.map(s => s.customer)}
+              customers={customersForMap}
               optimizedOrder={optimizedOrder}
               showTraffic={true}
               onMapLoad={handleMapLoad}
