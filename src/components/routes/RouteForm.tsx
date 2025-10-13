@@ -333,6 +333,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
   }, [initialData, customers]);
 
   useEffect(() => {
+    console.log('🔄 stopsData useEffect triggered, length:', stopsData.length); // DEBUG
     if (stopsData.length > 0) {
       const timer = setTimeout(() => updateMapRoute(), 500);
       return () => clearTimeout(timer);
@@ -657,6 +658,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
   };
 
   const updateMapRoute = async () => {
+    console.log('🗺️ updateMapRoute called'); // DEBUG
     if (stopsData.length === 0) return;
 
     const selectedDepot = depots.find(d => d.id.toString() === formData.depotId?.toString());
@@ -1442,6 +1444,7 @@ const RouteForm: React.FC<RouteFormProps> = ({
                     value={currentKmInput}
                     onChange={(e) => {
                       // BUGFIX: Only update local input state, don't touch formData
+                      console.log('🚗 Km input changed:', e.target.value); // DEBUG
                       setCurrentKmInput(e.target.value);
                     }}
                     onBlur={(e) => {
