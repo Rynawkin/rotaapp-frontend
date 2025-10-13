@@ -25,9 +25,15 @@ export default defineConfig({
     }
   },
   build: {
-    minify: 'esbuild',
+    minify: 'terser',
     // Keep console.log in production for debugging (pre-launch phase)
     // TODO: Remove this before public launch
+    terserOptions: {
+      compress: {
+        drop_console: false,
+        drop_debugger: false
+      }
+    },
     rollupOptions: {
       output: {
         manualChunks: undefined
