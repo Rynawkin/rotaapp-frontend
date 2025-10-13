@@ -65,6 +65,8 @@ export const disableConsoleInProduction = () => {
 };
 
 // Auto-run on import
-disableConsoleInProduction();
+// TEMPORARILY DISABLED: Keep console.log enabled in production for pre-launch debugging
+// TODO: Re-enable before public launch to prevent sensitive data leaks
+// disableConsoleInProduction();
 
 export default logger;
