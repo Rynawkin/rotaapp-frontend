@@ -23,5 +23,19 @@ export default defineConfig({
         secure: true
       }
     }
+  },
+  build: {
+    minify: 'esbuild',
+    // Keep console.log in production for debugging (pre-launch phase)
+    // TODO: Remove this before public launch
+    rollupOptions: {
+      output: {
+        manualChunks: undefined
+      }
+    }
+  },
+  esbuild: {
+    // Keep console statements in production
+    drop: []
   }
 })// Build timestamp:  2 Eki 2025 Per 12:09:27
