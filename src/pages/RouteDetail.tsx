@@ -195,13 +195,26 @@ const RouteDetail: React.FC = () => {
       lng: depot.longitude || 29.0236
     };
 
-    const waypoints = routeData.stops.map(stop => {
-      const customer = stop.customer || customers.find(c => c.id === stop.customerId);
-      return {
-        lat: customer?.latitude || 0,
-        lng: customer?.longitude || 0
-      };
-    });
+    // BUGFIX: Filter out waypoints with invalid coordinates (0,0) to prevent ZERO_RESULTS error
+    const waypoints = routeData.stops
+      .map(stop => {
+        const customer = stop.customer || customers.find(c => c.id === stop.customerId);
+        if (!customer || !customer.latitude || !customer.longitude) {
+          console.warn(`Skipping stop ${stop.order} - invalid coordinates`, customer);
+          return null;
+        }
+        return {
+          lat: customer.latitude,
+          lng: customer.longitude
+        };
+      })
+      .filter((wp): wp is { lat: number; lng: number } => wp !== null);
+
+    // Don't try to get directions if no valid waypoints
+    if (waypoints.length === 0) {
+      console.warn('No valid waypoints found for route');
+      return;
+    }
 
     try {
       googleMapsService.initializeServices();

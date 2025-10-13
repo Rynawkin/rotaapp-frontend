@@ -35,10 +35,9 @@ export const useSignalR = (options: UseSignalROptions = {}) => {
     return () => {
       mountedRef.current = false;
       clearInterval(interval);
-      // Don't disconnect on cleanup in development (React.StrictMode)
-      if (process.env.NODE_ENV === 'production') {
-        disconnect();
-      }
+      // BUGFIX: Always disconnect to prevent memory leaks, even in development
+      // React.StrictMode will remount and reconnect if needed
+      disconnect();
     };
   }, []); // Empty dependency array - only run once
 

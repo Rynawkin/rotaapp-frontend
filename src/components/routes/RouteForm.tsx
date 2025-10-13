@@ -1427,7 +1427,17 @@ const RouteForm: React.FC<RouteFormProps> = ({
                   <input
                     type="number"
                     value={formData.currentKm || ''}
-                    onChange={(e) => updateFormData({ currentKm: e.target.value ? parseInt(e.target.value) : undefined })}
+                    onChange={(e) => {
+                      // BUGFIX: Use local state for immediate UI update, debounce formData update
+                      const value = e.target.value ? parseInt(e.target.value) : undefined;
+                      // Update formData immediately but without triggering side effects
+                      setFormData(prev => ({ ...prev, currentKm: value }));
+                    }}
+                    onBlur={(e) => {
+                      // Only trigger full update (with side effects) when input loses focus
+                      const value = e.target.value ? parseInt(e.target.value) : undefined;
+                      updateFormData({ currentKm: value });
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Aracın güncel km'sini giriniz"
                     required

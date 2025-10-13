@@ -448,22 +448,36 @@ class SignalRService {
   async disconnect(): Promise<void> {
     const disconnectPromises = [];
 
+    // BUGFIX: Remove event handlers before disconnecting to prevent memory leaks
     if (this._journeyHub) {
+      try {
+        this._journeyHub.off('JourneyStatusUpdated');
+        this._journeyHub.off('StopCompleted');
+      } catch (err) {
+        console.warn('Error removing JourneyHub event handlers:', err);
+      }
       disconnectPromises.push(this._journeyHub.stop());
     }
 
     if (this._trackingHub) {
+      try {
+        this._trackingHub.off('VehicleLocationUpdated');
+        this._trackingHub.off('WorkspaceVehicleUpdated');
+        this._trackingHub.off('EmergencyAlert');
+      } catch (err) {
+        console.warn('Error removing TrackingHub event handlers:', err);
+      }
       disconnectPromises.push(this._trackingHub.stop());
     }
 
     await Promise.all(disconnectPromises);
-    
+
     this.journeyCallbacks.clear();
     this.vehicleCallbacks.clear();
     this.workspaceCallbacks = [];
     this.emergencyCallbacks = [];
-    
-    console.log('SignalR disconnected');
+
+    console.log('SignalR disconnected and cleaned up');
   }
 
   async reconnect(): Promise<void> {

@@ -39,7 +39,13 @@ class CustomerService {
   // Get all customers
   async getAll(): Promise<Customer[]> {
     try {
-      const response = await api.get('/workspace/customers');
+      // Request larger page size (1000) to get most customers in workspace
+      // Backend default is 50, which is too small for route creation
+      const response = await api.get('/workspace/customers', {
+        params: {
+          pageSize: 1000
+        }
+      });
       return response.data;
     } catch (error) {
       console.error('Error fetching customers:', error);
