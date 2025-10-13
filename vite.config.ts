@@ -24,24 +24,4 @@ export default defineConfig({
       }
     }
   },
-  build: {
-    minify: 'terser',
-    // Keep console.log in production for debugging (pre-launch phase)
-    // TODO: Remove this before public launch
-    terserOptions: {
-      compress: {
-        drop_console: false,
-        drop_debugger: false
-      }
-    },
-    rollupOptions: {
-      output: {
-        manualChunks: undefined
-      }
-    }
-  },
-  esbuild: {
-    // Keep console statements in production
-    drop: []
-  }
 })// Build timestamp:  2 Eki 2025 Per 12:09:27
