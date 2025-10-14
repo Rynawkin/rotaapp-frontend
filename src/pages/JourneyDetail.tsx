@@ -33,7 +33,7 @@ import {
   FileSpreadsheet,
   Plus
 } from 'lucide-react';
-import { Journey, JourneyStop, JourneyStatus, getDelayReasonLabel } from '@/types';
+import { Journey, JourneyStop, JourneyStatus, getDelayReasonLabel, getFuelLabel, getVehicleConditionLabel, getVehicleConditionColor } from '@/types';
 import { journeyService, CompleteStopDto } from '@/services/journey.service';
 import { toast } from 'react-hot-toast';
 import signalRService from '@/services/signalr.service';
@@ -874,6 +874,11 @@ const JourneyDetail: React.FC = () => {
       { label: 'Basarili', value: `${normalStops.filter((s: JourneyStop) => s.status?.toLowerCase() === 'completed').length}` },
       { label: 'Basarisiz', value: `${normalStops.filter((s: JourneyStop) => s.status?.toLowerCase() === 'failed').length}` },
       { label: 'Toplam Durak', value: `${normalStops.length}` },
+      ...(journey.startKm !== undefined ? [{ label: 'Baslangic Km', value: journey.startKm.toLocaleString('tr-TR') }] : []),
+      ...(journey.endKm !== undefined ? [{ label: 'Bitis Km', value: journey.endKm.toLocaleString('tr-TR') }] : []),
+      ...(journey.startKm !== undefined && journey.endKm !== undefined ? [{ label: 'Kat Edilen Km', value: (journey.endKm - journey.startKm).toLocaleString('tr-TR') }] : []),
+      ...(journey.startFuel && journey.endFuel ? [{ label: 'Yakit', value: fixTurkish(`${getFuelLabel(journey.startFuel)} -> ${getFuelLabel(journey.endFuel)}`) }] : []),
+      ...(journey.vehicleCondition ? [{ label: 'Arac Durumu', value: fixTurkish(getVehicleConditionLabel(journey.vehicleCondition)) }] : []),
     ];
 
     // Draw info cards
@@ -1085,6 +1090,11 @@ const JourneyDetail: React.FC = () => {
       ['Toplam Süre', `${journey.totalDuration ? Math.round(journey.totalDuration / 60) : 0} saat`],
       ['Başarılı Teslimat', `${normalStops.filter((s: JourneyStop) => s.status?.toLowerCase() === 'completed').length}`],
       ['Başarısız Teslimat', `${normalStops.filter((s: JourneyStop) => s.status?.toLowerCase() === 'failed').length}`],
+      ...(journey.startKm !== undefined ? [['Başlangıç Km', journey.startKm.toLocaleString('tr-TR')]] : []),
+      ...(journey.endKm !== undefined ? [['Bitiş Km', journey.endKm.toLocaleString('tr-TR')]] : []),
+      ...(journey.startKm !== undefined && journey.endKm !== undefined ? [['Kat Edilen Km', (journey.endKm - journey.startKm).toLocaleString('tr-TR')]] : []),
+      ...(journey.startFuel && journey.endFuel ? [['Yakıt Seviyesi', `${getFuelLabel(journey.startFuel)} → ${getFuelLabel(journey.endFuel)}`]] : []),
+      ...(journey.vehicleCondition ? [['Araç Durumu', getVehicleConditionLabel(journey.vehicleCondition)]] : []),
       [],
       ['PERFORMANS ANALİZİ'],
       ['Toplam Gecikme', `${totalDelay} dakika`],
@@ -1094,7 +1104,7 @@ const JourneyDetail: React.FC = () => {
       ['En Gecikmeli Durak', maxDelay > 0 ? `Durak #${maxDelayStop?.order} (+${maxDelay} dk)` : 'Yok'],
       [],
       ['DURAKLAR'],
-      ['Sıra', 'Müşteri', 'Adres', 'Telefon', 'Orijinal Plan', 'Güncel Plan', 'Gerç. Varış', 'Sapma (dk)', 'Gecikme Sebebi', 'Açıklama', 'Plan. Tamamlanma', 'Gerç. Tamamlanma', 'Planlanan Süre', 'Gerçekleşen Süre', 'Durum']
+      ['Sıra', 'Müşteri', 'Adres', 'Telefon', 'Orijinal Plan', 'Güncel Plan', 'Gerç. Varış', 'Sapma (dk)', 'Yeni Gecikme (dk)', 'Kümülatif Gecikme (dk)', 'Gecikme Sebebi', 'Açıklama', 'Plan. Tamamlanma', 'Gerç. Tamamlanma', 'Planlanan Süre', 'Gerçekleşen Süre', 'Durum']
     ];
 
     // Duraklar
@@ -1147,6 +1157,8 @@ const JourneyDetail: React.FC = () => {
         stop.estimatedArrivalTime ? formatTimeSpan(stop.estimatedArrivalTime) : '-',
         stop.checkInTime ? formatTime(stop.checkInTime) : '-',
         delayText,
+        stop.newDelay && stop.newDelay > 0 ? `+${stop.newDelay}` : '-',
+        stop.cumulativeDelay && stop.cumulativeDelay > 0 ? `+${stop.cumulativeDelay}` : '-',
         delayReasonText,
         delayReasonDescription,
         stop.estimatedDepartureTime ? formatTimeSpan(stop.estimatedDepartureTime) : '-',
@@ -1172,6 +1184,8 @@ const JourneyDetail: React.FC = () => {
       { wch: 12 }, // Güncel Plan
       { wch: 12 }, // Gerç. Varış
       { wch: 12 }, // Sapma (dk)
+      { wch: 15 }, // Yeni Gecikme (dk)
+      { wch: 18 }, // Kümülatif Gecikme (dk)
       { wch: 20 }, // Gecikme Sebebi
       { wch: 40 }, // Açıklama
       { wch: 15 }, // Plan. Tamamlanma
@@ -1837,8 +1851,8 @@ const JourneyDetail: React.FC = () => {
         </div>
 
         {/* ✅ YENİ: Kilometre Bilgileri */}
-        {(journey.startKm !== undefined || journey.endKm !== undefined) && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-200">
+        {(journey.startKm !== undefined || journey.endKm !== undefined || journey.startFuel || journey.endFuel || journey.vehicleCondition) && (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4 pt-4 border-t border-gray-200">
             {journey.startKm !== undefined && (
               <div className="text-center bg-blue-50 rounded-lg p-3">
                 <p className="text-xl font-bold text-blue-900">
@@ -1861,6 +1875,22 @@ const JourneyDetail: React.FC = () => {
                   {(journey.endKm - journey.startKm).toLocaleString('tr-TR')}
                 </p>
                 <p className="text-xs text-purple-600">Kat Edilen Km</p>
+              </div>
+            )}
+            {journey.startFuel && journey.endFuel && (
+              <div className="text-center bg-yellow-50 rounded-lg p-3">
+                <p className="text-xs text-yellow-600 mb-1">Yakıt Seviyesi</p>
+                <p className="text-sm font-bold text-yellow-900">
+                  {getFuelLabel(journey.startFuel)} → {getFuelLabel(journey.endFuel)}
+                </p>
+              </div>
+            )}
+            {journey.vehicleCondition && (
+              <div className={`text-center rounded-lg p-3 ${getVehicleConditionColor(journey.vehicleCondition)}`}>
+                <p className="text-xs mb-1 opacity-75">Araç Durumu</p>
+                <p className="text-sm font-bold">
+                  {getVehicleConditionLabel(journey.vehicleCondition)}
+                </p>
               </div>
             )}
           </div>
@@ -2039,6 +2069,12 @@ const JourneyDetail: React.FC = () => {
                     Sapma
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Yeni Gecikme
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Kümülatif
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Gecikme Sebebi
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -2087,6 +2123,24 @@ const JourneyDetail: React.FC = () => {
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
                             Zamanında
                           </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {stop.newDelay && stop.newDelay > 0 ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                            +{stop.newDelay} dk
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {stop.cumulativeDelay && stop.cumulativeDelay > 0 ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            +{stop.cumulativeDelay} dk
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm">

@@ -361,6 +361,9 @@ export interface Journey {
   completedAt?: Date;
   startKm?: number; // ✅ YENİ - Sefer başlangıç kilometresi
   endKm?: number; // ✅ YENİ - Sefer bitiş kilometresi
+  startFuel?: string; // ✅ YENİ - Sefer başlangıç yakıt seviyesi
+  endFuel?: string; // ✅ YENİ - Sefer bitiş yakıt seviyesi
+  vehicleCondition?: string; // ✅ YENİ - Sefer bitişindeki araç durumu
   needsReoptimization?: boolean; // ✅ YENİ - Optimizasyon gerekiyor mu?
   totalDistance: number;
   totalDuration: number;
@@ -571,5 +574,60 @@ export const getDelayReasonLabel = (category?: string): string => {
       return 'Diğer';
     default:
       return category;
+  }
+};
+
+// ✅ YENİ - Fuel Level Helper Functions
+export const getFuelLabel = (fuelLevel?: string): string => {
+  if (!fuelLevel) return '-';
+
+  switch (fuelLevel) {
+    case 'full':
+      return '🟢 Tam';
+    case 'three_quarters':
+      return '🟢 3/4';
+    case 'half':
+      return '🟡 1/2';
+    case 'quarter':
+      return '🟠 1/4';
+    case 'empty':
+      return '🔴 Boş';
+    default:
+      return fuelLevel;
+  }
+};
+
+// ✅ YENİ - Vehicle Condition Helper Functions
+export const getVehicleConditionLabel = (condition?: string): string => {
+  if (!condition) return '-';
+
+  switch (condition) {
+    case 'good':
+      return '✅ İyi Durumda';
+    case 'needs_cleaning':
+      return '🧹 Temizlik Gerekli';
+    case 'needs_maintenance':
+      return '🔧 Bakım Gerekli';
+    case 'damaged':
+      return '⚠️ Hasar Var';
+    default:
+      return condition;
+  }
+};
+
+export const getVehicleConditionColor = (condition?: string): string => {
+  if (!condition) return 'bg-gray-100 text-gray-700';
+
+  switch (condition) {
+    case 'good':
+      return 'bg-green-100 text-green-700';
+    case 'needs_cleaning':
+      return 'bg-blue-100 text-blue-700';
+    case 'needs_maintenance':
+      return 'bg-orange-100 text-orange-700';
+    case 'damaged':
+      return 'bg-red-100 text-red-700';
+    default:
+      return 'bg-gray-100 text-gray-700';
   }
 };
