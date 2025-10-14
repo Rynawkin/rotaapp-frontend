@@ -24,7 +24,7 @@ import {
   Plus,
   Gauge
 } from 'lucide-react';
-import { Vehicle } from '@/types';
+import { Vehicle, getFuelLabel, getVehicleConditionLabel, getVehicleConditionColor } from '@/types';
 import { vehicleService } from '@/services/vehicle.service';
 import { routeService } from '@/services/route.service';
 import { journeyService } from '@/services/journey.service';
@@ -41,6 +41,7 @@ const VehicleDetail: React.FC = () => {
     oneMonth: number;
     threeMonths: number;
   }>({ oneMonth: 0, threeMonths: 0 });
+  const [lastJourney, setLastJourney] = useState<any>(null);
 
   useEffect(() => {
     loadVehicleData();
@@ -112,6 +113,16 @@ const VehicleDetail: React.FC = () => {
         oneMonth: oneMonthKm,
         threeMonths: threeMonthKm
       });
+
+      // ✅ YENİ: Son tamamlanan seferi bul
+      const completedJourneys = vehicleJourneys.filter(j => j.status === 'completed' && j.finishedAt);
+      if (completedJourneys.length > 0) {
+        // En son tamamlanan seferi tarihe göre sırala ve al
+        const sorted = completedJourneys.sort((a, b) =>
+          new Date(b.finishedAt).getTime() - new Date(a.finishedAt).getTime()
+        );
+        setLastJourney(sorted[0]);
+      }
     } catch (error) {
       console.error('Error loading km statistics:', error);
       // Don't show error to user, just log it
@@ -517,6 +528,79 @@ const VehicleDetail: React.FC = () => {
               )}
             </div>
           </div>
+
+          {/* ✅ YENİ: Son Sefer Bilgileri */}
+          {lastJourney && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <Activity className="w-5 h-5 mr-2 text-purple-600" />
+                Son Sefer Bilgileri
+              </h2>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b">
+                  <span className="text-sm text-gray-600">Sefer</span>
+                  <Link
+                    to={`/journeys/${lastJourney.id}`}
+                    className="text-sm font-medium text-blue-600 hover:underline"
+                  >
+                    {lastJourney.name || `#${lastJourney.id}`}
+                  </Link>
+                </div>
+
+                {lastJourney.finishedAt && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Tamamlanma</span>
+                    <span className="text-sm font-medium text-gray-900">
+                      {new Date(lastJourney.finishedAt).toLocaleDateString('tr-TR')}
+                    </span>
+                  </div>
+                )}
+
+                {lastJourney.startKm !== undefined && lastJourney.endKm !== undefined && (
+                  <div className="p-3 bg-blue-50 rounded-lg">
+                    <div className="text-xs text-gray-600 mb-1">Kilometre</div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm">
+                        <span className="text-gray-600">Başlangıç:</span>
+                        <span className="font-bold text-blue-900 ml-1">
+                          {lastJourney.startKm.toLocaleString('tr-TR')} km
+                        </span>
+                      </div>
+                      <div className="text-sm">
+                        <span className="text-gray-600">Bitiş:</span>
+                        <span className="font-bold text-blue-900 ml-1">
+                          {lastJourney.endKm.toLocaleString('tr-TR')} km
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-purple-600 mt-1 font-semibold">
+                      Kat edilen: {(lastJourney.endKm - lastJourney.startKm).toLocaleString('tr-TR')} km
+                    </div>
+                  </div>
+                )}
+
+                {lastJourney.startFuel && lastJourney.endFuel && (
+                  <div className="p-3 bg-yellow-50 rounded-lg">
+                    <div className="text-xs text-gray-600 mb-1">Yakıt Seviyesi</div>
+                    <div className="flex items-center justify-center gap-2 text-sm font-bold text-yellow-900">
+                      {getFuelLabel(lastJourney.startFuel)}
+                      <span className="text-gray-500">→</span>
+                      {getFuelLabel(lastJourney.endFuel)}
+                    </div>
+                  </div>
+                )}
+
+                {lastJourney.vehicleCondition && (
+                  <div className={`p-3 rounded-lg ${getVehicleConditionColor(lastJourney.vehicleCondition)}`}>
+                    <div className="text-xs mb-1 opacity-75">Araç Durumu</div>
+                    <div className="text-sm font-bold text-center">
+                      {getVehicleConditionLabel(lastJourney.vehicleCondition)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
