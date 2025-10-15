@@ -44,7 +44,7 @@ interface StopData {
   customer: Customer;
   routeStopId?: string | number; // Route stop ID for API calls
   overrideTimeWindow?: { start: string; end: string };
-  positionConstraint?: 'first' | 'none';
+  positionConstraint?: 'first' | 'last' | 'none';
   serviceTime?: number;
   signatureRequired?: boolean;
   photoRequired?: boolean;

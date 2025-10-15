@@ -38,7 +38,7 @@ interface StopData {
   customer: Customer;
   routeStopId?: string | number; // Route stop ID for API calls
   overrideTimeWindow?: { start: string; end: string };
-  positionConstraint?: 'first' | 'none';
+  positionConstraint?: 'first' | 'last' | 'none';
   serviceTime?: number;
   signatureRequired?: boolean;
   photoRequired?: boolean;
@@ -784,7 +784,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
       // Stops'ları pozisyon kısıtlamalarıyla güncelle
       const updatedStops = stopsData.map((stopData, index) => {
-        const orderType = stopData.positionConstraint === 'first' ? 10 : 20;
+        const orderType = stopData.positionConstraint === 'first' ? 10 :
+                          stopData.positionConstraint === 'last' ? 30 : 20;
         const currentStop = currentRoute.stops[index];
 
         console.log(`📍 Updating ${stopData.customer.name}: ${stopData.positionConstraint} → ${orderType}`);
@@ -887,6 +888,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
           return {
             customer: customer,
+            positionConstraint: stop.orderType === 'First' ? 'first' :
+                               stop.orderType === 'Last' ? 'last' : 'none',
             serviceTime: stop.serviceTime,
             stopNotes: stop.stopNotes || existingStopData?.stopNotes,
             overrideTimeWindow: existingStopData?.overrideTimeWindow,
@@ -919,6 +922,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
             return {
               customer: customer,
+              positionConstraint: stop.orderType === 'First' ? 'first' :
+                                 stop.orderType === 'Last' ? 'last' : 'none',
               serviceTime: stop.serviceTime,
               stopNotes: stop.stopNotes || existingStopData?.stopNotes,
               overrideTimeWindow: existingStopData?.overrideTimeWindow,
@@ -953,6 +958,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
             return {
               customer: customer,
+              positionConstraint: stop.orderType === 'First' ? 'first' :
+                                 stop.orderType === 'Last' ? 'last' : 'none',
               serviceTime: stop.serviceTime,
               stopNotes: stop.stopNotes || existingStopData?.stopNotes,
               overrideTimeWindow: existingStopData?.overrideTimeWindow,
@@ -1146,7 +1153,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
         status: 'pending',
         arriveBetweenStart: arriveBetweenStart,
         arriveBetweenEnd: arriveBetweenEnd,
-        orderType: stopData.positionConstraint === 'first' ? 10 : 20,
+        orderType: stopData.positionConstraint === 'first' ? 10 :
+                   stopData.positionConstraint === 'last' ? 30 : 20,
         serviceTime: stopData.serviceTime,
         signatureRequired: stopData.signatureRequired,
         photoRequired: stopData.photoRequired,
@@ -1234,7 +1242,8 @@ const RouteForm: React.FC<RouteFormProps> = ({
         status: 'pending',
         arriveBetweenStart: arriveBetweenStart,
         arriveBetweenEnd: arriveBetweenEnd,
-        orderType: stopData.positionConstraint === 'first' ? 10 : 20,
+        orderType: stopData.positionConstraint === 'first' ? 10 :
+                   stopData.positionConstraint === 'last' ? 30 : 20,
         serviceTime: stopData.serviceTime,
         signatureRequired: stopData.signatureRequired,
         photoRequired: stopData.photoRequired,
