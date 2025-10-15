@@ -243,7 +243,8 @@ const StopsList: React.FC<StopsListProps> = ({
         );
 
         if (existingConstraints.length > 0) {
-          alert(`Sadece bir durak İlk Durak olarak işaretlenebilir. Önce diğer İlk Durak işaretini kaldırın.`);
+          const constraintLabel = updates.positionConstraint === 'first' ? 'İlk Durak' : 'Son Durak';
+          alert(`Sadece bir durak ${constraintLabel} olarak işaretlenebilir. Önce diğer ${constraintLabel} işaretini kaldırın.`);
           return;
         }
       }
@@ -345,6 +346,8 @@ const StopsList: React.FC<StopsListProps> = ({
     switch (position) {
       case 'first':
         return 'text-green-600 bg-green-50';
+      case 'last':
+        return 'text-purple-600 bg-purple-50';
       case 'none':
       default:
         return 'text-gray-600 bg-gray-50';
@@ -554,7 +557,8 @@ const StopsList: React.FC<StopsListProps> = ({
                             <div className="flex items-center gap-2 mt-2">
                               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPositionColor(effectivePosition)}`}>
                                 {effectivePosition === 'first' && <Star className="w-3 h-3 mr-1" />}
-                                {effectivePosition === 'first' ? 'İlk Durak' : 'Serbest Sıra'}
+                                {effectivePosition === 'last' && <Star className="w-3 h-3 mr-1" />}
+                                {effectivePosition === 'first' ? 'İlk Durak' : effectivePosition === 'last' ? 'Son Durak' : 'Serbest Sıra'}
                                 {isPositionConstrained && (
                                   <span className="ml-1">(sabitlenmiş)</span>
                                 )}
@@ -646,12 +650,13 @@ const StopsList: React.FC<StopsListProps> = ({
                             value={editData.positionConstraint || 'none'}
                             onChange={(e) => setEditData({
                               ...editData,
-                              positionConstraint: e.target.value as 'first' | 'none'
+                              positionConstraint: e.target.value as 'first' | 'last' | 'none'
                             })}
                             className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                           >
                             <option value="none">Serbest Sıra</option>
                             <option value="first">İlk Durak (Öncelikli)</option>
+                            <option value="last">Son Durak (Depodan Önce)</option>
                           </select>
                         </div>
 
