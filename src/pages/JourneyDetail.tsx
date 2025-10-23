@@ -1100,7 +1100,7 @@ const JourneyDetail: React.FC = () => {
       ['Toplam Gecikme', `${totalDelay} dakika`],
       ['Ortalama Gecikme', `${averageDelay.toFixed(1)} dakika`],
       ['Gecikmeli Durak Sayısı', `${delayedStops.length} / ${normalStops.length}`],
-      ['Zamanında Teslimat Oranı', `${normalStops.length > 0 ? Math.round(((normalStops.length - delayedStops.length) / normalStops.length) * 100) : 0}%`],
+      ['Zamanında Teslimat Oranı', `${normalStops.length > 0 ? Math.round(((ontimeStops.length) / completedStopsForSLA.length) * 100) : 0}%`],
       ['En Gecikmeli Durak', maxDelay > 0 ? `Durak #${maxDelayStop?.order} (+${maxDelay} dk)` : 'Yok'],
       [],
       ['DURAKLAR'],
@@ -1334,15 +1334,22 @@ const JourneyDetail: React.FC = () => {
     return 0;
   };
 
-  const delayedStops = normalStops.filter((s: JourneyStop) => calculateActualDelay(s) > 0);
-  const earlyStops = normalStops.filter((s: JourneyStop) => calculateActualDelay(s) < 0);
-  const totalDelay = normalStops.reduce((sum, s) => sum + Math.max(0, calculateActualDelay(s)), 0);
-  const averageDelay = normalStops.length > 0 ? totalDelay / normalStops.length : 0;
-  const maxDelayStop = normalStops.reduce((max, s) => {
+  // ✅ BUGFIX: SLA hesaplaması - Sadece tamamlanan durakları say
+  const completedStopsForSLA = normalStops.filter((s: JourneyStop) =>
+    s.status?.toLowerCase() === 'completed' || s.status?.toLowerCase() === 'failed'
+  );
+
+  const delayedStops = completedStopsForSLA.filter((s: JourneyStop) => calculateActualDelay(s) > 0);
+  const earlyStops = completedStopsForSLA.filter((s: JourneyStop) => calculateActualDelay(s) < 0);
+  const ontimeStops = completedStopsForSLA.filter((s: JourneyStop) => calculateActualDelay(s) === 0);
+
+  const totalDelay = completedStopsForSLA.reduce((sum, s) => sum + Math.max(0, calculateActualDelay(s)), 0);
+  const averageDelay = completedStopsForSLA.length > 0 ? totalDelay / completedStopsForSLA.length : 0;
+  const maxDelayStop = completedStopsForSLA.length > 0 ? completedStopsForSLA.reduce((max, s) => {
     const delay = calculateActualDelay(s);
     const maxDelay = calculateActualDelay(max);
     return delay > maxDelay ? s : max;
-  }, normalStops[0]);
+  }, completedStopsForSLA[0]) : null;
   const maxDelay = maxDelayStop ? calculateActualDelay(maxDelayStop) : 0;
 
   // ✅ Filtre ve Sıralama Mantığı
@@ -1604,11 +1611,11 @@ const JourneyDetail: React.FC = () => {
               <div className="text-sm opacity-90 mb-1">Zamanında Teslimat</div>
               <div className="text-3xl font-bold">
                 {normalStops.length > 0
-                  ? Math.round(((normalStops.length - delayedStops.length) / normalStops.length) * 100)
+                  ? Math.round(((ontimeStops.length) / completedStopsForSLA.length) * 100)
                   : 0}%
               </div>
               <div className="text-xs opacity-75 mt-1">
-                {normalStops.length - delayedStops.length} / {normalStops.length} durak
+                {ontimeStops.length} / {completedStopsForSLA.length} durak
               </div>
             </div>
 
@@ -1643,11 +1650,11 @@ const JourneyDetail: React.FC = () => {
               </div>
               <div className="text-4xl font-bold mb-2">
                 {normalStops.length > 0
-                  ? Math.round(((normalStops.length - delayedStops.length) / normalStops.length) * 100)
+                  ? Math.round(((ontimeStops.length) / completedStopsForSLA.length) * 100)
                   : 0}%
               </div>
               <div className="text-sm opacity-90 mb-4">
-                {normalStops.length - delayedStops.length} / {normalStops.length} durak zamanında tamamlandı
+                {ontimeStops.length} / {completedStopsForSLA.length} durak zamanında tamamlandı
               </div>
 
               {/* Progress Bar */}
@@ -1656,7 +1663,7 @@ const JourneyDetail: React.FC = () => {
                   className="bg-white h-full rounded-full transition-all duration-500"
                   style={{
                     width: `${normalStops.length > 0
-                      ? ((normalStops.length - delayedStops.length) / normalStops.length) * 100
+                      ? ((ontimeStops.length) / completedStopsForSLA.length) * 100
                       : 0}%`
                   }}
                 />
@@ -1684,7 +1691,7 @@ const JourneyDetail: React.FC = () => {
                   fill="none"
                   strokeDasharray={`${2 * Math.PI * 56}`}
                   strokeDashoffset={`${2 * Math.PI * 56 * (1 - (normalStops.length > 0
-                    ? ((normalStops.length - delayedStops.length) / normalStops.length)
+                    ? ((ontimeStops.length) / completedStopsForSLA.length)
                     : 0))}`}
                   className="text-white transition-all duration-500"
                   strokeLinecap="round"
@@ -1694,7 +1701,7 @@ const JourneyDetail: React.FC = () => {
                 <div className="text-center">
                   <div className="text-3xl font-bold">
                     {normalStops.length > 0
-                      ? Math.round(((normalStops.length - delayedStops.length) / normalStops.length) * 100)
+                      ? Math.round(((ontimeStops.length) / completedStopsForSLA.length) * 100)
                       : 0}
                   </div>
                   <div className="text-xs opacity-75">SLA</div>
@@ -1705,14 +1712,14 @@ const JourneyDetail: React.FC = () => {
 
           {/* Status Badge */}
           <div className="mt-4 flex items-center gap-2">
-            {normalStops.length > 0 && ((normalStops.length - delayedStops.length) / normalStops.length) >= 0.9 ? (
+            {normalStops.length > 0 && ((ontimeStops.length) / completedStopsForSLA.length) >= 0.9 ? (
               <>
                 <div className="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-bold">
                   ✓ Mükemmel Performans
                 </div>
                 <span className="text-xs opacity-75">SLA hedefi aşıldı!</span>
               </>
-            ) : normalStops.length > 0 && ((normalStops.length - delayedStops.length) / normalStops.length) >= 0.7 ? (
+            ) : normalStops.length > 0 && ((ontimeStops.length) / completedStopsForSLA.length) >= 0.7 ? (
               <>
                 <div className="px-3 py-1 bg-yellow-500 text-white rounded-full text-xs font-bold">
                   ⚠ İyi Performans
@@ -2031,7 +2038,7 @@ const JourneyDetail: React.FC = () => {
                   <option value="all">Tüm Duraklar ({normalStops.length})</option>
                   <option value="delayed">Sadece Gecikmeli ({delayedStops.length})</option>
                   <option value="early">Sadece Erken ({earlyStops.length})</option>
-                  <option value="ontime">Zamanında ({normalStops.length - delayedStops.length - earlyStops.length})</option>
+                  <option value="ontime">Zamanında ({ontimeStops.length - earlyStops.length})</option>
                 </select>
 
                 <select
