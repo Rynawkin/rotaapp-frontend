@@ -98,11 +98,17 @@ const Dashboard: React.FC = () => {
           setJourneySummaries([]);
           return [];
         }),
-        routeService.getAll().then(data => {
-          setRoutes(data);
+        // Route verilerini timeout ile yükle (10 saniye)
+        Promise.race([
+          routeService.getAll(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Route timeout')), 10000)
+          )
+        ]).then(data => {
+          setRoutes(data as RouteType[]);
           return data;
         }).catch(err => {
-          console.log('Route verileri yüklenemedi');
+          console.log('Route verileri yüklenemedi (timeout veya hata):', err.message);
           setRoutes([]);
           return [];
         }),
