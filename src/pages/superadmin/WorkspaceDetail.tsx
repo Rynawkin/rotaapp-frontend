@@ -54,26 +54,20 @@ const WorkspaceDetail: React.FC = () => {
       setAvailablePlans(plans);
       setSelectedPlan(subscriptionData.currentPlan);
       
-      // İstatistikleri yükle
-      const [routes, drivers, customers, vehicles] = await Promise.all([
-        routeService.getAll(),
-        driverService.getAll(), 
-        customerService.getAll(),
-        vehicleService.getAll()
-      ]);
-      
+      // İstatistikleri yükle (Super admin olarak workspace-specific API'lere erişemiyoruz, mock data kullanıyoruz)
       let monthlyRevenue = 0;
       if (subscriptionData?.limits?.monthlyPrice) {
         monthlyRevenue = subscriptionData.limits.monthlyPrice;
       }
-      
+
+      // Gerçek istatistikler yerine subscription verilerini kullan
       setStats({
-        totalRoutes: Math.floor(Math.random() * 100) + 20,
-        totalDrivers: Math.floor(Math.random() * 15) + 3,
-        totalCustomers: Math.floor(Math.random() * 200) + 50,
-        totalVehicles: Math.floor(Math.random() * 20) + 5,
+        totalRoutes: 0, // Backend'den gelmesi gerekiyor
+        totalDrivers: subscriptionData?.currentUsage?.currentActiveDrivers || 0,
+        totalCustomers: subscriptionData?.currentUsage?.currentActiveCustomers || 0,
+        totalVehicles: subscriptionData?.currentUsage?.currentActiveVehicles || 0,
         monthlyRevenue,
-        activeRoutes: Math.floor(Math.random() * 10) + 1
+        activeRoutes: 0 // Backend'den gelmesi gerekiyor
       });
     } catch (error) {
       console.error('Error loading workspace:', error);
