@@ -206,6 +206,13 @@ const Settings: React.FC = () => {
     firstDayOfWeek: 'monday' as 'monday' | 'sunday'
   });
 
+  // Delay Alert Settings
+  const [delayAlertSettings, setDelayAlertSettings] = useState({
+    enabled: false,
+    thresholdHours: 1,
+    alertEmails: ''
+  });
+
   // Load settings from backend
   useEffect(() => {
     loadSettingsFromBackend();
@@ -377,12 +384,13 @@ const Settings: React.FC = () => {
   const loadSettingsFromBackend = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      const [workspace, delivery, notifications] = await Promise.all([
+      const [workspace, delivery, notifications, delayAlerts] = await Promise.all([
         settingsService.getWorkspaceSettings().catch(() => null),
         settingsService.getDeliverySettings().catch(() => null),
-        settingsService.getNotificationSettings().catch(() => null)
+        settingsService.getNotificationSettings().catch(() => null),
+        canAccessDispatcherFeatures() ? settingsService.getDelayAlertSettings().catch(() => null) : Promise.resolve(null)
       ]);
 
       if (workspace) {
@@ -432,13 +440,21 @@ const Settings: React.FC = () => {
               whatsAppSettings: notifications.whatsAppSettings || notificationSettings.whatsAppSettings,
               events: notifications.events || notificationSettings.events
           });
-          
+
           // WhatsApp Mode'u ayarla
           if (notifications.whatsAppSettings?.mode) {
               setWhatsAppMode(notifications.whatsAppSettings.mode as any);
           }
       }
-      
+
+      if (delayAlerts) {
+          setDelayAlertSettings({
+              enabled: delayAlerts.enabled || false,
+              thresholdHours: delayAlerts.thresholdHours || 1,
+              alertEmails: delayAlerts.alertEmails || ''
+          });
+      }
+
     } catch (error: any) {
       console.error('Error loading settings:', error);
       const errorMessage = error.userFriendlyMessage || error.response?.data?.message || 'Ayarlar yüklenirken bir hata oluştu';
@@ -564,8 +580,13 @@ const Settings: React.FC = () => {
             }
           })
         );
+
+        // Delay Alert Settings kaydet
+        promises.push(
+          settingsService.updateDelayAlertSettings(delayAlertSettings)
+        );
       }
-      
+
       await Promise.all(promises);
       
       setShowSuccessMessage(true);
@@ -1533,6 +1554,102 @@ const Settings: React.FC = () => {
                         </span>
                       </label>
                     ))}
+                  </div>
+                </div>
+
+                {/* Delay Alert Settings */}
+                <div className="border-t pt-6">
+                  <h3 className="text-base font-medium text-gray-900 mb-4 flex items-center">
+                    <Clock className="w-5 h-5 mr-2 text-orange-600" />
+                    Gecikme Uyarıları
+                  </h3>
+
+                  <div className="space-y-4">
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                      <p className="text-sm text-orange-800 mb-3">
+                        Seferler planlanan tamamlanma saatinden geç tamamlandığında otomatik olarak yönetici emaillerine bildirim gönderilir.
+                      </p>
+                    </div>
+
+                    {/* Enable/Disable */}
+                    <label className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={delayAlertSettings.enabled}
+                        onChange={(e) => {
+                          setDelayAlertSettings({ ...delayAlertSettings, enabled: e.target.checked });
+                          setHasChanges(true);
+                        }}
+                        className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                      />
+                      <div>
+                        <span className="font-medium text-gray-900">Gecikme Uyarılarını Aktif Et</span>
+                        <p className="text-sm text-gray-600">Gecikmiş seferler için otomatik email bildirimi gönder</p>
+                      </div>
+                    </label>
+
+                    {delayAlertSettings.enabled && (
+                      <>
+                        {/* Threshold Hours */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Gecikme Eşiği (Saat)
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="24"
+                            value={delayAlertSettings.thresholdHours}
+                            onChange={(e) => {
+                              setDelayAlertSettings({
+                                ...delayAlertSettings,
+                                thresholdHours: Math.max(1, parseInt(e.target.value) || 1)
+                              });
+                              setHasChanges(true);
+                            }}
+                            className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            placeholder="1"
+                          />
+                          <p className="text-sm text-gray-600 mt-1">
+                            Sefer bu kadar saat veya daha fazla gecikirse uyarı gönderilir
+                          </p>
+                        </div>
+
+                        {/* Alert Emails */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Bildirim Gönderilecek Email Adresleri
+                          </label>
+                          <textarea
+                            value={delayAlertSettings.alertEmails}
+                            onChange={(e) => {
+                              setDelayAlertSettings({ ...delayAlertSettings, alertEmails: e.target.value });
+                              setHasChanges(true);
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
+                            rows={3}
+                            placeholder="admin@company.com, manager@company.com, dispatcher@company.com"
+                          />
+                          <p className="text-sm text-gray-600 mt-1">
+                            Birden fazla email adresi için virgülle ayırın
+                          </p>
+                        </div>
+
+                        {/* Info Box */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
+                          <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <div className="text-sm text-blue-800">
+                            <p className="font-medium mb-1">Email İçeriği</p>
+                            <ul className="space-y-1">
+                              <li>• Sefer detayları (ID, ad, sürücü)</li>
+                              <li>• Planlanan ve gerçekleşen tamamlanma zamanı</li>
+                              <li>• Gecikme süresi (saat ve dakika)</li>
+                              <li>• Sefer detaylarına direkt link</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 

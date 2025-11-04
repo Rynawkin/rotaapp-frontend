@@ -75,6 +75,12 @@ export interface TwilioSignupResponse {
   signupUrl: string;
 }
 
+export interface DelayAlertSettings {
+  enabled: boolean;
+  thresholdHours: number;
+  alertEmails: string;
+}
+
 export interface AllSettings {
   workspace: WorkspaceSettings;
   delivery: DeliverySettings;
@@ -126,6 +132,16 @@ class SettingsService {
   async disconnectTwilioWhatsApp(): Promise<{ success: boolean }> {
     const response = await api.delete('/twilio/disconnect');
     return response.data;
+  }
+
+  // Delay Alert Settings
+  async getDelayAlertSettings(): Promise<DelayAlertSettings> {
+    const response = await api.get('/settings/delay-alerts');
+    return response.data;
+  }
+
+  async updateDelayAlertSettings(settings: DelayAlertSettings): Promise<void> {
+    await api.put('/settings/delay-alerts', settings);
   }
 
   // Get All Settings
