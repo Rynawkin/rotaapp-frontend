@@ -225,6 +225,13 @@ const JourneyDetail: React.FC = () => {
   const [failureNotes, setFailureNotes] = useState('');
   const [processingStopId, setProcessingStopId] = useState<number | null>(null);
 
+  // Journey completion modal states
+  const [showCompleteJourneyModal, setShowCompleteJourneyModal] = useState(false);
+  const [endKilometer, setEndKilometer] = useState('');
+  const [fuelLevel, setFuelLevel] = useState('');
+  const [vehicleCondition, setVehicleCondition] = useState('');
+  const [journeyNotes, setJourneyNotes] = useState('');
+
   // ✅ SignalR hooks kullanımı
   const { isConnected } = useSignalR({
     autoConnect: true,
@@ -768,18 +775,57 @@ const JourneyDetail: React.FC = () => {
     }
   };
 
-  const handleCompleteJourney = async () => {
+  const handleCompleteJourney = () => {
     if (!journey) return;
-    if (window.confirm('Seferi tamamlamak istediğinizden emin misiniz?')) {
-      try {
-        await journeyService.finish(journey.id);
-        toast.success('Sefer tamamlandı');
-        handleGoBack();
-      } catch (error: any) {
-        console.error('Error completing journey:', error);
-        const errorMessage = error.response?.data?.message || 'Sefer tamamlanamadı';
-        toast.error(errorMessage);
+    setShowCompleteJourneyModal(true);
+  };
+
+  const handleSubmitCompleteJourney = async () => {
+    if (!journey) return;
+
+    // Validasyon
+    if (!endKilometer || parseFloat(endKilometer) <= 0) {
+      toast.error('Lütfen geçerli bir bitiş kilometresi girin');
+      return;
+    }
+
+    if (!vehicleCondition) {
+      toast.error('Lütfen araç durumunu seçin');
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('endKilometer', endKilometer);
+
+      if (fuelLevel) {
+        formData.append('fuelLevel', fuelLevel);
       }
+
+      if (vehicleCondition) {
+        formData.append('vehicleCondition', vehicleCondition);
+      }
+
+      if (journeyNotes.trim()) {
+        formData.append('notes', journeyNotes.trim());
+      }
+
+      await journeyService.finishWithDetails(journey.id, formData);
+
+      toast.success('Sefer başarıyla tamamlandı');
+      setShowCompleteJourneyModal(false);
+
+      // Reset form
+      setEndKilometer('');
+      setFuelLevel('');
+      setVehicleCondition('');
+      setJourneyNotes('');
+
+      handleGoBack();
+    } catch (error: any) {
+      console.error('Error completing journey:', error);
+      const errorMessage = error.response?.data?.message || 'Sefer tamamlanamadı';
+      toast.error(errorMessage);
     }
   };
 
@@ -3157,6 +3203,112 @@ const JourneyDetail: React.FC = () => {
                   />
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Complete Journey Modal */}
+      {showCompleteJourneyModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">Seferi Tamamla</h2>
+            <p className="text-gray-600 mb-6">
+              Sefer tamamlandı mı? Lütfen aşağıdaki bilgileri doldurun.
+            </p>
+
+            {/* Bitiş Kilometresi */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Bitiş Kilometresi <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                value={endKilometer}
+                onChange={(e) => setEndKilometer(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Örn: 45678.5"
+              />
+              {endKilometer && parseFloat(endKilometer) <= 0 && (
+                <p className="text-xs text-red-500 mt-1">Geçerli bir kilometre değeri girin</p>
+              )}
+            </div>
+
+            {/* Yakıt Seviyesi */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Bitiş Yakıt Seviyesi (Opsiyonel)
+              </label>
+              <select
+                value={fuelLevel}
+                onChange={(e) => setFuelLevel(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Seçiniz...</option>
+                <option value="full">🟢 Tam (Full)</option>
+                <option value="three_quarters">🟢 3/4</option>
+                <option value="half">🟡 1/2</option>
+                <option value="quarter">🟠 1/4</option>
+                <option value="empty">🔴 Boş</option>
+              </select>
+            </div>
+
+            {/* Araç Durumu */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Araç Durumu <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={vehicleCondition}
+                onChange={(e) => setVehicleCondition(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Seçiniz...</option>
+                <option value="good">✅ İyi Durumda</option>
+                <option value="needs_cleaning">🧹 Temizlik Gerekli</option>
+                <option value="needs_maintenance">🔧 Bakım Gerekli</option>
+                <option value="damaged">⚠️ Hasar Var</option>
+              </select>
+              {!vehicleCondition && endKilometer && (
+                <p className="text-xs text-red-500 mt-1">Araç durumunu seçmelisiniz</p>
+              )}
+            </div>
+
+            {/* Sefer Notları */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Sefer Notları (Opsiyonel)
+              </label>
+              <textarea
+                value={journeyNotes}
+                onChange={(e) => setJourneyNotes(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={4}
+                placeholder="Sefer sırasında yaşanan önemli olaylar, araç durumu, vb."
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowCompleteJourneyModal(false);
+                  setEndKilometer('');
+                  setFuelLevel('');
+                  setVehicleCondition('');
+                  setJourneyNotes('');
+                }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleSubmitCompleteJourney}
+                disabled={!endKilometer || parseFloat(endKilometer) <= 0 || !vehicleCondition}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Seferi Tamamla
+              </button>
             </div>
           </div>
         </div>
