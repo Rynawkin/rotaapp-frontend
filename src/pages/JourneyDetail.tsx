@@ -2410,8 +2410,14 @@ const JourneyDetail: React.FC = () => {
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={() => {
-                                  setSelectedStop(stop);
-                                  setShowCompleteModal(true);
+                                  // Son durak (depo dönüşü) ise sefer tamamlama modal'ını aç
+                                  if (index === normalStops.length - 1) {
+                                    setShowCompleteJourneyModal(true);
+                                  } else {
+                                    // Normal durak için stop tamamlama modal'ını aç
+                                    setSelectedStop(stop);
+                                    setShowCompleteModal(true);
+                                  }
                                 }}
                                 disabled={processingStopId === parseInt(stop.id)}
                                 className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
@@ -2423,17 +2429,20 @@ const JourneyDetail: React.FC = () => {
                                 )}
                                 Tamamla
                               </button>
-                              <button
-                                onClick={() => {
-                                  setSelectedStop(stop);
-                                  setShowFailModal(true);
-                                }}
-                                disabled={processingStopId === parseInt(stop.id)}
-                                className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                              >
-                                <XCircle className="w-4 h-4 mr-2" />
-                                Başarısız
-                              </button>
+                              {/* Başarısız butonu sadece normal duraklar için göster (son durak için değil) */}
+                              {index !== normalStops.length - 1 && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedStop(stop);
+                                    setShowFailModal(true);
+                                  }}
+                                  disabled={processingStopId === parseInt(stop.id)}
+                                  className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                                >
+                                  <XCircle className="w-4 h-4 mr-2" />
+                                  Başarısız
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
