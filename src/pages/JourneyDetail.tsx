@@ -783,6 +783,13 @@ const JourneyDetail: React.FC = () => {
   const handleSubmitCompleteJourney = async () => {
     if (!journey) return;
 
+    // Son durağı bul (depo dönüşü)
+    const lastStop = normalStops[normalStops.length - 1];
+    if (!lastStop) {
+      toast.error('Son durak bulunamadı');
+      return;
+    }
+
     // Validasyon
     if (!endKilometer || parseFloat(endKilometer) <= 0) {
       toast.error('Lütfen geçerli bir bitiş kilometresi girin');
@@ -810,7 +817,8 @@ const JourneyDetail: React.FC = () => {
         formData.append('notes', journeyNotes.trim());
       }
 
-      await journeyService.finishWithDetails(journey.id, formData);
+      // Son durağı tamamla (mobile ile aynı endpoint)
+      await journeyService.completeStopWithFiles(journey.id, parseInt(lastStop.id), formData);
 
       toast.success('Sefer başarıyla tamamlandı');
       setShowCompleteJourneyModal(false);
@@ -821,7 +829,8 @@ const JourneyDetail: React.FC = () => {
       setVehicleCondition('');
       setJourneyNotes('');
 
-      handleGoBack();
+      // Journey detail'i yeniden yükle
+      loadJourney();
     } catch (error: any) {
       console.error('Error completing journey:', error);
       const errorMessage = error.response?.data?.message || 'Sefer tamamlanamadı';

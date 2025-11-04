@@ -492,24 +492,6 @@ class JourneyService {
     }
   }
 
-  async finishWithDetails(journeyId: string | number, formData: FormData): Promise<Journey> {
-    try {
-      console.log('Finishing journey with details:', journeyId);
-      const response = await api.post(`${this.baseUrl}/${journeyId}/finalize`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data;
-    } catch (error: any) {
-      console.error('Error finishing journey with details:', error);
-      if (error.response?.data?.message) {
-        throw error;
-      }
-      throw error;
-    }
-  }
-
   async cancel(journeyId: string | number): Promise<Journey> {
     try {
       console.log('Cancelling journey:', journeyId);
