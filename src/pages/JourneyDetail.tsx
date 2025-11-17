@@ -1638,161 +1638,71 @@ const JourneyDetail: React.FC = () => {
             <Activity className="w-5 h-5" />
             Sefer Performans Özeti
           </h3>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Planlanan Mesafe */}
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Mesafe Karşılaştırması */}
             <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-              <div className="text-sm opacity-90 mb-1">Planlanan Mesafe</div>
-              <div className="text-2xl font-bold">
-                {journey.totalDistance?.toFixed(1) || 0} km
-              </div>
-              <div className="text-xs opacity-75 mt-1">
-                {journey.startKm !== undefined && journey.endKm !== undefined
-                  ? `Gerçek: ${(journey.endKm - journey.startKm).toFixed(1)} km`
-                  : 'Hedef mesafe'}
-              </div>
-            </div>
-
-            {/* Planlanan Süre */}
-            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-              <div className="text-sm opacity-90 mb-1">Planlanan Süre</div>
-              <div className="text-2xl font-bold">
-                {journey.totalDuration ? Math.round(journey.totalDuration / 60) : 0}sa {journey.totalDuration ? Math.round(journey.totalDuration % 60) : 0}dk
-              </div>
-              <div className="text-xs opacity-75 mt-1">
-                {journey.startedAt && journey.completedAt
-                  ? `Gerçek: ${Math.floor((new Date(journey.completedAt).getTime() - new Date(journey.startedAt).getTime()) / (1000 * 60 * 60))}sa ${Math.round(((new Date(journey.completedAt).getTime() - new Date(journey.startedAt).getTime()) / (1000 * 60)) % 60)}dk`
-                  : journey.status === 'completed' ? 'Tamamlandı' : 'Devam ediyor'}
-              </div>
-            </div>
-
-            {/* Toplam Gecikme */}
-            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-              <div className="text-sm opacity-90 mb-1">Toplam Gecikme</div>
-              <div className="text-2xl font-bold">
-                {totalDelay > 0 ? `+${totalDelay}` : totalDelay}dk
-              </div>
-              <div className="text-xs opacity-75 mt-1">
-                {delayedStops.length} / {normalStops.length} durakta
-              </div>
-            </div>
-
-            {/* Zamanında Teslimat */}
-            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-              <div className="text-sm opacity-90 mb-1">SLA Uyumluluğu</div>
-              <div className="text-2xl font-bold">
-                {completedStopsForSLA.length > 0
-                  ? Math.round(((ontimeStops.length) / completedStopsForSLA.length) * 100)
-                  : 0}%
-              </div>
-              <div className="text-xs opacity-75 mt-1">
-                {ontimeStops.length} / {completedStopsForSLA.length} durak
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ✅ YENİ: SLA Uyumluluk Göstergesi */}
-      {normalStops.some((s: JourneyStop) => s.originalEstimatedArrivalTime) && (
-        <div className="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-lg shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="w-6 h-6" />
-                <h3 className="text-lg font-bold inline-flex items-center">
-                  SLA Uyumluluğu
-                  <InfoTooltip
-                    title={TOOLTIP_TEXTS.SLA.title}
-                    content={TOOLTIP_TEXTS.SLA.content}
-                  />
-                </h3>
-              </div>
-              <div className="text-4xl font-bold mb-2">
-                {completedStopsForSLA.length > 0
-                  ? Math.round(((ontimeStops.length) / completedStopsForSLA.length) * 100)
-                  : 0}%
-              </div>
-              <div className="text-sm opacity-90 mb-4">
-                {ontimeStops.length} / {completedStopsForSLA.length} durak zamanında tamamlandı
-              </div>
-
-              {/* Progress Bar */}
-              <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
-                <div
-                  className="bg-white h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${completedStopsForSLA.length > 0
-                      ? ((ontimeStops.length) / completedStopsForSLA.length) * 100
-                      : 0}%`
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Circular Progress */}
-            <div className="ml-8 relative">
-              <svg className="w-32 h-32 transform -rotate-90">
-                <circle
-                  cx="64"
-                  cy="64"
-                  r="56"
-                  stroke="currentColor"
-                  strokeWidth="8"
-                  fill="none"
-                  className="text-white/20"
-                />
-                <circle
-                  cx="64"
-                  cy="64"
-                  r="56"
-                  stroke="currentColor"
-                  strokeWidth="8"
-                  fill="none"
-                  strokeDasharray={`${2 * Math.PI * 56}`}
-                  strokeDashoffset={`${2 * Math.PI * 56 * (1 - (completedStopsForSLA.length > 0
-                    ? ((ontimeStops.length) / completedStopsForSLA.length)
-                    : 0))}`}
-                  className="text-white transition-all duration-500"
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="text-3xl font-bold">
-                    {completedStopsForSLA.length > 0
-                      ? Math.round(((ontimeStops.length) / completedStopsForSLA.length) * 100)
-                      : 0}
+              <div className="text-sm opacity-90 mb-2">Mesafe</div>
+              <div className="space-y-2">
+                <div>
+                  <div className="text-xs opacity-75">Planlanan</div>
+                  <div className="text-xl font-bold">
+                    {journey.totalDistance?.toFixed(1) || 0} km
                   </div>
-                  <div className="text-xs opacity-75">SLA</div>
                 </div>
+                {journey.startKm !== undefined && journey.endKm !== undefined && (
+                  <div>
+                    <div className="text-xs opacity-75">Gerçekleşen</div>
+                    <div className="text-xl font-bold">
+                      {(journey.endKm - journey.startKm).toFixed(1)} km
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
 
-          {/* Status Badge */}
-          <div className="mt-4 flex items-center gap-2">
-            {completedStopsForSLA.length > 0 && ((ontimeStops.length) / completedStopsForSLA.length) >= 0.9 ? (
-              <>
-                <div className="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-bold">
-                  ✓ Mükemmel Performans
+            {/* Süre Karşılaştırması */}
+            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
+              <div className="text-sm opacity-90 mb-2">Süre</div>
+              <div className="space-y-2">
+                <div>
+                  <div className="text-xs opacity-75">Planlanan</div>
+                  <div className="text-xl font-bold">
+                    {journey.totalDuration
+                      ? `${Math.floor(journey.totalDuration / 60)}sa ${Math.round(journey.totalDuration % 60)}dk`
+                      : '0sa 0dk'}
+                  </div>
                 </div>
-                <span className="text-xs opacity-75">SLA hedefi aşıldı!</span>
-              </>
-            ) : completedStopsForSLA.length > 0 && ((ontimeStops.length) / completedStopsForSLA.length) >= 0.7 ? (
-              <>
-                <div className="px-3 py-1 bg-yellow-500 text-white rounded-full text-xs font-bold">
-                  ⚠ İyi Performans
-                </div>
-                <span className="text-xs opacity-75">SLA hedefine yakın</span>
-              </>
-            ) : (
-              <>
-                <div className="px-3 py-1 bg-red-500 text-white rounded-full text-xs font-bold">
-                  ✗ Dikkat Gerekli
-                </div>
-                <span className="text-xs opacity-75">SLA hedefinin altında</span>
-              </>
-            )}
+                {journey.startedAt && journey.completedAt && (
+                  <div>
+                    <div className="text-xs opacity-75">Gerçekleşen</div>
+                    <div className="text-xl font-bold">
+                      {(() => {
+                        const totalMinutes = Math.round((new Date(journey.completedAt).getTime() - new Date(journey.startedAt).getTime()) / (1000 * 60));
+                        const hours = Math.floor(totalMinutes / 60);
+                        const minutes = totalMinutes % 60;
+                        return `${hours}sa ${minutes}dk`;
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* SLA Uyumluluğu */}
+            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
+              <div className="text-sm opacity-90 mb-2">SLA Uyumluluğu</div>
+              <div className="text-3xl font-bold mb-1">
+                {completedStopsForSLA.length > 0
+                  ? Math.round(((ontimeStops.length) / completedStopsForSLA.length) * 100)
+                  : 0}%
+              </div>
+              <div className="text-xs opacity-75">
+                {ontimeStops.length} / {completedStopsForSLA.length} durak zamanında
+              </div>
+              <div className="text-xs opacity-75 mt-1">
+                Ortalama sapma: {averageDelay > 0 ? '+' : ''}{averageDelay.toFixed(1)}dk
+              </div>
+            </div>
           </div>
         </div>
       )}
