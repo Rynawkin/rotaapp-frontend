@@ -1638,24 +1638,27 @@ const JourneyDetail: React.FC = () => {
             <Activity className="w-5 h-5" />
             Sefer Performans Özeti
           </h3>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Mesafe Karşılaştırması */}
             <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
               <div className="text-sm opacity-90 mb-2">Mesafe</div>
-              <div className="space-y-2">
+              <div className="flex items-center justify-between">
                 <div>
                   <div className="text-xs opacity-75">Planlanan</div>
-                  <div className="text-xl font-bold">
+                  <div className="text-2xl font-bold">
                     {journey.totalDistance?.toFixed(1) || 0} km
                   </div>
                 </div>
                 {journey.startKm !== undefined && journey.endKm !== undefined && (
-                  <div>
-                    <div className="text-xs opacity-75">Gerçekleşen</div>
-                    <div className="text-xl font-bold">
-                      {(journey.endKm - journey.startKm).toFixed(1)} km
+                  <>
+                    <div className="text-2xl opacity-50 mx-4">→</div>
+                    <div>
+                      <div className="text-xs opacity-75">Gerçekleşen</div>
+                      <div className="text-2xl font-bold">
+                        {(journey.endKm - journey.startKm).toFixed(1)} km
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
             </div>
@@ -1663,44 +1666,46 @@ const JourneyDetail: React.FC = () => {
             {/* Süre Karşılaştırması */}
             <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
               <div className="text-sm opacity-90 mb-2">Süre</div>
-              <div className="space-y-2">
+              <div className="flex items-center justify-between">
                 <div>
                   <div className="text-xs opacity-75">Planlanan</div>
-                  <div className="text-xl font-bold">
+                  <div className="text-2xl font-bold">
                     {journey.totalDuration
                       ? `${Math.floor(journey.totalDuration / 60)}sa ${Math.round(journey.totalDuration % 60)}dk`
                       : '0sa 0dk'}
                   </div>
                 </div>
-                {journey.startedAt && journey.completedAt && (
-                  <div>
-                    <div className="text-xs opacity-75">Gerçekleşen</div>
-                    <div className="text-xl font-bold">
-                      {(() => {
-                        const totalMinutes = Math.round((new Date(journey.completedAt).getTime() - new Date(journey.startedAt).getTime()) / (1000 * 60));
-                        const hours = Math.floor(totalMinutes / 60);
-                        const minutes = totalMinutes % 60;
-                        return `${hours}sa ${minutes}dk`;
-                      })()}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+                {(() => {
+                  // Gerçekleşen süreyi hesapla
+                  let actualDuration = null;
 
-            {/* SLA Uyumluluğu */}
-            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-              <div className="text-sm opacity-90 mb-2">SLA Uyumluluğu</div>
-              <div className="text-3xl font-bold mb-1">
-                {completedStopsForSLA.length > 0
-                  ? Math.round(((ontimeStops.length) / completedStopsForSLA.length) * 100)
-                  : 0}%
-              </div>
-              <div className="text-xs opacity-75">
-                {ontimeStops.length} / {completedStopsForSLA.length} durak zamanında
-              </div>
-              <div className="text-xs opacity-75 mt-1">
-                Ortalama sapma: {averageDelay > 0 ? '+' : ''}{averageDelay.toFixed(1)}dk
+                  // Önce completedAt ve startedAt'i kontrol et
+                  if (journey.completedAt && journey.startedAt) {
+                    const totalMinutes = Math.round((new Date(journey.completedAt).getTime() - new Date(journey.startedAt).getTime()) / (1000 * 60));
+                    const hours = Math.floor(totalMinutes / 60);
+                    const minutes = totalMinutes % 60;
+                    actualDuration = `${hours}sa ${minutes}dk`;
+                  }
+                  // Eğer sefer completed ama completedAt yoksa, şu anki zamanı kullan
+                  else if (journey.status === 'completed' && journey.startedAt) {
+                    const totalMinutes = Math.round((new Date().getTime() - new Date(journey.startedAt).getTime()) / (1000 * 60));
+                    const hours = Math.floor(totalMinutes / 60);
+                    const minutes = totalMinutes % 60;
+                    actualDuration = `${hours}sa ${minutes}dk`;
+                  }
+
+                  return actualDuration ? (
+                    <>
+                      <div className="text-2xl opacity-50 mx-4">→</div>
+                      <div>
+                        <div className="text-xs opacity-75">Gerçekleşen</div>
+                        <div className="text-2xl font-bold">
+                          {actualDuration}
+                        </div>
+                      </div>
+                    </>
+                  ) : null;
+                })()}
               </div>
             </div>
           </div>
