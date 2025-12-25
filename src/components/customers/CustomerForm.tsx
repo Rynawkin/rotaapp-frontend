@@ -295,6 +295,23 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
       newErrors.email = 'Geçerli bir email adresi girin';
     }
 
+    const latitudeValue = formData.latitude;
+    const longitudeValue = formData.longitude;
+    const hasLatitude = typeof latitudeValue === 'number' && Number.isFinite(latitudeValue) && latitudeValue !== 0;
+    const hasLongitude = typeof longitudeValue === 'number' && Number.isFinite(longitudeValue) && longitudeValue !== 0;
+
+    if (!hasLatitude) {
+      newErrors.latitude = 'Enlem zorunludur';
+    }
+
+    if (!hasLongitude) {
+      newErrors.longitude = 'Boylam zorunludur';
+    }
+
+    if (!hasLatitude || !hasLongitude) {
+      setShowCoordinateInput(true);
+    }
+
     if (!formData.estimatedServiceTime || formData.estimatedServiceTime < 1) {
       newErrors.serviceTime = 'Servis süresi en az 1 dakika olmalıdır';
     }
@@ -335,8 +352,8 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
       whatsApp: '', // Boş bırak, otomatik doldurma
       whatsAppOptIn: false,
       whatsAppVerified: false,
-      latitude: 40.9869,
-      longitude: 29.0252,
+      latitude: undefined,
+      longitude: undefined,
       estimatedServiceTime: defaultServiceTime,
       notes: '',
       tags: []
@@ -639,11 +656,18 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                   <input
                     type="number"
                     step="0.000001"
+                    name="latitude"
                     value={formData.latitude}
                     onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${errors.latitude ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'}`}
                     placeholder="40.9869"
                   />
+                  {errors.latitude && (
+                    <p className="text-xs text-red-500 mt-1 flex items-center">
+                      <AlertCircle className="w-3 h-3 mr-1" />
+                      {errors.latitude}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -652,11 +676,18 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                   <input
                     type="number"
                     step="0.000001"
+                    name="longitude"
                     value={formData.longitude}
                     onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${errors.longitude ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'}`}
                     placeholder="29.0252"
                   />
+                  {errors.longitude && (
+                    <p className="text-xs text-red-500 mt-1 flex items-center">
+                      <AlertCircle className="w-3 h-3 mr-1" />
+                      {errors.longitude}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
