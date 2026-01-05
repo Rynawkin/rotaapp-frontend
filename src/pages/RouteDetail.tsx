@@ -31,6 +31,9 @@ import {
   Share2,
   ArrowRight
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { toast } from 'react-hot-toast';
 import MapComponent from '@/components/maps/MapComponent';
 import LeafletMapComponent from '@/components/maps/LeafletMapComponent';
 import { Route, RouteStop, Customer } from '@/types';
@@ -379,6 +382,255 @@ const RouteDetail: React.FC = () => {
     window.URL.revokeObjectURL(url);
   };
 
+  const handleExportPDF = () => {
+    if (!route) return;
+
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
+
+    // Helper function to replace Turkish characters for PDF compatibility
+    const fixTurkish = (text: string) => {
+      if (!text) return '';
+      return text
+        .replace(/\u011f/g, 'g').replace(/\u011e/g, 'G')
+        .replace(/\u00fc/g, 'u').replace(/\u00dc/g, 'U')
+        .replace(/\u015f/g, 's').replace(/\u015e/g, 'S')
+        .replace(/\u0131/g, 'i').replace(/\u0130/g, 'I')
+        .replace(/\u00f6/g, 'o').replace(/\u00d6/g, 'O')
+        .replace(/\u00e7/g, 'c').replace(/\u00c7/g, 'C');
+    };
+
+    // ============ MODERN HEADER ============
+    // Gradient background (dark blue)
+    doc.setFillColor(30, 58, 138); // blue-900
+    doc.rect(0, 0, pageWidth, 50, 'F');
+
+    // White accent bar
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 50, pageWidth, 2, 'F');
+
+    // Company Logo/Name
+    doc.setFontSize(24);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text('YOLPILOT', 15, 20);
+
+    // Subtitle
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(191, 219, 254); // blue-200
+    doc.text('Akilli Rota Optimizasyonu', 15, 26);
+
+    // Report Title
+    doc.setFontSize(18);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ROTA DETAY RAPORU', pageWidth / 2, 20, { align: 'center' });
+
+    // Route Name
+    const routeName = fixTurkish(route.name || `Rota #${route.id}`);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(255, 255, 255);
+    doc.text(routeName, pageWidth / 2, 28, { align: 'center' });
+
+    // Date box (top right)
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(pageWidth - 50, 12, 40, 16, 2, 2, 'F');
+    doc.setFontSize(8);
+    doc.setTextColor(30, 58, 138);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TARIH', pageWidth - 30, 17, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const formattedDate = route.date ? new Date(route.date).toLocaleDateString('tr-TR') : new Date().toLocaleDateString('tr-TR');
+    doc.text(fixTurkish(formattedDate), pageWidth - 30, 24, { align: 'center' });
+
+    let yPos = 62;
+
+    // ============ GENEL BILGILER (INFO CARDS) ============
+    doc.setFontSize(11);
+    doc.setTextColor(30, 58, 138);
+    doc.setFont('helvetica', 'bold');
+    doc.text('GENEL BILGILER', 15, yPos);
+    yPos += 7;
+
+    const statusText =
+      route.status === 'draft' ? 'Taslak' :
+      route.status === 'planned' ? 'Planlandi' :
+      route.status === 'in_progress' ? 'Devam Ediyor' :
+      route.status === 'completed' ? 'Tamamlandi' : 'Iptal Edildi';
+
+    // Info cards in 2x4 grid
+    const infoData = [
+      { label: 'Surucu', value: fixTurkish(route.driver?.fullName || route.driver?.name || '-') },
+      { label: 'Arac', value: fixTurkish(route.vehicle?.plateNumber || '-') },
+      { label: 'Durum', value: fixTurkish(statusText) },
+      { label: 'Rota Tarihi', value: fixTurkish(route.date ? new Date(route.date).toLocaleDateString('tr-TR') : '-') },
+      { label: 'Toplam Mesafe', value: `${route.totalDistance ? route.totalDistance.toFixed(1) : 0} km` },
+      { label: 'Toplam Sure', value: formatDuration(route.totalDuration || 0) },
+      { label: 'Toplam Durak', value: `${route.totalDeliveries || route.stops.length}` },
+      { label: 'Tamamlanan', value: `${route.completedDeliveries || 0}` },
+      { label: 'Optimizasyon', value: route.optimized ? 'Evet' : 'Hayir' },
+      ...(depot?.name ? [{ label: 'Depo', value: fixTurkish(depot.name) }] : []),
+    ];
+
+    // Draw info cards
+    const cardWidth = (pageWidth - 40) / 4;
+    const cardHeight = 20;
+    infoData.forEach((info, index) => {
+      const col = index % 4;
+      const row = Math.floor(index / 4);
+      const x = 15 + (col * cardWidth) + (col * 2);
+      const y = yPos + (row * (cardHeight + 3));
+
+      // Card background
+      doc.setFillColor(248, 250, 252); // gray-50
+      doc.roundedRect(x, y, cardWidth - 2, cardHeight, 2, 2, 'F');
+
+      // Label
+      doc.setFontSize(8);
+      doc.setTextColor(107, 114, 128); // gray-500
+      doc.setFont('helvetica', 'normal');
+      doc.text(info.label, x + 3, y + 6);
+
+      // Value
+      doc.setFontSize(11);
+      doc.setTextColor(31, 41, 55); // gray-800
+      doc.setFont('helvetica', 'bold');
+      doc.text(info.value, x + 3, y + 14);
+    });
+
+    yPos += (Math.ceil(infoData.length / 4) * (cardHeight + 3)) + 5;
+
+    // ============ DURAKLAR ============
+    doc.setFontSize(11);
+    doc.setTextColor(30, 58, 138);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DURAKLAR', 15, yPos);
+    yPos += 3;
+
+    const stopsData = route.stops.map((stop: RouteStop) => {
+      const stopCustomer = stop.customer || customers.find(c => c.id === stop.customerId);
+      const customerName = fixTurkish(stopCustomer?.name || `Durak ${stop.order}`);
+      const customerPhone = stopCustomer?.phone ? `\n${stopCustomer.phone}` : '';
+      const customerAddress = fixTurkish(stopCustomer?.address || stop.customer?.address || '-');
+      const statusLabel =
+        stop.status === 'completed' ? 'Tamamlandi' :
+        stop.status === 'failed' ? 'Basarisiz' :
+        stop.status === 'arrived' ? 'Varildi' :
+        'Bekliyor';
+
+      return [
+        stop.order.toString(),
+        `${customerName}${customerPhone}`,
+        customerAddress,
+        statusLabel,
+        stop.distance ? `${stop.distance} km` : '-',
+        stop.duration ? `${stop.duration} dk` : '-',
+        formatETA(stop.estimatedArrivalTime),
+        formatETA(stop.estimatedDepartureTime)
+      ];
+    });
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['#', 'Musteri', 'Adres', 'Durum', 'Mesafe', 'Sure', 'Plan.\nVaris', 'Plan.\nAyrilis']],
+      body: stopsData,
+      theme: 'plain',
+      headStyles: {
+        fillColor: [30, 58, 138], // blue-900
+        textColor: [255, 255, 255],
+        fontSize: 8,
+        fontStyle: 'bold',
+        halign: 'center',
+        valign: 'middle',
+        cellPadding: 3,
+        lineWidth: 0.1,
+        lineColor: [255, 255, 255]
+      },
+      bodyStyles: {
+        fontSize: 8,
+        cellPadding: 3,
+        valign: 'middle',
+        lineWidth: 0.1,
+        lineColor: [229, 231, 235]
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252] // gray-50
+      },
+      columnStyles: {
+        0: { cellWidth: 8, halign: 'center', fontStyle: 'bold', fillColor: [241, 245, 249] },
+        1: { cellWidth: 40, overflow: 'linebreak' },
+        2: { cellWidth: 55, overflow: 'linebreak' },
+        3: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
+        4: { cellWidth: 14, halign: 'center' },
+        5: { cellWidth: 14, halign: 'center' },
+        6: { cellWidth: 15, halign: 'center', fontSize: 7 },
+        7: { cellWidth: 16, halign: 'center', fontSize: 7 }
+      },
+      didParseCell: (data) => {
+        // Durum sutunu renklendirme
+        if (data.column.index === 3 && data.section === 'body') {
+          const status = data.cell.text[0];
+          if (status === 'Tamamlandi') {
+            data.cell.styles.textColor = [22, 163, 74]; // green-600
+            data.cell.styles.fillColor = [220, 252, 231]; // green-100
+          } else if (status === 'Basarisiz') {
+            data.cell.styles.textColor = [220, 38, 38]; // red-600
+            data.cell.styles.fillColor = [254, 226, 226]; // red-100
+          } else if (status === 'Varildi') {
+            data.cell.styles.textColor = [37, 99, 235]; // blue-600
+            data.cell.styles.fillColor = [219, 234, 254]; // blue-100
+          }
+        }
+      },
+      margin: { left: 15, right: 15 }
+    });
+
+    // ============ MODERN FOOTER ============
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+
+      // Footer background
+      doc.setFillColor(248, 250, 252); // gray-50
+      doc.rect(0, pageHeight - 15, pageWidth, 15, 'F');
+
+      // Footer top line
+      doc.setDrawColor(30, 58, 138); // blue-900
+      doc.setLineWidth(0.5);
+      doc.line(0, pageHeight - 15, pageWidth, pageHeight - 15);
+
+      // Footer content
+      doc.setFontSize(7);
+      doc.setTextColor(107, 114, 128); // gray-500
+      doc.setFont('helvetica', 'normal');
+
+      // Left: Company info
+      doc.text('YolPilot - Akilli Rota Optimizasyonu', 15, pageHeight - 8);
+
+      // Center: Page number
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 58, 138);
+      doc.text(`Sayfa ${i} / ${pageCount}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
+
+      // Right: Creation time
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(107, 114, 128);
+      const creationTime = new Date().toLocaleString('tr-TR');
+      doc.text(fixTurkish(`Olusturulma: ${creationTime}`), pageWidth - 15, pageHeight - 8, { align: 'right' });
+    }
+
+    // Kaydet
+    const fileName = `rota_${route.id}_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+    toast.success('PDF indirildi');
+  };
+
   const handleStopClick = (stopId: string) => {
     setSelectedStopId(stopId);
   };
@@ -660,6 +912,15 @@ const RouteDetail: React.FC = () => {
                 Sefere Git
               </button>
             )}
+
+            <button
+              onClick={handleExportPDF}
+              className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-sm"
+              title="PDF olarak indir"
+            >
+              <FileText className="w-4 h-4" />
+              PDF
+            </button>
 
             <button
               onClick={handleExport}
