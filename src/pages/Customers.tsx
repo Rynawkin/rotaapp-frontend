@@ -32,6 +32,7 @@ import { Customer } from '@/types';
 import { customerService } from '@/services/customer.service';
 import MapComponent, { MarkerStyle } from '@/components/maps/MapComponent';
 import { MarkerData } from '@/types/maps';
+import { normalizeSearchText } from '@/utils/string';
 
 type SortField = 'name' | 'code' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
@@ -97,12 +98,13 @@ const Customers: React.FC = () => {
   };
 
   // Filter customers
+  const normalizedSearchQuery = normalizeSearchText(searchQuery);
   const filteredCustomers = customers.filter(customer => {
-    const matchesSearch =
-      customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.phone.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = !normalizedSearchQuery ||
+      normalizeSearchText(customer.name).includes(normalizedSearchQuery) ||
+      normalizeSearchText(customer.code).includes(normalizedSearchQuery) ||
+      normalizeSearchText(customer.address).includes(normalizedSearchQuery) ||
+      normalizeSearchText(customer.phone).includes(normalizedSearchQuery);
 
     const matchesTags = selectedTags.length === 0 ||
       selectedTags.some(tag => customer.tags?.includes(tag));

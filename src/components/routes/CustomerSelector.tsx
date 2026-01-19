@@ -16,6 +16,7 @@ import {
   X
 } from 'lucide-react';
 import { Customer } from '@/types';
+import { normalizeSearchText } from '@/utils/string';
 
 interface CustomerSelectorProps {
   customers: Customer[];
@@ -56,7 +57,7 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
   }, [searchQuery, customers]);
 
   const performSearch = (query: string) => {
-    const lowerQuery = query.toLowerCase();
+    const normalizedQuery = normalizeSearchText(query);
     const filtered = customers.filter(customer => {
       if (typeof customer.id === 'string' && customer.id.startsWith('google-')) {
         return false;
@@ -66,11 +67,16 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
         return false;
       }
 
+      const name = normalizeSearchText(customer.name);
+      const code = normalizeSearchText(customer.code);
+      const address = normalizeSearchText(customer.address);
+      const phone = normalizeSearchText(customer.phone);
+
       return (
-        customer.name.toLowerCase().includes(lowerQuery) ||
-        customer.code?.toLowerCase().includes(lowerQuery) ||
-        customer.address.toLowerCase().includes(lowerQuery) ||
-        customer.phone?.includes(query)
+        name.includes(normalizedQuery) ||
+        code.includes(normalizedQuery) ||
+        address.includes(normalizedQuery) ||
+        phone.includes(normalizedQuery)
       );
     });
 
@@ -84,17 +90,24 @@ const CustomerSelector: React.FC<CustomerSelectorProps> = ({
       typeof c.id === 'number' || (typeof c.id === 'string' && !c.id.startsWith('google-'))
     );
 
-    if (!modalSearchQuery.trim()) {
+    const normalizedQuery = normalizeSearchText(modalSearchQuery);
+    if (!normalizedQuery) {
       return validCustomers;
     }
 
-    const lowerQuery = modalSearchQuery.toLowerCase();
-    return validCustomers.filter(customer => 
-      customer.name.toLowerCase().includes(lowerQuery) ||
-      customer.code?.toLowerCase().includes(lowerQuery) ||
-      customer.address.toLowerCase().includes(lowerQuery) ||
-      customer.phone?.includes(modalSearchQuery)
-    );
+    return validCustomers.filter(customer => {
+      const name = normalizeSearchText(customer.name);
+      const code = normalizeSearchText(customer.code);
+      const address = normalizeSearchText(customer.address);
+      const phone = normalizeSearchText(customer.phone);
+
+      return (
+        name.includes(normalizedQuery) ||
+        code.includes(normalizedQuery) ||
+        address.includes(normalizedQuery) ||
+        phone.includes(normalizedQuery)
+      );
+    });
   };
 
   // Close dropdown when clicking outside

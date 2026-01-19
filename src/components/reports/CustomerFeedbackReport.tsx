@@ -39,6 +39,7 @@ import { feedbackService, FeedbackItem, FeedbackStats } from '@/services/feedbac
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import toast from 'react-hot-toast';
+import { normalizeSearchText } from '@/utils/string';
 
 interface Props {
   startDate: string;
@@ -150,10 +151,12 @@ export const CustomerFeedbackReport: React.FC<Props> = ({ startDate, endDate }) 
 
     // Arama filtresi
     if (searchTerm) {
-      filtered = filtered.filter(f =>
-        f.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        f.customer.address.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      const normalizedSearchTerm = normalizeSearchText(searchTerm);
+      filtered = filtered.filter(f => {
+        const name = normalizeSearchText(f.customer.name);
+        const address = normalizeSearchText(f.customer.address);
+        return name.includes(normalizedSearchTerm) || address.includes(normalizedSearchTerm);
+      });
     }
 
     // Şoför filtresi
