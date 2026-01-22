@@ -480,12 +480,12 @@ class RouteService {
       console.log('2. Optimization mode:', mode);
       console.log('3. Avoid tolls:', avoidTolls);
 
-      // Optimization with time windows - 2 minute timeout
+      // Optimization with time windows - 5 minute timeout
       const response = await api.post(`${this.baseUrl}/${routeId}/optimize`, {
         optimizationMode: mode,
         avoidTolls: avoidTolls
       }, {
-        timeout: 120000 // 2 minutes timeout (backend will respond faster)
+        timeout: 300000 // 5 minutes timeout (backend may take longer for large routes)
       });
       
       console.log('3. Optimize response:', response.data);

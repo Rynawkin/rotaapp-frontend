@@ -831,6 +831,14 @@ const RouteForm: React.FC<RouteFormProps> = ({
       const optimizedRoute = await routeService.optimize(routeId, 'distance', avoidTolls);
       console.log('✅ Received optimize response:', optimizedRoute);
 
+      if (!optimizedRoute.success) {
+        const message = optimizedRoute.message || 'Optimizasyon icin cozum bulunamadi.';
+        setEndDetails(null);
+        resetOptimization();
+        alert(message);
+        return;
+      }
+
       if (optimizedRoute.hasExclusions && optimizedRoute.excludedStops && optimizedRoute.excludedStops.length > 0) {
         setOptimizationStatus('partial');
 
