@@ -112,6 +112,7 @@ const validateTimeWindow = (start?: string, end?: string): { start?: string; end
 };
 
 const STORAGE_KEY = 'createRouteFormData';
+const TIME_WINDOW_MAX_STOPS = 70;
 
 const RouteForm: React.FC<RouteFormProps> = ({
   initialData,
@@ -450,14 +451,14 @@ const RouteForm: React.FC<RouteFormProps> = ({
 
   // Toplu müşteri ekleme handler'ı
   const handleAddMultipleCustomers = (customers: Customer[]) => {
-    // TIME WINDOW KONTROLÜ: 25 durak limiti
+    // TIME WINDOW KONTROLÜ: durak limiti
     const hasTimeWindows = [...stopsData, ...customers.map(c => ({ customer: c }))]
       .some(s => s.customer.timeWindow || (s as any).overrideTimeWindow);
 
     const futureStopCount = stopsData.length + customers.length;
 
-    if (hasTimeWindows && futureStopCount > 25) {
-      alert(`⚠️ Zaman pencereli rotalar için maksimum 25 durak ekleyebilirsiniz.\n\nMevcut: ${stopsData.length} durak\nEklemek istediğiniz: ${customers.length} durak\nToplam: ${futureStopCount} durak\n\nLütfen daha az müşteri seçin veya mevcut duraklardan bazılarını kaldırın.`);
+    if (hasTimeWindows && futureStopCount > TIME_WINDOW_MAX_STOPS) {
+      alert(`⚠️ Zaman pencereli rotalar için maksimum ${TIME_WINDOW_MAX_STOPS} durak ekleyebilirsiniz.\n\nMevcut: ${stopsData.length} durak\nEklemek istediğiniz: ${customers.length} durak\nToplam: ${futureStopCount} durak\n\nLütfen daha az müşteri seçin veya mevcut duraklardan bazılarını kaldırın.`);
       return;
     }
 
@@ -494,12 +495,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
   const handleCreateCustomer = async (customerData: Partial<Customer>) => {
     setSavingCustomer(true);
     try {
-      // TIME WINDOW KONTROLÜ: 25 durak limiti
+      // TIME WINDOW KONTROLÜ: durak limiti
       const hasTimeWindows = stopsData.some(s => s.customer.timeWindow || s.overrideTimeWindow) ||
                              customerData.timeWindow;
 
-      if (hasTimeWindows && stopsData.length >= 25) {
-        alert(`⚠️ Zaman pencereli rotalar için maksimum 25 durak ekleyebilirsiniz.\n\nMevcut durak sayısı: ${stopsData.length}\n\nLütfen önce mevcut duraklardan bazılarını kaldırın.`);
+      if (hasTimeWindows && stopsData.length >= TIME_WINDOW_MAX_STOPS) {
+        alert(`⚠️ Zaman pencereli rotalar için maksimum ${TIME_WINDOW_MAX_STOPS} durak ekleyebilirsiniz.\n\nMevcut durak sayısı: ${stopsData.length}\n\nLütfen önce mevcut duraklardan bazılarını kaldırın.`);
         setSavingCustomer(false);
         return;
       }
@@ -642,12 +643,12 @@ const RouteForm: React.FC<RouteFormProps> = ({
   };
 
   const handleMoveExcludedToStops = (excludedStop: ExcludedStop) => {
-    // TIME WINDOW KONTROLÜ: 25 durak limiti
+    // TIME WINDOW KONTROLÜ: durak limiti
     const hasTimeWindows = [...stopsData, excludedStop.stopData]
       .some(s => s.customer.timeWindow || s.overrideTimeWindow);
 
-    if (hasTimeWindows && stopsData.length >= 25) {
-      alert(`⚠️ Zaman pencereli rotalar için maksimum 25 durak ekleyebilirsiniz.\n\nMevcut durak sayısı: ${stopsData.length}\n\nLütfen önce mevcut duraklardan bazılarını kaldırın.`);
+    if (hasTimeWindows && stopsData.length >= TIME_WINDOW_MAX_STOPS) {
+      alert(`⚠️ Zaman pencereli rotalar için maksimum ${TIME_WINDOW_MAX_STOPS} durak ekleyebilirsiniz.\n\nMevcut durak sayısı: ${stopsData.length}\n\nLütfen önce mevcut duraklardan bazılarını kaldırın.`);
       return;
     }
 
