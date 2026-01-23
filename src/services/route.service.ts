@@ -108,6 +108,59 @@ class RouteService {
     }
   }
 
+  private async waitForOptimizationJob(jobId: string, timeoutMs: number): Promise<any> {
+    const startedAt = Date.now();
+    const pollIntervalMs = 2000;
+
+    while (Date.now() - startedAt < timeoutMs) {
+      const response = await api.get(`${this.baseUrl}/optimization-jobs/${jobId}`);
+      const job = response.data;
+
+      if (job?.status === 'completed' || job?.status === 'failed') {
+        return job;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+    }
+
+    throw new Error('Optimization timed out.');
+  }
+
+  private buildOptimizationResponse(data: any, customers: any[]): OptimizationResponse {
+    const optimizedStops = data.optimizedStops?.map((stop: any) => {
+      const customer = customers.find(c => c.id.toString() === stop.customerId.toString());
+
+      return {
+        ...stop,
+        serviceTime: this.timeSpanToMinutes(stop.serviceTime),
+        estimatedArrivalTime: stop.estimatedArrivalTime,
+        estimatedDepartureTime: stop.estimatedDepartureTime,
+        customer: customer || undefined
+      };
+    }) || [];
+
+    const excludedStops = data.excludedStops?.map((excluded: any) => ({
+      stop: {
+        ...excluded.stop,
+        serviceTime: this.timeSpanToMinutes(excluded.stop.serviceTime),
+        customer: customers.find(c => c.id.toString() === excluded.stop.customerId.toString())
+      },
+      reason: excluded.reason,
+      timeWindowConflict: excluded.timeWindowConflict
+    })) || [];
+
+    return {
+      success: data.success,
+      message: data.message || '',
+      optimizedStops: optimizedStops,
+      excludedStops: excludedStops,
+      totalDistance: data.totalDistance || 0,
+      totalDuration: data.totalDuration || 0,
+      hasExclusions: data.hasExclusions || false,
+      endDetails: data.endDetails || undefined
+    };
+  }
+
   private minutesToTimeSpan(minutes: number | undefined): string | null {
     if (minutes === undefined || minutes === null) {
       return null;
@@ -480,7 +533,7 @@ class RouteService {
       console.log('2. Optimization mode:', mode);
       console.log('3. Avoid tolls:', avoidTolls);
 
-      // Optimization with time windows - 5 minute timeout
+      // Optimization with time windows - queued async job
       const response = await api.post(`${this.baseUrl}/${routeId}/optimize`, {
         optimizationMode: mode,
         avoidTolls: avoidTolls
@@ -489,46 +542,44 @@ class RouteService {
       });
       
       console.log('3. Optimize response:', response.data);
-      
+
       const customers = await this.loadCustomersSafely();
-      
-      // Map optimized stops
-      const optimizedStops = response.data.optimizedStops?.map((stop: any) => {
-        const customer = customers.find(c => c.id.toString() === stop.customerId.toString());
-        
-        return {
-          ...stop,
-          serviceTime: this.timeSpanToMinutes(stop.serviceTime),
-          estimatedArrivalTime: stop.estimatedArrivalTime,
-          estimatedDepartureTime: stop.estimatedDepartureTime,
-          customer: customer || undefined
-        };
-      }) || [];
-      
-      // Map excluded stops
-      const excludedStops = response.data.excludedStops?.map((excluded: any) => ({
-        stop: {
-          ...excluded.stop,
-          serviceTime: this.timeSpanToMinutes(excluded.stop.serviceTime),
-          customer: customers.find(c => c.id.toString() === excluded.stop.customerId.toString())
-        },
-        reason: excluded.reason,
-        timeWindowConflict: excluded.timeWindowConflict
-      })) || [];
-      
-      const optimizationResponse: OptimizationResponse = {
-        success: response.data.success,
-        message: response.data.message || '',
-        optimizedStops: optimizedStops,
-        excludedStops: excludedStops,
-        totalDistance: response.data.totalDistance || 0,
-        totalDuration: response.data.totalDuration || 0,
-        hasExclusions: response.data.hasExclusions || false,
-        endDetails: response.data.endDetails || undefined
-      };
-      
+      const responseData = response.data;
+
+      if (responseData?.jobId) {
+        const jobResult = await this.waitForOptimizationJob(responseData.jobId, 10 * 60 * 1000);
+
+        if (jobResult?.status === 'failed') {
+          return {
+            success: false,
+            message: jobResult.message || 'Optimization failed.',
+            optimizedStops: [],
+            excludedStops: [],
+            totalDistance: 0,
+            totalDuration: 0,
+            hasExclusions: false
+          };
+        }
+
+        if (!jobResult?.result) {
+          return {
+            success: false,
+            message: jobResult.message || 'Optimization result not ready.',
+            optimizedStops: [],
+            excludedStops: [],
+            totalDistance: 0,
+            totalDuration: 0,
+            hasExclusions: false
+          };
+        }
+
+        const optimizationResponse = this.buildOptimizationResponse(jobResult.result, customers);
+        console.log('4. Final optimization response:', optimizationResponse);
+        return optimizationResponse;
+      }
+
+      const optimizationResponse = this.buildOptimizationResponse(responseData, customers);
       console.log('4. Final optimization response:', optimizationResponse);
-      
       return optimizationResponse;
     } catch (error) {
       console.error('Error optimizing route:', error);
