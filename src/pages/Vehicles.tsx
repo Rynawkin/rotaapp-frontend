@@ -33,6 +33,7 @@ import {
 import { Vehicle } from '@/types';
 import { vehicleService } from '@/services/vehicle.service';
 import MaintenanceList from '@/components/vehicles/MaintenanceList';
+import { PageLoading } from '@/components/ui/PageChrome';
 
 type SortField = 'plateNumber' | 'brand' | 'capacity' | 'year' | 'createdAt' | 'currentKm';
 type SortDirection = 'asc' | 'desc';
@@ -388,11 +389,7 @@ const Vehicles: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
+    return <PageLoading label="Araclar yukleniyor..." />;
   }
 
   // If maintenance tab is selected
@@ -400,7 +397,7 @@ const Vehicles: React.FC = () => {
     return (
       <div className="space-y-6">
         {/* Header with Tabs */}
-        <div>
+        <div className="app-surface px-6 py-6">
           <h1 className="text-2xl font-bold text-gray-900">Araçlar</h1>
           <div className="mt-4 border-b border-gray-200">
             <nav className="-mb-px flex space-x-8">
@@ -466,7 +463,7 @@ const Vehicles: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header with Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
+      <div className="app-surface flex flex-col gap-4 px-6 py-6 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">Araçlar</h1>
           <p className="text-gray-600 mt-1">Tüm araçları yönetin ve takip edin</p>

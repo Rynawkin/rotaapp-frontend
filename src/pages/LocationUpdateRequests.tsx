@@ -17,6 +17,7 @@ import {
   Calendar,
   Navigation
 } from 'lucide-react';
+import { PageAlert, PageEmptyState, PageLoading } from '@/components/ui/PageChrome';
 
 // -------------------- Tipler --------------------
 type Id = number;
@@ -404,7 +405,7 @@ const LocationUpdateRequests: React.FC = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Başlık */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="app-surface p-6 mb-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Konum Güncelleme Talepleri</h1>
@@ -422,7 +423,7 @@ const LocationUpdateRequests: React.FC = () => {
         </div>
 
         {/* Sekmeler ve Arama */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="app-surface p-6 mb-6">
           {/* Sekmeler */}
           <div className="border-b border-gray-200 mb-4">
             <nav className="-mb-px flex gap-8">
@@ -466,13 +467,14 @@ const LocationUpdateRequests: React.FC = () => {
         {/* Liste */}
         <div className="space-y-4">
           {errorText && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
-              <AlertCircle className="w-5 h-5" />
-              {errorText}
-            </div>
+            <PageAlert message={errorText} />
           )}
 
           {loading && (
+            <PageLoading label="Konum talepleri yukleniyor..." />
+          )}
+
+          {false && loading && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
               <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
               <p className="text-gray-600">Yükleniyor...</p>
@@ -480,6 +482,13 @@ const LocationUpdateRequests: React.FC = () => {
           )}
 
           {!loading && filteredList.length === 0 && (
+            <PageEmptyState
+              title="Kayit bulunamadi"
+              description="Secili filtrelerle eslesen konum talebi bulunamadi."
+            />
+          )}
+
+          {false && !loading && filteredList.length === 0 && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
               <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">Kayıt bulunamadı</p>

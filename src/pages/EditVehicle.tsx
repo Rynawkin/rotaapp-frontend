@@ -18,6 +18,7 @@ import {
 import VehicleForm from '@/components/vehicles/VehicleForm';
 import { vehicleService, UpdateVehicleDto } from '@/services/vehicle.service';
 import { Vehicle } from '@/types';
+import { PageEmptyState, PageLoading } from '@/components/ui/PageChrome';
 
 // Bakım tipi - Frontend'de localStorage'da tutulacak
 interface MaintenanceRecord {
@@ -272,21 +273,24 @@ const EditVehicle: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
+    return <PageLoading label="Arac bilgileri yukleniyor..." />;
   }
 
   if (!vehicle) {
-    return null;
+    return (
+      <PageEmptyState
+        title="Arac bulunamadi"
+        description="Duzenlemek istediginiz arac bulunamadi veya artik erisilebilir degil."
+        backTo="/vehicles"
+        backLabel="Araclara Don"
+      />
+    );
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="app-surface flex items-center justify-between px-6 py-5 lg:px-7 lg:py-6">
         <div className="flex items-center space-x-3">
           <Link
             to="/vehicles"

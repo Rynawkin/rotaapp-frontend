@@ -23,6 +23,7 @@ import { Driver, Route as RouteType, Vehicle } from '@/types';
 import { driverService } from '@/services/driver.service';
 import { routeService } from '@/services/route.service';
 import { vehicleService } from '@/services/vehicle.service';
+import { PageEmptyState, PageLoading } from '@/components/ui/PageChrome';
 
 const DriverDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -148,14 +149,18 @@ const DriverDetail: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
+    return <PageLoading label="Surucu detaylari yukleniyor..." />;
   }
 
   if (!driver) {
+    return (
+      <PageEmptyState
+        title="Surucu bulunamadi"
+        description="Istediginiz surucu bulunamadi veya sistemden kaldirilmis olabilir."
+        backTo="/drivers"
+        backLabel="Suruculere Don"
+      />
+    );
     return (
       <div className="text-center py-12">
         <p className="text-gray-500">Sürücü bulunamadı</p>
@@ -169,7 +174,7 @@ const DriverDetail: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="app-surface flex items-center justify-between px-6 py-5 lg:px-7 lg:py-6">
         <div className="flex items-center space-x-3">
           <Link
             to="/drivers"

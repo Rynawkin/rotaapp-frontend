@@ -39,6 +39,7 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
+import { PageHeader, PageLoading } from '@/components/ui/PageChrome';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subMonths } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { reportService } from '@/services/report.service';
@@ -817,11 +818,7 @@ const Reports: React.FC = () => {
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <PageLoading label="Raporlar yukleniyor..." />;
   }
 
   // Driver için tab kısıtlaması
@@ -832,7 +829,7 @@ const Reports: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div className="app-surface flex flex-col gap-4 px-6 py-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Raporlar</h1>
           <p className="text-gray-600 mt-1">

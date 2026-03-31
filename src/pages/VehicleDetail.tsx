@@ -28,6 +28,7 @@ import { Vehicle, getFuelLabel, getVehicleConditionLabel, getVehicleConditionCol
 import { vehicleService } from '@/services/vehicle.service';
 import { routeService } from '@/services/route.service';
 import { journeyService } from '@/services/journey.service';
+import { PageEmptyState, PageLoading } from '@/components/ui/PageChrome';
 
 const VehicleDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -247,14 +248,18 @@ const VehicleDetail: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
+    return <PageLoading label="Arac detaylari yukleniyor..." />;
   }
 
   if (!vehicle) {
+    return (
+      <PageEmptyState
+        title="Arac bulunamadi"
+        description="Istediginiz arac bulunamadi veya sistemden kaldirilmis olabilir."
+        backTo="/vehicles"
+        backLabel="Araclara Don"
+      />
+    );
     return (
       <div className="text-center py-12">
         <p className="text-gray-500">Araç bulunamadı</p>
@@ -268,7 +273,7 @@ const VehicleDetail: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="app-surface flex items-center justify-between px-6 py-5 lg:px-7 lg:py-6">
         <div className="flex items-center space-x-3">
           <Link
             to="/vehicles"

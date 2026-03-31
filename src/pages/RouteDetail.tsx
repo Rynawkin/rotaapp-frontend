@@ -43,6 +43,7 @@ import { customerService } from '@/services/customer.service';
 import { journeyService } from '@/services/journey.service';
 import { googleMapsService } from '@/services/googleMapsService';
 import { depotService } from '@/services/depot.service';
+import { PageEmptyState, PageLoading } from '@/components/ui/PageChrome';
 
 // Google Maps libraries
 const libraries: ("places" | "drawing" | "geometry")[] = ['places', 'geometry'];
@@ -805,14 +806,18 @@ const RouteDetail: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
+    return <PageLoading label="Rota detaylari yukleniyor..." />;
   }
 
   if (!route) {
+    return (
+      <PageEmptyState
+        title="Rota bulunamadi"
+        description="Bu kimlige sahip rota bulunamadi veya artik erisilebilir degil."
+        backTo="/routes"
+        backLabel="Rotalara Don"
+      />
+    );
     return (
       <div className="max-w-7xl mx-auto">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6">
@@ -841,7 +846,7 @@ const RouteDetail: React.FC = () => {
       )}
 
       {/* Header */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div className="app-surface p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Link

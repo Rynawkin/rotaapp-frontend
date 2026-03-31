@@ -24,6 +24,7 @@ import { driverService } from '@/services/driver.service';
 import { vehicleService } from '@/services/vehicle.service';
 import MapComponent from '@/components/maps/MapComponent';
 import { useJsApiLoader } from '@react-google-maps/api';
+import { PageEmptyState, PageLoading } from '@/components/ui/PageChrome';
 
 // TÜM UYGULAMADA AYNI libraries KULLAN
 const libraries: ("places" | "drawing" | "geometry")[] = ['places', 'geometry'];
@@ -201,21 +202,24 @@ const DepotDetail: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <PageLoading label="Depo detaylari yukleniyor..." />;
   }
 
   if (!depot) {
-    return null;
+    return (
+      <PageEmptyState
+        title="Depo bulunamadi"
+        description="Istediginiz depo bulunamadi veya artik erisilebilir degil."
+        backTo="/depots"
+        backLabel="Depolara Don"
+      />
+    );
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow-sm border p-6">
+      <div className="app-surface p-6">
         <div className="flex justify-between items-start">
           <div>
             <div className="flex items-center mb-4">

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Depot } from '@/types';
 import { depotService } from '@/services/depot.service';
+import { PageLoading } from '@/components/ui/PageChrome';
 
 const Depots: React.FC = () => {
   const navigate = useNavigate();
@@ -102,17 +103,13 @@ const Depots: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <PageLoading label="Depolar yukleniyor..." />;
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow-sm border p-6">
+      <div className="app-surface p-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center">

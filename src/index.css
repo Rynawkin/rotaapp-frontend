@@ -1,19 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Disable text selection globally to prevent unwanted cursor */
-* {
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
+:root {
+  color-scheme: light;
+  --app-bg: #f4f7fb;
+  --app-panel: rgba(255, 255, 255, 0.94);
+  --app-panel-strong: #ffffff;
+  --app-border: rgba(148, 163, 184, 0.18);
+  --app-border-strong: rgba(148, 163, 184, 0.28);
+  --app-ink: #0f172a;
+  --app-muted: #5f6f87;
+  --app-sidebar: #0b1220;
+  --app-sidebar-soft: #131d32;
+  --app-primary: #3f5f86;
+  --app-primary-strong: #213754;
+  --app-accent: #f59e0b;
+  --app-success: #16a34a;
+  --app-danger: #e11d48;
+  --app-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+  --app-shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.06);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
 }
 
-/* Enable text selection only for specific elements */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(84, 118, 160, 0.12), transparent 32%),
+    radial-gradient(circle at top right, rgba(245, 158, 11, 0.08), transparent 22%),
+    var(--app-bg);
+  color: var(--app-ink);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 input,
 textarea,
-[contenteditable="true"],
+[contenteditable='true'],
 .select-text,
 .selectable,
 p,
@@ -32,7 +69,6 @@ th {
   user-select: text;
 }
 
-/* Buttons and interactive elements should not have text cursor */
 button,
 a,
 select,
@@ -46,47 +82,41 @@ select,
   cursor: pointer;
 }
 
-/* Custom scrollbar styles */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.58);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: rgba(100, 116, 139, 0.7);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
-/* Smooth scroll behavior */
-html {
-  scroll-behavior: smooth;
-}
-
-/* Default focus styles override */
 *:focus {
   outline: none;
 }
 
-/* Better focus indication for accessibility */
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid rgba(63, 95, 134, 0.75);
   outline-offset: 2px;
 }
 
-/* Custom animations */
 @keyframes slideIn {
   from {
     transform: translateX(-100%);
@@ -117,36 +147,125 @@ select:focus-visible {
   animation: fadeIn 0.3s ease-out;
 }
 
-/* Prevent text cursor on div containers */
-div {
-  cursor: default;
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply tracking-tight text-slate-950;
+  }
+
+  p {
+    @apply text-slate-600;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 shadow-sm transition;
+  }
+
+  input:hover,
+  select:hover,
+  textarea:hover {
+    @apply border-slate-300;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    @apply border-slate-400 ring-4 ring-slate-200/70;
+  }
+
+  table {
+    @apply w-full border-collapse;
+  }
+
+  th {
+    @apply text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400;
+  }
 }
 
-/* Interactive divs should have pointer cursor */
-div[role="button"],
-div.clickable,
-div.interactive {
-  cursor: pointer;
+@layer components {
+  .app-surface {
+    @apply rounded-[28px] border border-slate-200/80 bg-white/95 shadow-[0_18px_44px_rgba(15,23,42,0.08)] backdrop-blur;
+  }
+
+  .app-card {
+    @apply rounded-3xl border border-slate-200/80 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.06)];
+  }
+
+  .app-subcard {
+    @apply rounded-2xl border border-slate-200 bg-slate-50/70 shadow-sm;
+  }
+
+  .app-button-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-900;
+  }
+
+  .app-button-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50;
+  }
+
+  .app-button-accent {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-600;
+  }
+
+  .app-toolbar {
+    @apply app-surface flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between;
+  }
+
+  .app-pill {
+    @apply inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600;
+  }
+
+  .app-kpi {
+    @apply app-card px-5 py-4;
+  }
+
+  .app-kpi-label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400;
+  }
+
+  .app-kpi-value {
+    @apply mt-2 text-3xl font-extrabold tracking-tight text-slate-950;
+  }
+
+  .app-kpi-meta {
+    @apply mt-2 text-sm font-medium text-slate-500;
+  }
+
+  .app-table-shell {
+    @apply overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.06)];
+  }
+
+  .app-section-title {
+    @apply text-lg font-bold tracking-tight text-slate-950;
+  }
+
+  .app-section-copy {
+    @apply mt-1 text-sm leading-6 text-slate-500;
+  }
+
+  .app-status-success {
+    @apply inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200;
+  }
+
+  .app-status-warning {
+    @apply inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200;
+  }
+
+  .app-status-danger {
+    @apply inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-200;
+  }
+
+  .app-status-info {
+    @apply inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-200;
+  }
 }
 
-/* Cards and containers should not show text cursor */
-.card,
-.panel,
-.container,
-.wrapper {
-  cursor: default;
-}
-
-/* Table cells with data should allow text selection */
-td[data-selectable="true"],
-.data-cell {
-  -webkit-user-select: text;
-  -moz-user-select: text;
-  -ms-user-select: text;
-  user-select: text;
-}
-
-/* Quill Editor Styles */
 .ql-container {
   min-height: 350px;
   font-size: 14px;
@@ -161,21 +280,20 @@ td[data-selectable="true"],
 }
 
 .ql-toolbar {
-  border-top-left-radius: 0.5rem;
-  border-top-right-radius: 0.5rem;
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
+  border-top-left-radius: 0.9rem;
+  border-top-right-radius: 0.9rem;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
 }
 
 .ql-container {
-  border-bottom-left-radius: 0.5rem;
-  border-bottom-right-radius: 0.5rem;
-  border: 1px solid #e5e7eb;
+  border-bottom-left-radius: 0.9rem;
+  border-bottom-right-radius: 0.9rem;
+  border: 1px solid #e2e8f0;
   border-top: none;
   background: white;
 }
 
-/* Quill toolbar buttons */
 .ql-toolbar button {
   -webkit-user-select: none;
   -moz-user-select: none;
@@ -183,14 +301,12 @@ td[data-selectable="true"],
   user-select: none;
 }
 
-/* Quill editor placeholder */
 .ql-editor.ql-blank::before {
-  color: #9ca3af;
+  color: #94a3b8;
   font-style: normal;
 }
 
-/* Quill editor focus state */
 .ql-container.ql-snow:focus-within {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: #64748b;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.18);
 }

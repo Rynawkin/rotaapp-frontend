@@ -31,6 +31,7 @@ import { Route } from '@/types';
 import { journeyService, JourneySummary, BulkOperationResult } from '@/services/journey.service';
 import { routeService } from '@/services/route.service';
 import { useAuth } from '@/contexts/AuthContext';
+import { PageLoading } from '@/components/ui/PageChrome';
 
 const Journeys: React.FC = () => {
   const [journeys, setJourneys] = useState<JourneySummary[]>([]);
@@ -405,17 +406,13 @@ const Journeys: React.FC = () => {
   });
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
+    return <PageLoading label="Seferler yukleniyor..." />;
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+      <div className="app-surface flex flex-col gap-4 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Seferler</h1>
           <p className="text-gray-600 mt-1">

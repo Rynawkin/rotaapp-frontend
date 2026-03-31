@@ -35,6 +35,7 @@ import {
   Unlink,
   Loader2
 } from 'lucide-react';
+import { PageHeader, PageLoading } from '@/components/ui/PageChrome';
 import { TemplateEditor } from '@/components/templates/TemplateEditor';
 import NotificationRoleSettings from '@/components/settings/NotificationRoleSettings';
 import { settingsService } from '@/services/settings.service';
@@ -681,17 +682,34 @@ const Settings: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <PageLoading label="Ayarlar yukleniyor..." />;
   }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <PageHeader
+        eyebrow="Yonetim"
+        title="Ayarlar"
+        description={
+          canAccessDispatcherFeatures() && !canAccessAdminFeatures()
+            ? 'Operasyonel ayarlariniz'
+            : 'Sistem ve sirket ayarlarini yonetin'
+        }
+        actions={
+          hasChanges ? (
+            <button
+              onClick={saveSettings}
+              disabled={saving}
+              className="app-button-primary disabled:opacity-50"
+            >
+              {saving ? <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div> : <Save className="h-4 w-4" />}
+              {saving ? 'Kaydediliyor...' : 'Degisiklikleri Kaydet'}
+            </button>
+          ) : undefined
+        }
+      />
+        {false && (<>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Ayarlar</h1>
           <p className="text-gray-600 mt-1">
@@ -720,7 +738,7 @@ const Settings: React.FC = () => {
             )}
           </button>
         )}
-      </div>
+        </>)}
 
       {/* Messages */}
       {showSuccessMessage && (

@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { Driver } from '@/types';
 import { driverService } from '@/services/driver.service';
+import { PageLoading } from '@/components/ui/PageChrome';
 
 type SortField = 'name' | 'rating' | 'totalDeliveries' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
@@ -372,11 +373,7 @@ const Drivers: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
+    return <PageLoading label="Suruculer yukleniyor..." />;
   }
 
   return (
@@ -391,7 +388,7 @@ const Drivers: React.FC = () => {
       />
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+      <div className="app-surface flex flex-col gap-4 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Sürücüler</h1>
           <p className="text-gray-600 mt-1">Tüm sürücüleri yönetin ve takip edin</p>
